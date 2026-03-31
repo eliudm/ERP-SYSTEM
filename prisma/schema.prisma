@@ -1,0 +1,361 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================
+// AUTH & USERS
+// ============================================
+
+enum Role {
+  ADMIN
+  ACCOUNTANT
+  SALES_USER
+  INVENTORY_MANAGER
+  HR_MANAGER
+  PROCUREMENT_OFFICER
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  password     String
+  firstName    String
+  lastName     String
+  role         Role     @default(SALES_USER)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("users")
+}
+
+// ============================================
+// ACCOUNTING
+// ============================================
+
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  REVENUE
+  EXPENSE
+}
+
+enum JournalStatus {
+  DRAFT
+  POSTED
+  VOID
+}
+
+model Account {
+  id            String      @id @default(uuid())
+  code          String      @unique
+  name          String
+  type          AccountType
+  parentId      String?
+  parent        Account?    @relation("AccountTree", fields: [parentId], references: [id])
+  children      Account[]   @relation("AccountTree")
+  isActive      Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  journalLines  JournalLine[]
+
+  @@map("accounts")
+}
+
+model JournalEntry {
+  id          String        @id @default(uuid())
+  reference   String        @unique
+  description String?
+  entryDate   DateTime
+  status      JournalStatus @default(DRAFT)
+  sourceType  String?       // e.g. "SALES_INVOICE", "PAYMENT"
+  sourceId    String?       // ID of the source document
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  lines       JournalLine[]
+
+  @@map("journal_entries")
+}
+
+model JournalLine {
+  id             String       @id @default(uuid())
+  journalEntryId String
+  journalEntry   JournalEntry @relation(fields: [journalEntryId], references: [id])
+  accountId      String
+  account        Account      @relation(fields: [accountId], references: [id])
+  debit          Decimal      @default(0) @db.Decimal(18, 2)
+  credit         Decimal      @default(0) @db.Decimal(18, 2)
+  description    String?
+  createdAt      DateTime     @default(now())
+
+  @@map("journal_lines")
+}
+
+model AccountingPeriod {
+  id        String   @id @default(uuid())
+  name      String
+  startDate DateTime
+  endDate   DateTime
+  isLocked  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@map("accounting_periods")
+}
+
+// ============================================
+// SALES
+// ============================================
+
+enum InvoiceStatus {
+  DRAFT
+  APPROVED
+  SENT
+  PAID
+  VOID
+}
+
+model Customer {
+  id           String         @id @default(uuid())
+  name         String
+  email        String?
+  phone        String?
+  address      String?
+  taxPin       String?        // KRA PIN
+  isActive     Boolean        @default(true)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  invoices     SalesInvoice[]
+
+  @@map("customers")
+}
+
+model SalesInvoice {
+  id           String             @id @default(uuid())
+  invoiceNo    String             @unique
+  customerId   String
+  customer     Customer           @relation(fields: [customerId], references: [id])
+  invoiceDate  DateTime
+  dueDate      DateTime?
+  status       InvoiceStatus      @default(DRAFT)
+  subtotal     Decimal            @db.Decimal(18, 2)
+  taxAmount    Decimal            @db.Decimal(18, 2)
+  total        Decimal            @db.Decimal(18, 2)
+  notes        String?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  items        SalesInvoiceItem[]
+  etimsInvoice EtimsInvoice?
+
+  @@map("sales_invoices")
+}
+
+model SalesInvoiceItem {
+  id          String       @id @default(uuid())
+  invoiceId   String
+  invoice     SalesInvoice @relation(fields: [invoiceId], references: [id])
+  productId   String
+  product     Product      @relation(fields: [productId], references: [id])
+  description String?
+  quantity    Decimal      @db.Decimal(18, 2)
+  unitPrice   Decimal      @db.Decimal(18, 2)
+  taxRate     Decimal      @db.Decimal(5, 2)
+  taxAmount   Decimal      @db.Decimal(18, 2)
+  lineTotal   Decimal      @db.Decimal(18, 2)
+  createdAt   DateTime     @default(now())
+
+  @@map("sales_invoice_items")
+}
+
+// ============================================
+// INVENTORY
+// ============================================
+
+enum MovementType {
+  IN
+  OUT
+  ADJUSTMENT
+}
+
+model Warehouse {
+  id             String          @id @default(uuid())
+  name           String
+  location       String?
+  isActive       Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  stockMovements StockMovement[]
+
+  @@map("warehouses")
+}
+
+model Product {
+  id              String             @id @default(uuid())
+  code            String             @unique
+  name            String
+  description     String?
+  unitPrice       Decimal            @db.Decimal(18, 2)
+  taxRate         Decimal            @default(0.16) @db.Decimal(5, 2)
+  stockQuantity   Decimal            @default(0) @db.Decimal(18, 2)
+  reorderLevel    Decimal            @default(0) @db.Decimal(18, 2)
+  isActive        Boolean            @default(true)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  stockMovements  StockMovement[]
+  invoiceItems    SalesInvoiceItem[]
+  procurementItems ProcurementItem[]
+
+  @@map("products")
+}
+
+model StockMovement {
+  id            String       @id @default(uuid())
+  productId     String
+  product       Product      @relation(fields: [productId], references: [id])
+  warehouseId   String
+  warehouse     Warehouse    @relation(fields: [warehouseId], references: [id])
+  movementType  MovementType
+  quantity      Decimal      @db.Decimal(18, 2)
+  unitCost      Decimal?     @db.Decimal(18, 2)
+  reference     String?
+  notes         String?
+  createdAt     DateTime     @default(now())
+
+  @@map("stock_movements")
+}
+
+// ============================================
+// PROCUREMENT
+// ============================================
+
+enum PurchaseOrderStatus {
+  DRAFT
+  APPROVED
+  RECEIVED
+  VOID
+}
+
+model Supplier {
+  id             String          @id @default(uuid())
+  name           String
+  email          String?
+  phone          String?
+  address        String?
+  taxPin         String?
+  isActive       Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  purchaseOrders PurchaseOrder[]
+
+  @@map("suppliers")
+}
+
+model PurchaseOrder {
+  id          String              @id @default(uuid())
+  orderNo     String              @unique
+  supplierId  String
+  supplier    Supplier            @relation(fields: [supplierId], references: [id])
+  orderDate   DateTime
+  status      PurchaseOrderStatus @default(DRAFT)
+  subtotal    Decimal             @db.Decimal(18, 2)
+  taxAmount   Decimal             @db.Decimal(18, 2)
+  total       Decimal             @db.Decimal(18, 2)
+  notes       String?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  items       ProcurementItem[]
+
+  @@map("purchase_orders")
+}
+
+model ProcurementItem {
+  id              String        @id @default(uuid())
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
+  productId       String
+  product         Product       @relation(fields: [productId], references: [id])
+  quantity        Decimal       @db.Decimal(18, 2)
+  unitCost        Decimal       @db.Decimal(18, 2)
+  taxRate         Decimal       @db.Decimal(5, 2)
+  taxAmount       Decimal       @db.Decimal(18, 2)
+  lineTotal       Decimal       @db.Decimal(18, 2)
+  createdAt       DateTime      @default(now())
+
+  @@map("procurement_items")
+}
+
+// ============================================
+// ETIMS
+// ============================================
+
+enum EtimsStatus {
+  PENDING
+  SUBMITTED
+  SUCCESS
+  FAILED
+}
+
+model EtimsInvoice {
+  id            String       @id @default(uuid())
+  invoiceId     String       @unique
+  invoice       SalesInvoice @relation(fields: [invoiceId], references: [id])
+  status        EtimsStatus  @default(PENDING)
+  qrCode        String?
+  etimsInvoiceNo String?
+  submittedAt   DateTime?
+  responseData  Json?
+  retryCount    Int          @default(0)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@map("etims_invoices")
+}
+
+// ============================================
+// HR
+// ============================================
+
+enum EmployeeStatus {
+  ACTIVE
+  INACTIVE
+  TERMINATED
+}
+
+model Employee {
+  id           String         @id @default(uuid())
+  employeeNo   String         @unique
+  firstName    String
+  lastName     String
+  email        String         @unique
+  phone        String?
+  department   String?
+  position     String?
+  salary       Decimal        @db.Decimal(18, 2)
+  startDate    DateTime
+  status       EmployeeStatus @default(ACTIVE)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@map("employees")
+}
+
+// ============================================
+// AUDIT LOG
+// ============================================
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  action     String
+  tableName  String
+  recordId   String?
+  oldValues  Json?
+  newValues  Json?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  @@map("audit_logs")
+}
