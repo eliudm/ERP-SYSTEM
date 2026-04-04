@@ -1,12 +1,26 @@
 import { Controller, Get } from '@nestjs/common';
-import { AppService } from './app.service';
 
 @Controller()
 export class AppController {
-  constructor(private readonly appService: AppService) {}
-
   @Get()
-  getHello(): string {
-    return this.appService.getHello();
+  health() {
+    return {
+      status: 'ok',
+      name: 'ERP Backend API',
+      version: '1.0.0',
+      timestamp: new Date().toISOString(),
+      modules: [
+        'auth',
+        'accounting',
+        'sales',
+        'inventory',
+        'procurement',
+        'hr',
+        'etims',
+        'tax',
+        'settings',
+        'notifications',
+      ],
+    };
   }
 }
