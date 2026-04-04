@@ -118,6 +118,193 @@ npm run test:e2e
 5. Run auto-match or manual match.
 6. Finalize statement only when all lines are matched.
 
+## Control Flow Diagrams
+
+Visual reference for main system workflows. Diagrams use Mermaid syntax (rendered on GitHub and most modern markdown viewers).
+
+### Authentication and Authorization Flow
+
+```mermaid
+flowchart TD
+    A([Client Request]) --> B{Has JWT Token?}
+    B -- No --> C[POST /auth/login\nusername + password]
+    C --> D{Credentials Valid?}
+    D -- No --> E([401 Unauthorized])
+    D -- Yes --> F[Issue JWT Token\nwith role claim]
+    F --> G([Return token to client])
+    B -- Yes --> H{Token Expired?}
+    H -- Yes --> E
+    H -- No --> I{Role Authorized\nfor endpoint?}
+    I -- No --> J([403 Forbidden])
+    I -- Yes --> K([Process Request])
+```
+
+---
+
+### Sales Invoice Lifecycle
+
+```mermaid
+flowchart TD
+    A([Start]) --> B[Create Invoice\nstatus: DRAFT]
+    B --> C{Review OK?}
+    C -- No --> D[Edit Invoice]
+    D --> C
+    C -- Yes --> E[POST approve\nstatus: APPROVED]
+    E --> F[Accounting entries\nposted: AR + Revenue + VAT]
+    F --> G{Payment Received?}
+    G -- No --> H([Invoice remains APPROVED\nAged Receivables accumulates])
+    G -- Yes --> I[PATCH paid\nwith paymentMethod]
+    I --> J[Payment journal entry\nposted to GL]
+    J --> K([status: PAID\nAvailable for reconciliation])
+```
+
+---
+
+### Purchase and Procurement Lifecycle
+
+```mermaid
+flowchart TD
+    A([Start]) --> B[Create RFQ\nstatus: DRAFT]
+    B --> C[Send RFQ to vendor\nstatus: SENT]
+    C --> D{Vendor Quote\nAccepted?}
+    D -- No --> E([Cancel or revise RFQ])
+    D -- Yes --> F[Confirm RFQ\nstatus: PURCHASE_ORDER]
+    F --> G[Receive Products\nInventory stock updated]
+    G --> H{All items\nreceived?}
+    H -- No --> G
+    H -- Yes --> I[Create Vendor Bill\nfrom Purchase Order]
+    I --> J{Bill correct?}
+    J -- No --> K[Adjust Vendor Bill]
+    K --> J
+    J -- Yes --> L[Approve / Validate\nVendor Bill]
+    L --> M[Post AP journal entry]
+    M --> N[Process Payment\nto vendor]
+    N --> O([Vendor Bill PAID\nProcurement cycle complete])
+```
+
+---
+
+### Bank Reconciliation Workflow
+
+```mermaid
+flowchart TD
+    A([Start]) --> B[Create Bank Account\nin system]
+    B --> C[Create Bank Statement\nfor period]
+    C --> D[Import Statement Lines\ninclude paymentMethod when available]
+    D --> E[Run Auto-Match\nmatches by amount + date + paymentMethod]
+    E --> F{All lines\nmatched?}
+    F -- No --> G[Review Unmatched Lines]
+    G --> H{Manual match\npossible?}
+    H -- Yes --> I[Link to journal entry\nmanually]
+    I --> F
+    H -- No --> J[Raise Reconciliation\nException]
+    J --> K[Investigate and correct\ninvoice or statement data]
+    K --> D
+    F -- Yes --> L[Finalize Statement\nstatus: RECONCILED]
+    L --> M([Period reconciliation\ncomplete])
+```
+
+---
+
+### Payment Mode Reporting Flow
+
+```mermaid
+flowchart TD
+    A([Accountant triggers report]) --> B[GET /accounting/reports/payment-modes\nstartDate + endDate + optional paymentMethod]
+    B --> C[Query PAID invoices\nby paymentMethod in range]
+    B --> D[Query bank statement lines\nby paymentMethod in range]
+    C --> E[Group sales totals\nby payment mode]
+    D --> F[Group bank totals\nby payment mode]
+    E --> G[Join by payment mode]
+    F --> G
+    G --> H[Calculate variance\nsalesAmount vs bankAmount]
+    H --> I{Variance\nacceptable?}
+    I -- Yes --> J([Report reviewed\nand archived])
+    I -- No --> K[Investigate exceptions\ncheck paymentMethod on invoices and statement lines]
+    K --> L[Correct data\nrerun auto-match]
+    L --> B
+```
+
+---
+
+### System Module Interaction Overview
+
+```mermaid
+flowchart LR
+    subgraph Frontend["Frontend (React + Vite)"]
+        UI[UI Pages]
+    end
+
+    subgraph API["Backend API (NestJS)"]
+        AUTH[Auth Module]
+        SALES[Sales Module]
+        PROC[Procurement Module]
+        ACC[Accounting Module]
+        INV[Inventory Module]
+        HR[HR Module]
+        CONT[Contacts Module]
+        ETIMS[eTIMS Module]
+        NOTIF[Notifications Module]
+    end
+
+    subgraph Data["Data Layer"]
+        PRISMA[Prisma ORM]
+        DB[(PostgreSQL)]
+    end
+
+    UI -- JWT + REST --> AUTH
+    UI --> SALES
+    UI --> PROC
+    UI --> ACC
+    UI --> INV
+    UI --> HR
+    UI --> CONT
+
+    SALES -- posts journal entries --> ACC
+    PROC -- posts AP + invoice entries --> ACC
+    PROC -- updates stock --> INV
+    SALES -- stock check --> INV
+    ETIMS -- invoice reporting --> SALES
+    NOTIF -- low stock alerts --> INV
+
+    AUTH --> PRISMA
+    SALES --> PRISMA
+    PROC --> PRISMA
+    ACC --> PRISMA
+    INV --> PRISMA
+    HR --> PRISMA
+    CONT --> PRISMA
+    ETIMS --> PRISMA
+    NOTIF --> PRISMA
+
+    PRISMA --> DB
+```
+
+---
+
+### eTIMS Integration Flow
+
+```mermaid
+flowchart TD
+    A([Invoice APPROVED]) --> B{eTIMS enabled\nin settings?}
+    B -- No --> C([Skip eTIMS submission])
+    B -- Yes --> D[Queue invoice for eTIMS\nvia BullMQ job]
+    D --> E[eTIMS worker picks up job]
+    E --> F[Submit to KRA eTIMS API]
+    F --> G{Submission\nSuccessful?}
+    G -- Yes --> H[Record success\nin etims_logs]
+    H --> I[Update invoice with\neTIMS confirmation code]
+    I --> J([Done])
+    G -- No --> K[Record failure\nin etims_logs]
+    K --> L{Retry\ncount exceeded?}
+    L -- No --> M[Requeue with\nexponential backoff]
+    M --> E
+    L -- Yes --> N[Mark as FAILED\nAlert admin via notification]
+    N --> O([Manual investigation\nrequired])
+```
+
+---
+
 ## Payment Mode Reporting and Reconciliation
 
 The system supports reporting by payment mode and reconciling those modes with bank statements.
