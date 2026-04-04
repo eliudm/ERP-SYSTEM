@@ -307,18 +307,20 @@ model Supplier {
 }
 
 model PurchaseOrder {
-  id          String              @id @default(uuid())
-  orderNo     String              @unique
+  id          String               @id @default(uuid())
+  orderNo     String               @unique
   supplierId  String
-  supplier    Supplier            @relation(fields: [supplierId], references: [id])
+  supplier    Supplier             @relation(fields: [supplierId], references: [id])
+  rfqId       String?              @unique
+  rfq         RequestForQuotation? @relation(fields: [rfqId], references: [id])
   orderDate   DateTime
-  status      PurchaseOrderStatus @default(DRAFT)
-  subtotal    Decimal             @db.Decimal(18, 2)
-  taxAmount   Decimal             @db.Decimal(18, 2)
-  total       Decimal             @db.Decimal(18, 2)
+  status      PurchaseOrderStatus  @default(DRAFT)
+  subtotal    Decimal              @db.Decimal(18, 2)
+  taxAmount   Decimal              @db.Decimal(18, 2)
+  total       Decimal              @db.Decimal(18, 2)
   notes       String?
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
   items           ProcurementItem[]
   landedCosts     LandedCost[]
   vendorBills     VendorBill[]
@@ -605,6 +607,7 @@ model BankStatementLine {
   statement            BankStatement @relation(fields: [statementId], references: [id])
   transactionDate      DateTime
   description          String
+  paymentMethod        PaymentMethod?
   debit                Decimal       @default(0) @db.Decimal(18, 2)
   credit               Decimal       @default(0) @db.Decimal(18, 2)
   matchedJournalLineId String?
@@ -649,6 +652,44 @@ model TaxGroup {
   updatedAt   DateTime @updatedAt
 
   @@map("tax_groups")
+}
+
+// ============================================
+// CONTACTS
+// ============================================
+
+enum ContactType {
+  COMPANY
+  INDIVIDUAL
+}
+
+model Contact {
+  id           String      @id @default(uuid())
+  type         ContactType @default(INDIVIDUAL)
+  name         String
+  companyId    String?
+  company      Contact?    @relation("CompanyContacts", fields: [companyId], references: [id])
+  contacts     Contact[]   @relation("CompanyContacts")
+  email        String?
+  phone        String?
+  mobile       String?
+  website      String?
+  street       String?
+  street2      String?
+  city         String?
+  state        String?
+  zip          String?
+  country      String?
+  taxId        String?
+  jobPosition  String?
+  partnerLevel String?
+  tags         String[]
+  notes        String?
+  isActive     Boolean     @default(true)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@map("contacts")
 }
 
 // ============================================
@@ -952,6 +993,7 @@ enum RFQStatus {
   SENT
   RECEIVED
   CONVERTED
+  CANCELLED
 }
 
 enum VendorBillStatus {
@@ -967,16 +1009,22 @@ enum PurchaseReturnStatus {
 }
 
 model RequestForQuotation {
-  id          String    @id @default(uuid())
-  rfqNumber   String    @unique
-  supplierId  String
-  supplier    Supplier  @relation(fields: [supplierId], references: [id])
-  status      RFQStatus @default(DRAFT)
-  requestDate DateTime
-  notes       String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  items       RFQItem[]
+  id              String         @id @default(uuid())
+  rfqNumber       String         @unique
+  supplierId      String
+  supplier        Supplier       @relation(fields: [supplierId], references: [id])
+  status          RFQStatus      @default(DRAFT)
+  requestDate     DateTime
+  vendorReference String?
+  paymentTerms    String?
+  orderDeadline   DateTime?
+  expectedArrival DateTime?
+  deliverTo       String?
+  notes           String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  items           RFQItem[]
+  purchaseOrder   PurchaseOrder?
 
   @@map("requests_for_quotation")
 }
@@ -990,6 +1038,9 @@ model RFQItem {
   quantity      Decimal             @db.Decimal(18, 2)
   expectedPrice Decimal?            @db.Decimal(18, 2)
   quotedPrice   Decimal?            @db.Decimal(18, 2)
+  taxRate       Decimal             @default(0.16) @db.Decimal(5, 2)
+  taxAmount     Decimal             @default(0) @db.Decimal(18, 2)
+  lineTotal     Decimal             @default(0) @db.Decimal(18, 2)
   createdAt     DateTime            @default(now())
 
   @@map("rfq_items")

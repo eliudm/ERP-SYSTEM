@@ -242,6 +242,54 @@ export class PurchaseOrdersService {
     });
   }
 
+  // ─── CREATE VENDOR BILL FROM PO ──────────────────────────
+  async createBillFromPO(id: string) {
+    const po = await this.findOne(id);
+
+    if (!['APPROVED', 'RECEIVED'].includes(po.status)) {
+      throw new BadRequestException(
+        'Only APPROVED or RECEIVED purchase orders can create a vendor bill',
+      );
+    }
+
+    const billCount = await this.prisma.vendorBill.count();
+    const billNumber = `BILL-${String(billCount + 1).padStart(5, '0')}`;
+
+    const billItems = po.items.map((item: any) => {
+      const lineSubtotal = Number(item.quantity) * Number(item.unitCost);
+      const taxAmount = lineSubtotal * Number(item.taxRate);
+      return {
+        productId: item.productId,
+        description: item.product?.name,
+        quantity: Number(item.quantity),
+        unitCost: Number(item.unitCost),
+        taxRate: Number(item.taxRate),
+        taxAmount,
+        lineTotal: lineSubtotal + taxAmount,
+      };
+    });
+
+    const subtotal = po.items.reduce(
+      (s: number, i: any) => s + Number(i.quantity) * Number(i.unitCost),
+      0,
+    );
+    const taxAmount = billItems.reduce((s, i) => s + i.taxAmount, 0);
+
+    return this.prisma.vendorBill.create({
+      data: {
+        billNumber,
+        supplierId: po.supplierId,
+        purchaseOrderId: po.id,
+        billDate: new Date(),
+        subtotal,
+        taxAmount,
+        total: subtotal + taxAmount,
+        items: { create: billItems },
+      },
+      include: { supplier: true, items: { include: { product: true } } },
+    });
+  }
+
   // ─── GET ALL PURCHASE ORDERS ─────────────────────────────
   async findAll(page = 1, limit = 20, status?: string) {
     const skip = (page - 1) * limit;

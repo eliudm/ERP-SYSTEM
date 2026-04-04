@@ -77,6 +77,22 @@ export class AllowancesLoansService {
     });
   }
 
+  async findAllAllowances(employeeId?: string) {
+    return this.prisma.allowance.findMany({
+      where: employeeId ? { employeeId } : undefined,
+      include: { employee: true },
+      orderBy: { startDate: 'desc' },
+    });
+  }
+
+  async findAllLoans(employeeId?: string) {
+    return this.prisma.loanDeduction.findMany({
+      where: employeeId ? { employeeId } : undefined,
+      include: { employee: true },
+      orderBy: { startDate: 'desc' },
+    });
+  }
+
   async getActiveAllowances(employeeId: string) {
     const now = new Date();
     return this.prisma.allowance.findMany({

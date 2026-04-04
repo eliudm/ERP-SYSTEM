@@ -8,10 +8,14 @@ export const ETIMS_QUEUE = 'etims-queue';
 export const ETIMS_SUBMIT_JOB = 'etims-submit';
 export const ETIMS_RETRY_JOB = 'etims-retry';
 
+interface EtimsQueueJobData {
+  invoiceId: string;
+}
+
 @Injectable()
 export class EtimsQueueService {
   private readonly logger = new Logger(EtimsQueueService.name);
-  private worker: Worker;
+  private worker: Worker<EtimsQueueJobData>;
 
   constructor(
     @InjectQueue(ETIMS_QUEUE) private readonly etimsQueue: Queue,
@@ -25,7 +29,7 @@ export class EtimsQueueService {
   private initWorker() {
     this.worker = new Worker(
       ETIMS_QUEUE,
-      async (job: Job) => {
+      async (job: Job<EtimsQueueJobData>) => {
         this.logger.log(
           `Processing job ${job.id} - ${job.name} for invoice ${job.data.invoiceId}`,
         );
@@ -45,17 +49,20 @@ export class EtimsQueueService {
     );
 
     // ─── Worker Event Handlers ───────────────────────────
-    this.worker.on('completed', (job) => {
+    this.worker.on('completed', (job: Job<EtimsQueueJobData>) => {
       this.logger.log(
         `✅ Job ${job.id} completed for invoice ${job.data.invoiceId}`,
       );
     });
 
-    this.worker.on('failed', (job, error) => {
-      this.logger.error(
-        `❌ Job ${job?.id} failed for invoice ${job?.data?.invoiceId}: ${error.message}`,
-      );
-    });
+    this.worker.on(
+      'failed',
+      (job: Job<EtimsQueueJobData> | undefined, error) => {
+        this.logger.error(
+          `❌ Job ${job?.id} failed for invoice ${job?.data?.invoiceId}: ${error.message}`,
+        );
+      },
+    );
 
     this.worker.on('error', (error) => {
       this.logger.error(`Worker error: ${error.message}`);

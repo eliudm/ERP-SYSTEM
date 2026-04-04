@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../prisma.service';
-import { AccountType } from '@prisma/client';
+import { AccountType, PaymentMethod } from '@prisma/client';
 
 @Injectable()
 export class ReportsService {
@@ -186,6 +186,91 @@ export class ReportsService {
         activities.investing +
         activities.financing +
         activities.other,
+    };
+  }
+
+  // ─── PAYMENT MODE REPORT (SALES VS BANK RECON) ──────────
+  async getPaymentModeReport(
+    startDate: string,
+    endDate: string,
+    paymentMethod?: PaymentMethod,
+  ) {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    const paidInvoices = await this.prisma.salesInvoice.findMany({
+      where: {
+        status: 'PAID',
+        paymentMethod: paymentMethod ?? { not: null },
+        paidAt: { gte: start, lte: end },
+      },
+      select: {
+        id: true,
+        invoiceNo: true,
+        paidAt: true,
+        total: true,
+        paymentMethod: true,
+      },
+      orderBy: { paidAt: 'asc' },
+    });
+
+    const bankLines = await this.prisma.bankStatementLine.findMany({
+      where: {
+        transactionDate: { gte: start, lte: end },
+        paymentMethod: paymentMethod ?? { not: null },
+      },
+      select: {
+        id: true,
+        paymentMethod: true,
+        debit: true,
+        credit: true,
+        isMatched: true,
+      },
+    });
+
+    const methods = paymentMethod
+      ? [paymentMethod]
+      : Object.values(PaymentMethod);
+    const rows = methods.map((method) => {
+      const salesRows = paidInvoices.filter((i) => i.paymentMethod === method);
+      const salesAmount = salesRows.reduce(
+        (sum, i) => sum + Number(i.total),
+        0,
+      );
+
+      const bankRows = bankLines.filter((l) => l.paymentMethod === method);
+      const bankAmount = bankRows.reduce(
+        (sum, l) => sum + Math.abs(Number(l.credit) - Number(l.debit)),
+        0,
+      );
+      const matchedRows = bankRows.filter((l) => l.isMatched);
+      const matchedAmount = matchedRows.reduce(
+        (sum, l) => sum + Math.abs(Number(l.credit) - Number(l.debit)),
+        0,
+      );
+
+      return {
+        paymentMethod: method,
+        salesCount: salesRows.length,
+        salesAmount,
+        bankLines: bankRows.length,
+        bankAmount,
+        matchedBankLines: matchedRows.length,
+        matchedBankAmount: matchedAmount,
+        unmatchedBankLines: bankRows.length - matchedRows.length,
+        unmatchedBankAmount: bankAmount - matchedAmount,
+        variance: salesAmount - bankAmount,
+      };
+    });
+
+    return {
+      period: { startDate: start, endDate: end },
+      rows,
+      totals: {
+        salesAmount: rows.reduce((s, r) => s + r.salesAmount, 0),
+        bankAmount: rows.reduce((s, r) => s + r.bankAmount, 0),
+        matchedBankAmount: rows.reduce((s, r) => s + r.matchedBankAmount, 0),
+      },
     };
   }
 

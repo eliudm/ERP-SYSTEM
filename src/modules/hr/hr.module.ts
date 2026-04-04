@@ -5,7 +5,10 @@ import { LeaveController } from './controllers/leave.controller';
 import { AttendanceController } from './controllers/attendance.controller';
 import { RecruitmentController } from './controllers/recruitment.controller';
 import { AppraisalsController } from './controllers/appraisals.controller';
-import { AllowancesLoansController } from './controllers/allowances-loans.controller';
+import {
+  AllowancesLoansController,
+  HrAllowancesLoansGlobalController,
+} from './controllers/allowances-loans.controller';
 import { EmployeesService } from './services/employees.service';
 import { PayrollService } from './services/payroll.service';
 import { LeaveService } from './services/leave.service';
@@ -25,6 +28,7 @@ import { AccountingModule } from '../accounting/accounting.module';
     RecruitmentController,
     AppraisalsController,
     AllowancesLoansController,
+    HrAllowancesLoansGlobalController,
   ],
   providers: [
     EmployeesService,

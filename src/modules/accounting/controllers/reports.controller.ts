@@ -1,6 +1,7 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { ReportsService } from '../services/reports.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { PaymentMethod } from '@prisma/client';
 
 @UseGuards(JwtAuthGuard)
 @Controller('accounting/reports')
@@ -45,5 +46,18 @@ export class ReportsController {
     @Query('endDate') endDate: string,
   ) {
     return this.reportsService.getVatReturn(startDate, endDate);
+  }
+
+  @Get('payment-modes')
+  getPaymentModesReport(
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+    @Query('paymentMethod') paymentMethod?: PaymentMethod,
+  ) {
+    return this.reportsService.getPaymentModeReport(
+      startDate,
+      endDate,
+      paymentMethod,
+    );
   }
 }

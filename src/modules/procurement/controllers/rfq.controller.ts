@@ -8,7 +8,11 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { RFQService, CreateRFQDto } from '../services/rfq.service';
+import {
+  RFQService,
+  CreateRFQDto,
+  UpdateRFQDto,
+} from '../services/rfq.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
@@ -27,8 +31,11 @@ export class RFQController {
   }
 
   @Get()
-  findAll(@Query('supplierId') supplierId: string) {
-    return this.rfqService.findAll(supplierId);
+  findAll(
+    @Query('supplierId') supplierId?: string,
+    @Query('status') status?: string,
+  ) {
+    return this.rfqService.findAll(supplierId, status);
   }
 
   @Get(':id')
@@ -36,11 +43,32 @@ export class RFQController {
     return this.rfqService.findOne(id);
   }
 
+  @Patch(':id')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN, Role.PROCUREMENT_OFFICER)
+  update(@Param('id') id: string, @Body() dto: UpdateRFQDto) {
+    return this.rfqService.update(id, dto);
+  }
+
   @Post(':id/send')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.PROCUREMENT_OFFICER)
   send(@Param('id') id: string) {
     return this.rfqService.send(id);
+  }
+
+  @Post(':id/confirm')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN, Role.PROCUREMENT_OFFICER)
+  confirm(@Param('id') id: string) {
+    return this.rfqService.confirm(id);
+  }
+
+  @Post(':id/cancel')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN, Role.PROCUREMENT_OFFICER)
+  cancel(@Param('id') id: string) {
+    return this.rfqService.cancel(id);
   }
 
   @Patch(':id/receive-quotation')
@@ -57,6 +85,6 @@ export class RFQController {
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.PROCUREMENT_OFFICER)
   convert(@Param('id') id: string) {
-    return this.rfqService.convertToPO(id);
+    return this.rfqService.confirm(id);
   }
 }
