@@ -3,6 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
+import { PaymentMethod } from '@prisma/client';
 import { PrismaService } from '../../../prisma.service';
 
 export class CreateBankAccountDto {
@@ -22,6 +23,7 @@ export class CreateBankStatementDto {
 export class CreateBankStatementLineDto {
   transactionDate: string;
   description: string;
+  paymentMethod?: PaymentMethod;
   debit?: number;
   credit?: number;
 }
@@ -115,6 +117,7 @@ export class BankReconciliationService {
         statementId,
         transactionDate: new Date(dto.transactionDate),
         description: dto.description,
+        paymentMethod: dto.paymentMethod,
         debit: dto.debit || 0,
         credit: dto.credit || 0,
       },
@@ -137,6 +140,7 @@ export class BankReconciliationService {
             statementId,
             transactionDate: new Date(l.transactionDate),
             description: l.description,
+            paymentMethod: l.paymentMethod,
             debit: l.debit || 0,
             credit: l.credit || 0,
           },
@@ -164,7 +168,7 @@ export class BankReconciliationService {
       const dateTo = new Date(line.transactionDate);
       dateTo.setDate(dateTo.getDate() + 1);
 
-      const journalLine = await this.prisma.journalLine.findFirst({
+      const candidateLines = await this.prisma.journalLine.findMany({
         where: {
           bankStatementLines: { none: {} },
           journalEntry: {
@@ -180,7 +184,24 @@ export class BankReconciliationService {
                 },
               }),
         },
+        include: { journalEntry: true },
+        orderBy: [{ journalEntry: { entryDate: 'asc' } }, { createdAt: 'asc' }],
       });
+
+      let journalLine = candidateLines[0];
+      if (line.paymentMethod) {
+        for (const candidate of candidateLines) {
+          const isMethodMatch = await this.isMatchingPaymentMethod(
+            candidate.journalEntry.sourceType,
+            candidate.journalEntry.sourceId,
+            line.paymentMethod,
+          );
+          if (isMethodMatch) {
+            journalLine = candidate;
+            break;
+          }
+        }
+      }
 
       if (journalLine) {
         await this.prisma.bankStatementLine.update({
@@ -192,6 +213,22 @@ export class BankReconciliationService {
     }
 
     return { matched: matchedCount, total: stmt.lines.length };
+  }
+
+  private async isMatchingPaymentMethod(
+    sourceType: string | null,
+    sourceId: string | null,
+    paymentMethod: PaymentMethod,
+  ) {
+    if (!sourceType || !sourceId) return false;
+    if (sourceType !== 'PAYMENT') return false;
+
+    const invoice = await this.prisma.salesInvoice.findUnique({
+      where: { id: sourceId },
+      select: { paymentMethod: true },
+    });
+
+    return invoice?.paymentMethod === paymentMethod;
   }
 
   // ─── MANUAL MATCH ─────────────────────────────────────────

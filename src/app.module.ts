@@ -13,6 +13,7 @@ import { EtimsModule } from './modules/etims/etims.module';
 import { SettingsModule } from './modules/settings/settings.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { TaxModule } from './modules/tax/tax.module';
+import { ContactsModule } from './modules/contacts/contacts.module';
 
 @Module({
   controllers: [AppController],
@@ -31,6 +32,7 @@ import { TaxModule } from './modules/tax/tax.module';
     SettingsModule,
     NotificationsModule,
     TaxModule,
+    ContactsModule,
   ],
 })
 export class AppModule {}

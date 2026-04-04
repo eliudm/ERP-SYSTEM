@@ -65,6 +65,13 @@ export class PurchaseOrdersController {
     return this.poService.receiveGoods(id, dto);
   }
 
+  @Post(':id/create-bill')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN, Role.ACCOUNTANT, Role.PROCUREMENT_OFFICER)
+  createBill(@Param('id') id: string) {
+    return this.poService.createBillFromPO(id);
+  }
+
   @Patch(':id/void')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN)

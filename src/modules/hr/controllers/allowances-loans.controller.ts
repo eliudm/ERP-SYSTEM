@@ -3,8 +3,10 @@ import {
   Post,
   Get,
   Patch,
+  Delete,
   Body,
   Param,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
@@ -98,5 +100,62 @@ export class AllowancesLoansController {
       loanId,
       body.amount,
     );
+  }
+}
+
+@UseGuards(JwtAuthGuard)
+@Controller('hr')
+export class HrAllowancesLoansGlobalController {
+  constructor(
+    private readonly allowancesLoansService: AllowancesLoansService,
+  ) {}
+
+  // ─── Global Allowances ───────────────────────────────────────────────────────
+
+  @Get('allowances')
+  getAllAllowances(@Query('employeeId') employeeId?: string) {
+    return this.allowancesLoansService.findAllAllowances(employeeId);
+  }
+
+  @Post('allowances')
+  createAllowance(
+    @Body()
+    body: {
+      employeeId: string;
+      type: string;
+      amount: number;
+      notes?: string;
+      isRecurring?: boolean;
+      startDate?: string;
+      endDate?: string;
+    },
+  ) {
+    return this.allowancesLoansService.createAllowance(body);
+  }
+
+  @Delete('allowances/:id')
+  deactivateAllowance(@Param('id') id: string) {
+    return this.allowancesLoansService.deactivateAllowance(id);
+  }
+
+  // ─── Global Loans ────────────────────────────────────────────────────────────
+
+  @Get('loans')
+  getAllLoans(@Query('employeeId') employeeId?: string) {
+    return this.allowancesLoansService.findAllLoans(employeeId);
+  }
+
+  @Post('loans')
+  createLoan(
+    @Body()
+    body: {
+      employeeId: string;
+      totalAmount: number;
+      monthlyDeduction: number;
+      description?: string;
+      startDate?: string;
+    },
+  ) {
+    return this.allowancesLoansService.createLoan(body);
   }
 }
