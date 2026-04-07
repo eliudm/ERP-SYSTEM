@@ -38,7 +38,7 @@ export class AppraisalsService {
     });
   }
 
-  async findAll(employeeId?: string, period?: string, status?: string) {
+  findAll(employeeId?: string, period?: string, status?: string) {
     return this.prisma.appraisal.findMany({
       where: {
         ...(employeeId && { employeeId }),

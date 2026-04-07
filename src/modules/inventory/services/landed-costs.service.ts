@@ -16,7 +16,7 @@ export class CreateLandedCostDto {
 export class LandedCostsService {
   constructor(private prisma: PrismaService) {}
 
-  async create(dto: CreateLandedCostDto) {
+  create(dto: CreateLandedCostDto) {
     return this.prisma.landedCost.create({
       data: {
         purchaseOrderId: dto.purchaseOrderId,
@@ -28,7 +28,7 @@ export class LandedCostsService {
     });
   }
 
-  async findAll() {
+  findAll() {
     return this.prisma.landedCost.findMany({
       include: { purchaseOrder: true, items: { include: { product: true } } },
       orderBy: { createdAt: 'desc' },

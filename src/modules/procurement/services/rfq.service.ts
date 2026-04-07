@@ -105,7 +105,7 @@ export class RFQService {
     });
   }
 
-  async findAll(supplierId?: string, status?: string) {
+  findAll(supplierId?: string, status?: string) {
     return this.prisma.requestForQuotation.findMany({
       where: {
         ...(supplierId ? { supplierId } : {}),

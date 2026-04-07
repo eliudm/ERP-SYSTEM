@@ -58,7 +58,7 @@ export class PurchaseReturnsService {
     });
   }
 
-  async findAll() {
+  findAll() {
     return this.prisma.purchaseReturn.findMany({
       include: { supplier: true, _count: { select: { items: true } } },
       orderBy: { createdAt: 'desc' },

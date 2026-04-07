@@ -33,13 +33,13 @@ export class BankReconciliationService {
   constructor(private prisma: PrismaService) {}
 
   // ─── BANK ACCOUNTS ───────────────────────────────────────
-  async createBankAccount(dto: CreateBankAccountDto) {
+  createBankAccount(dto: CreateBankAccountDto) {
     return this.prisma.bankAccount.create({
       data: { ...dto, currency: dto.currency || 'KES' },
     });
   }
 
-  async findAllBankAccounts() {
+  findAllBankAccounts() {
     return this.prisma.bankAccount.findMany({
       where: { isActive: true },
       include: { glAccount: true },
@@ -59,7 +59,7 @@ export class BankReconciliationService {
     return account;
   }
 
-  async deactivateBankAccount(id: string) {
+  deactivateBankAccount(id: string) {
     return this.prisma.bankAccount.update({
       where: { id },
       data: { isActive: false },
@@ -83,7 +83,7 @@ export class BankReconciliationService {
     });
   }
 
-  async findStatements(bankAccountId: string) {
+  findStatements(bankAccountId: string) {
     return this.prisma.bankStatement.findMany({
       where: { bankAccountId },
       include: { _count: { select: { lines: true } } },

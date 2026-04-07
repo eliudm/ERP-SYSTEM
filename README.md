@@ -1,140 +1,686 @@
-# ERP Backend Documentation
+# ERP Backend
 
-This repository contains the backend API for the ERP system built with NestJS, Prisma, and PostgreSQL.
+NestJS + Prisma + PostgreSQL backend for a full-featured ERP system built for Kenyan SMEs.
 
-## What This System Includes
-
-The API powers the following modules:
-
-1. Auth and Users
-2. Sales and POS
-3. Accounting
-4. Inventory
-5. Purchase (Procurement)
-6. HR and Payroll
-7. Contacts
-8. eTIMS integration
-9. Settings and Notifications
-
-## Tech Stack
-
-1. NestJS (TypeScript)
-2. Prisma ORM
-3. PostgreSQL
-4. JWT authentication + role-based guards
-
-## Quick Start
-
-### 1) Install dependencies
-
-```bash
-npm install
-```
-
-### 2) Configure environment
-
-Create/update your .env with database and JWT settings used by this project.
-
-### 3) Run database migrations
-
-```bash
-npx prisma migrate deploy
-```
-
-### 4) Generate Prisma client
-
-```bash
-npx prisma generate
-```
-
-### 5) Start backend
-
-```bash
-# development
-npm run start:dev
-
-# production
-npm run start:prod
-```
-
-Backend default base path used by frontend client:
+Base URL used by all frontend clients:
 
 ```text
 http://localhost:3000/api/v1
 ```
 
-## Quality Checks
+---
+
+## Table of Contents
+
+1. [System Modules](#system-modules)
+2. [Tech Stack](#tech-stack)
+3. [Quick Start](#quick-start)
+4. [Environment Variables](#environment-variables)
+5. [M-Pesa Integration](#m-pesa-integration)
+6. [ngrok Tunnel Helper](#ngrok-tunnel-helper)
+7. [API Reference](#api-reference)
+8. [Control Flow Diagrams](#control-flow-diagrams)
+9. [Operational Guide](#operational-guide)
+10. [Role-Based User Manual](#role-based-user-manual)
+11. [Daily Checklists](#daily-checklists)
+12. [Error Reference](#error-reference)
+13. [Developer Notes](#developer-notes)
+
+---
+
+## System Modules
+
+| # | Module | Description |
+| --- | -------- | ------------- |
+| 1 | **Auth / Users** | JWT login, role-based access, user management, POS-only access flag |
+| 2 | **Sales / POS** | Invoices, customers, quotes, credit notes, price lists, daily cash summary |
+| 3 | **M-Pesa Payments** | Safaricom Daraja STK push, callback, pending queue management, manual reconciliation |
+| 4 | **Accounting** | Chart of accounts, journal entries, bank accounts, bank reconciliation, financial reports |
+| 5 | **Inventory** | Products, categories, warehouses, stock movements, transfers, stock counts, serial/lot tracking, landed costs |
+| 6 | **Procurement** | RFQ, purchase orders, goods receipt, vendor bills, purchase returns, supplier management |
+| 7 | **HR & Payroll** | Employees, payroll, attendance, leave, appraisals, recruitment pipeline |
+| 8 | **Contacts** | Company and individual contacts with parent/child linking |
+| 9 | **eTIMS (KRA)** | Kenya Revenue Authority eTIMS invoice submission via BullMQ async queue |
+| 10 | **Notifications** | System notifications including low-stock alerts |
+| 11 | **Settings** | Company profile, logo, system configuration |
+| 12 | **Tax** | Tax rate management |
+
+---
+
+## Tech Stack
+
+- **NestJS** (TypeScript) — API framework
+- **Prisma ORM** — Database access layer
+- **PostgreSQL** — Primary database
+- **Redis + BullMQ** — Async job queue (eTIMS submission, background tasks)
+- **JWT** — Stateless authentication
+- **Axios** — Outbound HTTP (Daraja, eTIMS)
+- **Nodemailer** — Email (quotes, notifications)
+- **Docker** — PostgreSQL and Redis containers for local development
+
+---
+
+## Quick Start
+
+### 1. Install dependencies
 
 ```bash
-# Type check
-npx tsc --noEmit
-
-# Lint
-npm run lint
-
-# Unit tests
-npm run test
-
-# E2E tests
-npm run test:e2e
+npm install
 ```
 
-## Authentication and Authorization
+### 2. Start infrastructure (Docker)
 
-1. Login to get a JWT token.
-2. Send token via Authorization header: Bearer <token>.
-3. Access is protected by role guards on sensitive endpoints (for example accounting approval and reconciliation).
+```bash
+docker-compose up -d
+```
 
-## How To Use the System (Operational Guide)
+This starts PostgreSQL on `localhost:5434` and Redis on `localhost:6379`.
 
-### Sales to Accounting flow
+### 3. Configure environment
 
-1. Create sales invoice in draft.
-2. Approve invoice to post revenue/AR journal entries.
-3. Mark as paid with a payment mode (CASH, CARD, MOBILE_MONEY, BANK_TRANSFER, CREDIT).
-4. Payment posting creates accounting entries for reconciliation.
+Copy `.env.example` to `.env` and fill in all required values (see [Environment Variables](#environment-variables)).
 
-### Purchase flow
+### 4. Run database migrations
 
-1. Create RFQ.
-2. Send RFQ.
-3. Confirm order to create Purchase Order.
-4. Receive products.
-5. Create vendor bill.
-6. Validate/pay from accounting.
+```bash
+npx prisma migrate deploy
+```
 
-### Contacts flow
+### 5. Generate Prisma client
 
-1. Create company and individual contacts.
-2. Link individuals to company contacts.
-3. Use contact records for operational and reporting context.
+```bash
+npx prisma generate
+```
 
-### Bank reconciliation flow
+### 6. Seed initial data (optional)
 
-1. Create bank account.
-2. Create bank statement.
-3. Import statement lines.
-4. Include paymentMethod on statement lines when available.
-5. Run auto-match or manual match.
-6. Finalize statement only when all lines are matched.
+```bash
+npx ts-node src/seed.ts
+```
+
+### 7. Start the server
+
+```bash
+# Development (watch mode)
+npm run start:dev
+
+# Production
+npm run start:prod
+```
+
+### Quality checks
+
+```bash
+npx tsc --noEmit   # type check
+npm run lint        # lint
+npm run test        # unit tests
+npm run test:e2e    # end-to-end tests
+```
+
+---
+
+## Environment Variables
+
+Full list of supported `.env` keys:
+
+```bash
+# ── Database ───────────────────────────────────────────────
+DATABASE_URL=postgresql://erpuser:erppassword@localhost:5434/erpdb
+
+# ── Redis ──────────────────────────────────────────────────
+REDIS_HOST=localhost
+REDIS_PORT=6379
+
+# ── JWT ────────────────────────────────────────────────────
+JWT_SECRET=change_this_to_a_long_random_secret
+JWT_EXPIRES_IN=7d
+
+# ── App ────────────────────────────────────────────────────
+PORT=3000
+NODE_ENV=development
+
+# ── M-Pesa (Safaricom Daraja) ──────────────────────────────
+MPESA_BASE_URL=https://sandbox.safaricom.co.ke
+MPESA_CONSUMER_KEY=...
+MPESA_CONSUMER_SECRET=...
+MPESA_SHORTCODE=174379
+MPESA_PASSKEY=...
+MPESA_CALLBACK_URL=https://your-tunnel.ngrok-free.app/api/v1/payments/mpesa/callback
+MPESA_CALLBACK_TOKEN=long-random-secret
+
+# Initiator credentials (B2C / reversal / query-status APIs)
+MPESA_INITIATOR_NAME=testapi
+MPESA_INITIATOR_PASSWORD=...
+MPESA_PARTY_A=600980
+MPESA_PARTY_B=600000
+MPESA_TEST_PHONE=254708374149
+
+# Optional callback hardening (leave empty for sandbox)
+MPESA_CALLBACK_IP_ALLOWLIST=196.201.214.200,196.201.214.206
+MPESA_CALLBACK_SIGNATURE_SECRET=shared-hmac-secret
+
+# ── eTIMS (KRA) ────────────────────────────────────────────
+ETIMS_BASE_URL=https://etims-api.kra.go.ke/etims-api
+ETIMS_SANDBOX_URL=https://etims-sbx-api.kra.go.ke/etims-api
+ETIMS_SELLER_PIN=A012345678Z
+ETIMS_DEVICE_SERIAL=...
+ETIMS_ENV=sandbox
+```
+
+---
+
+## M-Pesa Integration
+
+The backend integrates with Safaricom Daraja for mobile money (`MOBILE_MONEY`) payments via STK push.
+
+### Sandbox credentials (Daraja test environment)
+
+| Field | Value |
+| ------- | ------- |
+| Base URL | `https://sandbox.safaricom.co.ke` |
+| Business ShortCode | `174379` |
+| Passkey | `bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919` |
+| Initiator Name | `testapi` |
+| Party A | `600980` |
+| Party B | `600000` |
+| Test phone | `254708374149` |
+
+### STK Push flow
+
+```text
+1.  POS creates and approves a sales invoice.
+2.  POS calls POST /api/v1/sales/invoices/:id/mpesa/stk-push  { phoneNumber }
+3.  Backend generates password (Base64 of shortcode+passkey+timestamp) and
+    calls Daraja InitiateTransaction API.
+4.  Customer sees STK prompt on their phone.
+5.  Safaricom calls POST /api/v1/payments/mpesa/callback?token=...
+6.  Backend verifies token (+ optional IP allowlist + HMAC signature).
+7.  On SUCCESS: records MpesaTransaction, marks invoice PAID with method MOBILE_MONEY.
+    On FAILED / CANCELLED: transaction stays FAILED for cashier follow-up.
+```
+
+### Callback hardening
+
+| Env variable | Purpose |
+| --- | --- |
+| `MPESA_CALLBACK_TOKEN` | Required token in callback query string |
+| `MPESA_CALLBACK_IP_ALLOWLIST` | Comma-separated Safaricom IP list (leave empty for sandbox) |
+| `MPESA_CALLBACK_SIGNATURE_SECRET` | HMAC-SHA256 shared secret in `x-callback-signature` header (leave empty for sandbox) |
+
+### POS pending-queue endpoints
+
+Cashiers use these when an STK push times out or fails:
+
+| Method | Path | Description |
+| -------- | ------ | ------------- |
+| `GET` | `/sales/invoices/mpesa/pending` | List PENDING and FAILED transactions (optional `?status=PENDING\|FAILED`) |
+| `POST` | `/sales/invoices/mpesa/transactions/:id/retry` | Re-send STK push for a stuck transaction |
+| `PATCH` | `/sales/invoices/mpesa/transactions/:id/reconcile` | Manually confirm with receipt number and mark invoice PAID |
+
+`reconcile` body:
+
+```json
+{
+  "receiptNumber": "QGH7X9LMN2",
+  "phoneNumber": "2547XXXXXXXX",
+  "amount": 1500.00,
+  "notes": "Customer confirmed payment"
+}
+```
+
+### Check transaction status
+
+```text
+GET /sales/invoices/:id/mpesa/status
+```
+
+---
+
+## ngrok Tunnel Helper
+
+Daraja sandbox cannot call `localhost`. Use the included helper script to keep `MPESA_CALLBACK_URL` in sync with your active ngrok tunnel.
+
+### Workflow
+
+```bash
+# Terminal 1 — start tunnel
+ngrok http 3000
+
+# Terminal 2 — update .env with the live URL
+npm run ngrok:update
+
+# Or update .env AND restart the backend automatically
+npm run ngrok:update:restart
+```
+
+The script (`scripts/update-ngrok-url.js`):
+
+1. Polls `http://localhost:4040/api/tunnels` until ngrok is up (up to 30 s).
+2. Extracts the HTTPS public URL.
+3. Replaces `MPESA_CALLBACK_URL` in `.env` in-place.
+4. With `--restart`: kills any process on port 3000 and spawns `npm run start:dev` detached.
+
+---
+
+## API Reference
+
+All endpoints are prefixed with `/api/v1`. Authentication via `Authorization: Bearer <token>` unless noted.
+
+---
+
+### Auth — `/auth`
+
+| Method | Path | Description | Roles |
+| -------- | ------ | ------------- | ------- |
+| `POST` | `/auth/register` | Create first admin account | Public |
+| `POST` | `/auth/login` | Login and receive JWT | Public |
+| `GET` | `/auth/profile` | Current user profile | Authenticated |
+| `GET` | `/auth/users` | List all users | Admin |
+| `POST` | `/auth/users` | Create user | Admin |
+| `PATCH` | `/auth/users/:id` | Update user | Admin |
+| `POST` | `/auth/users/:id/reset-password` | Reset user password | Admin |
+| `PATCH` | `/auth/users/:id/deactivate` | Deactivate user | Admin |
+| `PATCH` | `/auth/users/:id/access` | Toggle POS-only access flag | Admin |
+
+---
+
+### Sales — `/sales`
+
+#### Customers
+
+| Method | Path | Description |
+| -------- | ------ | ------------- |
+| `GET` | `/sales/customers` | List / search customers |
+| `POST` | `/sales/customers` | Create customer |
+| `PATCH` | `/sales/customers/:id` | Update customer |
+| `GET` | `/sales/customers/:id/statement` | Customer account statement |
+
+> Cashiers can create customers directly from the POS customer dropdown using the **+** button — no navigation away from POS required.
+
+#### Invoices
+
+| Method | Path | Description |
+| -------- | ------ | ------------- |
+| `POST` | `/sales/invoices` | Create invoice |
+| `GET` | `/sales/invoices` | List invoices |
+| `GET` | `/sales/invoices/summary` | Invoice summary stats |
+| `GET` | `/sales/invoices/monthly` | Monthly revenue breakdown |
+| `GET` | `/sales/invoices/daily-summary` | Daily summary by payment method |
+| `GET` | `/sales/invoices/mpesa/pending` | List pending/failed M-Pesa transactions |
+| `POST` | `/sales/invoices/mpesa/transactions/:id/retry` | Retry STK push |
+| `PATCH` | `/sales/invoices/mpesa/transactions/:id/reconcile` | Manual reconcile |
+| `GET` | `/sales/invoices/:id` | Get invoice by ID |
+| `PATCH` | `/sales/invoices/:id/approve` | Approve invoice (posts accounting entries) |
+| `PATCH` | `/sales/invoices/:id/paid` | Mark as paid with payment method |
+| `POST` | `/sales/invoices/:id/mpesa/stk-push` | Initiate M-Pesa STK push |
+| `GET` | `/sales/invoices/:id/mpesa/status` | Check M-Pesa transaction status |
+| `PATCH` | `/sales/invoices/:id/void` | Void invoice |
+
+#### Quotes
+
+| Method | Path | Description |
+| -------- | ------ | ------------- |
+| `POST` | `/sales/quotes` | Create quote |
+| `GET` | `/sales/quotes` | List quotes |
+| `GET` | `/sales/quotes/:id` | Get quote |
+| `PATCH` | `/sales/quotes/:id` | Update quote |
+| `POST` | `/sales/quotes/:id/send` | Send quote to customer |
+| `POST` | `/sales/quotes/:id/convert` | Convert quote to invoice |
+| `POST` | `/sales/quotes/:id/email` | Email quote to customer |
+| `PATCH` | `/sales/quotes/:id/decline` | Mark quote declined |
+| `PATCH` | `/sales/quotes/:id/expire` | Mark quote expired |
+
+#### Credit Notes
+
+| Method | Path | Description |
+| -------- | ------ | ------------- |
+| `POST` | `/sales/credit-notes` | Create credit note |
+| `GET` | `/sales/credit-notes` | List credit notes |
+| `GET` | `/sales/credit-notes/:id` | Get credit note |
+| `POST` | `/sales/credit-notes/:id/approve` | Approve credit note |
+| `POST` | `/sales/credit-notes/:id/apply/:invoiceId` | Apply credit note to invoice |
+
+#### Price Lists
+
+| Method | Path | Description |
+| -------- | ------ | ------------- |
+| `POST` | `/sales/price-lists` | Create price list |
+| `GET` | `/sales/price-lists` | List price lists |
+| `GET` | `/sales/price-lists/effective` | Get currently effective price lists |
+| `GET` | `/sales/price-lists/:id` | Get price list |
+| `PATCH` | `/sales/price-lists/:id` | Update price list |
+| `PATCH` | `/sales/price-lists/:id/deactivate` | Deactivate price list |
+| `POST` | `/sales/price-lists/:id/items` | Add item to price list |
+| `GET` | `/sales/price-lists/:id/items` | List price list items |
+| `DELETE` | `/sales/price-lists/items/:itemId` | Remove item from price list |
+
+#### M-Pesa Callback (public — no JWT required)
+
+| Method | Path | Description |
+| -------- | ------ | ------------- |
+| `POST` | `/payments/mpesa/callback` | Safaricom Daraja callback (requires `?token=`) |
+
+---
+
+### Accounting — `/accounting`
+
+#### Chart of Accounts
+
+| Method | Path | Description |
+| -------- | ------ | ------------- |
+| `POST` | `/accounting/accounts` | Create account |
+| `GET` | `/accounting/accounts` | List accounts |
+| `GET` | `/accounting/accounts/:id` | Get account |
+| `PATCH` | `/accounting/accounts/:id` | Update account |
+
+#### Journal Entries
+
+| Method | Path | Description |
+| -------- | ------ | ------------- |
+| `POST` | `/accounting/journal-entries` | Create journal entry |
+| `GET` | `/accounting/journal-entries` | List journal entries |
+| `GET` | `/accounting/journal-entries/:id` | Get journal entry |
+| `PATCH` | `/accounting/journal-entries/:id/post` | Post journal entry |
+| `PATCH` | `/accounting/journal-entries/:id/void` | Void journal entry |
+
+#### Bank Accounts and Reconciliation
+
+| Method | Path | Description |
+| -------- | ------ | ------------- |
+| `POST` | `/accounting/bank-accounts` | Create bank account |
+| `GET` | `/accounting/bank-accounts` | List bank accounts |
+| `GET` | `/accounting/bank-accounts/:id` | Get bank account |
+| `PATCH` | `/accounting/bank-accounts/:id/deactivate` | Deactivate account |
+| `POST` | `/accounting/bank-accounts/:id/statements` | Create bank statement |
+| `GET` | `/accounting/bank-accounts/:id/statements` | List statements |
+| `GET` | `/accounting/bank-accounts/:id/statements/:stmtId` | Get statement |
+| `POST` | `/accounting/bank-accounts/:id/statements/:stmtId/lines` | Add statement line |
+| `POST` | `/accounting/bank-accounts/:id/statements/:stmtId/import` | Bulk import statement lines |
+| `POST` | `/accounting/bank-accounts/:id/statements/:stmtId/auto-match` | Auto-match lines to GL entries |
+| `PATCH` | `/accounting/bank-accounts/:id/statements/:stmtId/lines/:lineId/match` | Manual line match |
+| `POST` | `/accounting/bank-accounts/:id/statements/:stmtId/finalize` | Finalize reconciled statement |
+
+#### Financial Reports
+
+| Method | Path | Query params | Description |
+| -------- | ------ | --- | ------------- |
+| `GET` | `/accounting/reports/balance-sheet` | `date` | Balance sheet |
+| `GET` | `/accounting/reports/cash-flow` | `startDate`, `endDate` | Cash flow statement |
+| `GET` | `/accounting/reports/aged-receivables` | `asOf` | Aged receivables |
+| `GET` | `/accounting/reports/aged-payables` | `asOf` | Aged payables |
+| `GET` | `/accounting/reports/general-ledger` | `startDate`, `endDate`, `accountId` | General ledger |
+| `GET` | `/accounting/reports/vat-return` | `startDate`, `endDate` | VAT return |
+| `GET` | `/accounting/reports/payment-modes` | `startDate`, `endDate`, `paymentMethod?` | Sales vs bank by payment mode |
+
+---
+
+### Inventory — `/inventory`
+
+#### Products
+
+| Method | Path | Description |
+| -------- | ------ | ------------- |
+| `POST` | `/inventory/products` | Create product |
+| `GET` | `/inventory/products` | List / search products |
+| `GET` | `/inventory/products/low-stock` | Products below reorder threshold |
+| `GET` | `/inventory/products/valuation` | Inventory valuation report |
+| `GET` | `/inventory/products/:id` | Get product |
+| `PATCH` | `/inventory/products/:id` | Update product |
+| `PATCH` | `/inventory/products/:id/deactivate` | Deactivate product |
+
+#### Categories
+
+| Method | Path | Description |
+| -------- | ------ | ------------- |
+| `POST` | `/inventory/product-categories` | Create category |
+| `GET` | `/inventory/product-categories` | List categories |
+| `PATCH` | `/inventory/product-categories/:id` | Update category |
+| `DELETE` | `/inventory/product-categories/:id` | Delete category |
+
+#### Warehouses
+
+| Method | Path | Description |
+| -------- | ------ | ------------- |
+| `POST` | `/inventory/warehouses` | Create warehouse |
+| `GET` | `/inventory/warehouses` | List warehouses |
+| `GET` | `/inventory/warehouses/:id` | Get warehouse |
+| `PATCH` | `/inventory/warehouses/:id` | Update warehouse |
+
+#### Stock Movements
+
+| Method | Path | Description |
+| -------- | ------ | ------------- |
+| `POST` | `/inventory/stock-movements` | Record movement |
+| `GET` | `/inventory/stock-movements` | List movements |
+| `GET` | `/inventory/stock-movements/summary` | Movement summary |
+| `GET` | `/inventory/stock-movements/:id` | Get movement |
+| `POST` | `/inventory/stock-movements/adjust` | Manual stock adjustment |
+
+#### Stock Transfers
+
+| Method | Path | Description |
+| -------- | ------ | ------------- |
+| `POST` | `/inventory/stock-transfers` | Create transfer |
+| `GET` | `/inventory/stock-transfers` | List transfers |
+| `GET` | `/inventory/stock-transfers/:id` | Get transfer |
+| `POST` | `/inventory/stock-transfers/:id/complete` | Complete transfer |
+| `PATCH` | `/inventory/stock-transfers/:id/cancel` | Cancel transfer |
+
+#### Stock Counts (Physical Inventory)
+
+| Method | Path | Description |
+| -------- | ------ | ------------- |
+| `POST` | `/inventory/stock-counts` | Create count session |
+| `GET` | `/inventory/stock-counts` | List count sessions |
+| `GET` | `/inventory/stock-counts/:id` | Get session |
+| `POST` | `/inventory/stock-counts/:id/start` | Start counting |
+| `PATCH` | `/inventory/stock-counts/:id/lines/:productId` | Update counted quantity |
+| `POST` | `/inventory/stock-counts/:id/validate` | Validate and post adjustments |
+
+#### Serial Numbers and Lot Tracking
+
+| Method | Path | Description |
+| -------- | ------ | ------------- |
+| `POST` | `/inventory/serial-numbers` | Register serial number |
+| `GET` | `/inventory/serial-numbers` | List serial numbers |
+| `POST` | `/inventory/lots` | Create lot |
+| `GET` | `/inventory/lots` | List lots |
+
+#### Landed Costs
+
+| Method | Path | Description |
+| -------- | ------ | ------------- |
+| `POST` | `/inventory/landed-costs` | Create landed cost |
+| `GET` | `/inventory/landed-costs` | List landed costs |
+| `POST` | `/inventory/landed-costs/:id/allocate` | Allocate across products |
+
+---
+
+### Procurement — `/procurement`
+
+#### Suppliers
+
+| Method | Path | Description |
+| -------- | ------ | ------------- |
+| `POST` | `/procurement/suppliers` | Create supplier |
+| `GET` | `/procurement/suppliers` | List suppliers |
+| `GET` | `/procurement/suppliers/:id` | Get supplier |
+| `PATCH` | `/procurement/suppliers/:id` | Update supplier |
+
+#### RFQ and Purchase Orders
+
+| Method | Path | Description |
+| -------- | ------ | ------------- |
+| `POST` | `/procurement/rfq` | Create RFQ |
+| `GET` | `/procurement/rfq` | List RFQs |
+| `GET` | `/procurement/rfq/:id` | Get RFQ |
+| `PATCH` | `/procurement/rfq/:id` | Update RFQ |
+| `POST` | `/procurement/rfq/:id/send` | Send RFQ to supplier |
+| `POST` | `/procurement/rfq/:id/confirm` | Confirm as Purchase Order |
+| `POST` | `/procurement/rfq/:id/receive` | Receive goods (updates stock) |
+| `GET` | `/procurement/purchase-orders` | List purchase orders |
+| `GET` | `/procurement/purchase-orders/:id` | Get purchase order |
+| `POST` | `/procurement/purchase-orders/:id/create-bill` | Create vendor bill from PO |
+
+#### Vendor Bills
+
+| Method | Path | Description |
+| -------- | ------ | ------------- |
+| `POST` | `/procurement/vendor-bills` | Create vendor bill |
+| `GET` | `/procurement/vendor-bills` | List vendor bills |
+| `GET` | `/procurement/vendor-bills/:id` | Get vendor bill |
+| `POST` | `/procurement/vendor-bills/:id/approve` | Approve / validate bill |
+| `POST` | `/procurement/vendor-bills/:id/pay` | Pay vendor bill |
+| `PATCH` | `/procurement/vendor-bills/:id/void` | Void vendor bill |
+
+#### Purchase Returns
+
+| Method | Path | Description |
+| -------- | ------ | ------------- |
+| `POST` | `/procurement/purchase-returns` | Create purchase return |
+| `GET` | `/procurement/purchase-returns` | List purchase returns |
+| `POST` | `/procurement/purchase-returns/:id/confirm` | Confirm purchase return |
+
+---
+
+### HR and Payroll — `/hr`
+
+#### Employees
+
+| Method | Path | Description |
+| -------- | ------ | ------------- |
+| `POST` | `/hr/employees` | Create employee |
+| `GET` | `/hr/employees` | List employees |
+| `GET` | `/hr/employees/headcount` | Headcount summary |
+| `GET` | `/hr/employees/departments` | Department list |
+| `GET` | `/hr/employees/:id` | Get employee |
+| `PATCH` | `/hr/employees/:id` | Update employee |
+| `PATCH` | `/hr/employees/:id/terminate` | Terminate employee |
+
+#### Payroll
+
+| Method | Path | Description |
+| -------- | ------ | ------------- |
+| `POST` | `/hr/payroll/generate` | Generate payroll run |
+| `GET` | `/hr/payroll` | List payroll runs |
+| `GET` | `/hr/payroll/summary` | Payroll summary |
+| `GET` | `/hr/payroll/:id` | Get payroll run |
+| `GET` | `/hr/payroll/:id/payslip/:employeeId` | Get individual payslip |
+| `PATCH` | `/hr/payroll/:id/approve` | Approve payroll run |
+| `PATCH` | `/hr/payroll/:id/paid` | Mark payroll as paid |
+
+#### Allowances and Loans
+
+| Method | Path | Description |
+| -------- | ------ | ------------- |
+| `POST` | `/hr/allowances` | Create allowance |
+| `GET` | `/hr/allowances` | List allowances |
+| `POST` | `/hr/loans` | Create loan |
+| `GET` | `/hr/loans` | List loans |
+| `PATCH` | `/hr/loans/:id/repay` | Record loan repayment |
+
+#### Attendance
+
+| Method | Path | Description |
+| -------- | ------ | ------------- |
+| `POST` | `/hr/attendance/clock-in` | Clock in |
+| `POST` | `/hr/attendance/clock-out` | Clock out |
+| `GET` | `/hr/attendance` | List attendance records |
+| `GET` | `/hr/attendance/summary/:employeeId` | Employee attendance summary |
+| `POST` | `/hr/attendance/bulk-import` | Bulk import attendance records |
+
+#### Leave Management
+
+| Method | Path | Description |
+| -------- | ------ | ------------- |
+| `POST` | `/hr/leave` | Submit leave request |
+| `GET` | `/hr/leave` | List leave requests |
+| `GET` | `/hr/leave/:employeeId/balance` | Leave balance by type |
+| `PATCH` | `/hr/leave/:id/approve` | Approve leave |
+| `PATCH` | `/hr/leave/:id/reject` | Reject leave |
+
+#### Appraisals
+
+| Method | Path | Description |
+| -------- | ------ | ------------- |
+| `POST` | `/hr/appraisals` | Create appraisal |
+| `GET` | `/hr/appraisals` | List appraisals |
+| `GET` | `/hr/appraisals/:id` | Get appraisal |
+| `POST` | `/hr/appraisals/:id/items` | Add appraisal item / KPI |
+| `PATCH` | `/hr/appraisals/:appraisalId/items/:itemId/score` | Score an item |
+| `POST` | `/hr/appraisals/:id/submit` | Submit for review |
+| `POST` | `/hr/appraisals/:id/approve` | Approve appraisal |
+
+#### Recruitment
+
+| Method | Path | Description |
+| -------- | ------ | ------------- |
+| `POST` | `/hr/recruitment/postings` | Create job posting |
+| `GET` | `/hr/recruitment/postings` | List postings |
+| `GET` | `/hr/recruitment/postings/:id` | Get posting |
+| `PATCH` | `/hr/recruitment/postings/:id` | Update posting |
+| `POST` | `/hr/recruitment/postings/:id/close` | Close posting |
+| `POST` | `/hr/recruitment/applications` | Submit application |
+| `GET` | `/hr/recruitment/applications` | List applications |
+| `GET` | `/hr/recruitment/applications/:id` | Get application |
+| `POST` | `/hr/recruitment/applications/:id/shortlist` | Shortlist applicant |
+| `POST` | `/hr/recruitment/applications/:id/reject` | Reject applicant |
+| `POST` | `/hr/recruitment/applications/:id/offer` | Send offer |
+| `POST` | `/hr/recruitment/interviews` | Schedule interview |
+| `PATCH` | `/hr/recruitment/interviews/:id/result` | Record interview result |
+| `POST` | `/hr/recruitment/applications/:id/hire` | Hire and create employee record |
+
+---
+
+### Contacts — `/contacts`
+
+| Method | Path | Description |
+| -------- | ------ | ------------- |
+| `GET` | `/contacts` | List all contacts |
+| `GET` | `/contacts/companies` | Company contacts only |
+| `GET` | `/contacts/:id` | Get contact |
+| `POST` | `/contacts` | Create contact |
+| `PATCH` | `/contacts/:id` | Update contact |
+| `DELETE` | `/contacts/:id` | Delete contact |
+
+---
+
+### eTIMS (KRA) — `/etims`
+
+| Method | Path | Description |
+| -------- | ------ | ------------- |
+| `POST` | `/etims/submit/:invoiceId` | Manually trigger eTIMS submission |
+| `GET` | `/etims/logs` | List submission logs |
+| `GET` | `/etims/status/:invoiceId` | Submission status for invoice |
+
+Automatic submission queues via BullMQ when an invoice is approved and `ETIMS_ENV` is configured.
+
+---
+
+### Settings — `/settings`
+
+| Method | Path | Description |
+| -------- | ------ | ------------- |
+| `GET` | `/settings/system` | Get system settings (company name, logo, PIN, eTIMS env) |
+| `PATCH` | `/settings/system` | Update system settings |
+
+---
 
 ## Control Flow Diagrams
 
-Visual reference for main system workflows. Diagrams use Mermaid syntax (rendered on GitHub and most modern markdown viewers).
-
-### Authentication and Authorization Flow
+### Authentication Flow
 
 ```mermaid
 flowchart TD
     A([Client Request]) --> B{Has JWT Token?}
-    B -- No --> C[POST /auth/login\nusername + password]
+    B -- No --> C[POST /auth/login]
     C --> D{Credentials Valid?}
     D -- No --> E([401 Unauthorized])
-    D -- Yes --> F[Issue JWT Token\nwith role claim]
-    F --> G([Return token to client])
+    D -- Yes --> F[Issue JWT with role claim]
+    F --> G([Return token])
     B -- Yes --> H{Token Expired?}
     H -- Yes --> E
-    H -- No --> I{Role Authorized\nfor endpoint?}
+    H -- No --> I{Role Authorized?}
     I -- No --> J([403 Forbidden])
     I -- Yes --> K([Process Request])
 ```
@@ -145,17 +691,39 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    A([Start]) --> B[Create Invoice\nstatus: DRAFT]
+    A([Start]) --> B[Create Invoice — DRAFT]
     B --> C{Review OK?}
     C -- No --> D[Edit Invoice]
     D --> C
-    C -- Yes --> E[POST approve\nstatus: APPROVED]
-    E --> F[Accounting entries\nposted: AR + Revenue + VAT]
-    F --> G{Payment Received?}
-    G -- No --> H([Invoice remains APPROVED\nAged Receivables accumulates])
-    G -- Yes --> I[PATCH paid\nwith paymentMethod]
-    I --> J[Payment journal entry\nposted to GL]
-    J --> K([status: PAID\nAvailable for reconciliation])
+    C -- Yes --> E[POST approve — APPROVED\nPosts AR + Revenue + VAT entries]
+    E --> F{Payment method?}
+    F -- CASH/CARD/BANK_TRANSFER/CREDIT --> G[PATCH paid\nPosts payment GL entry]
+    F -- MOBILE_MONEY --> H[POST mpesa/stk-push\nSend STK to customer phone]
+    H --> I{Callback received?}
+    I -- SUCCESS --> G
+    I -- FAILED/TIMEOUT --> J[Transaction PENDING or FAILED\nAppears in cashier queue]
+    J --> K{Cashier action}
+    K -- Retry --> H
+    K -- Reconcile manually --> G
+    G --> L([PAID — available for bank reconciliation])
+```
+
+---
+
+### STK Push — M-Pesa Payment Flow
+
+```mermaid
+flowchart TD
+    A([POS triggers STK push]) --> B[Backend generates password\nBase64 shortcode+passkey+timestamp]
+    B --> C[POST to Daraja InitiateTransaction]
+    C --> D{Response OK?}
+    D -- Error --> E([BadRequestException with Daraja message])
+    D -- Success --> F[Record MpesaTransaction PENDING\nReturn checkoutRequestId to POS]
+    F --> G([POS polls status and shows spinner])
+    G --> H{Safaricom calls callback}
+    H -- ResultCode 0 = SUCCESS --> I[Update transaction SUCCESS\nMark invoice PAID]
+    H -- ResultCode not 0 = FAILED --> J[Update transaction FAILED]
+    J --> K([Cashier uses retry or reconcile])
 ```
 
 ---
@@ -164,95 +732,99 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    A([Start]) --> B[Create RFQ\nstatus: DRAFT]
-    B --> C[Send RFQ to vendor\nstatus: SENT]
-    C --> D{Vendor Quote\nAccepted?}
-    D -- No --> E([Cancel or revise RFQ])
-    D -- Yes --> F[Confirm RFQ\nstatus: PURCHASE_ORDER]
+    A([Start]) --> B[Create RFQ — DRAFT]
+    B --> C[Send RFQ — SENT]
+    C --> D{Vendor Quote Accepted?}
+    D -- No --> E([Cancel or revise])
+    D -- Yes --> F[Confirm — PURCHASE_ORDER]
     F --> G[Receive Products\nInventory stock updated]
-    G --> H{All items\nreceived?}
+    G --> H{All items received?}
     H -- No --> G
-    H -- Yes --> I[Create Vendor Bill\nfrom Purchase Order]
+    H -- Yes --> I[Create Vendor Bill from PO]
     I --> J{Bill correct?}
     J -- No --> K[Adjust Vendor Bill]
     K --> J
-    J -- Yes --> L[Approve / Validate\nVendor Bill]
-    L --> M[Post AP journal entry]
-    M --> N[Process Payment\nto vendor]
-    N --> O([Vendor Bill PAID\nProcurement cycle complete])
+    J -- Yes --> L[Approve Vendor Bill\nPost AP journal entry]
+    L --> M[Pay Vendor Bill]
+    M --> N([PAID — Procurement complete])
 ```
 
 ---
 
-### Bank Reconciliation Workflow
+### Bank Reconciliation Flow
 
 ```mermaid
 flowchart TD
-    A([Start]) --> B[Create Bank Account\nin system]
-    B --> C[Create Bank Statement\nfor period]
-    C --> D[Import Statement Lines\ninclude paymentMethod when available]
-    D --> E[Run Auto-Match\nmatches by amount + date + paymentMethod]
-    E --> F{All lines\nmatched?}
+    A([Start]) --> B[Create Bank Account]
+    B --> C[Create Bank Statement for period]
+    C --> D[Import Statement Lines\ninclude paymentMethod when known]
+    D --> E[Run Auto-Match]
+    E --> F{All lines matched?}
     F -- No --> G[Review Unmatched Lines]
-    G --> H{Manual match\npossible?}
-    H -- Yes --> I[Link to journal entry\nmanually]
+    G --> H{Manual match possible?}
+    H -- Yes --> I[Link to GL journal line]
     I --> F
-    H -- No --> J[Raise Reconciliation\nException]
-    J --> K[Investigate and correct\ninvoice or statement data]
+    H -- No --> J[Raise Reconciliation Exception]
+    J --> K[Investigate and correct data]
     K --> D
-    F -- Yes --> L[Finalize Statement\nstatus: RECONCILED]
-    L --> M([Period reconciliation\ncomplete])
+    F -- Yes --> L[Finalize Statement — RECONCILED]
+    L --> M([Period reconciliation complete])
 ```
 
 ---
 
-### Payment Mode Reporting Flow
+### eTIMS Submission Flow
 
 ```mermaid
 flowchart TD
-    A([Accountant triggers report]) --> B[GET /accounting/reports/payment-modes\nstartDate + endDate + optional paymentMethod]
-    B --> C[Query PAID invoices\nby paymentMethod in range]
-    B --> D[Query bank statement lines\nby paymentMethod in range]
-    C --> E[Group sales totals\nby payment mode]
-    D --> F[Group bank totals\nby payment mode]
-    E --> G[Join by payment mode]
-    F --> G
-    G --> H[Calculate variance\nsalesAmount vs bankAmount]
-    H --> I{Variance\nacceptable?}
-    I -- Yes --> J([Report reviewed\nand archived])
-    I -- No --> K[Investigate exceptions\ncheck paymentMethod on invoices and statement lines]
-    K --> L[Correct data\nrerun auto-match]
-    L --> B
+    A([Invoice APPROVED]) --> B{eTIMS enabled?}
+    B -- No --> C([Skip])
+    B -- Yes --> D[Queue invoice via BullMQ]
+    D --> E[Worker picks up job]
+    E --> F[Submit to KRA eTIMS API]
+    F --> G{Successful?}
+    G -- Yes --> H[Record success in etims_logs]
+    H --> I[Update invoice with eTIMS confirmation code]
+    G -- No --> J[Record failure in etims_logs]
+    J --> K{Retry count exceeded?}
+    K -- No --> L[Requeue with backoff]
+    L --> E
+    K -- Yes --> M[Mark FAILED — alert admin]
 ```
 
 ---
 
-### System Module Interaction Overview
+### System Module Interaction
 
 ```mermaid
 flowchart LR
     subgraph Frontend["Frontend (React + Vite)"]
-        UI[UI Pages]
+        UI[UI Pages + POS]
     end
 
     subgraph API["Backend API (NestJS)"]
-        AUTH[Auth Module]
-        SALES[Sales Module]
-        PROC[Procurement Module]
-        ACC[Accounting Module]
-        INV[Inventory Module]
-        HR[HR Module]
-        CONT[Contacts Module]
-        ETIMS[eTIMS Module]
-        NOTIF[Notifications Module]
+        AUTH[Auth]
+        SALES[Sales / POS]
+        MPESA[M-Pesa]
+        PROC[Procurement]
+        ACC[Accounting]
+        INV[Inventory]
+        HR[HR and Payroll]
+        CONT[Contacts]
+        ETIMS[eTIMS]
+        NOTIF[Notifications]
+        SET[Settings]
     end
 
-    subgraph Data["Data Layer"]
+    subgraph Infra["Infrastructure"]
         PRISMA[Prisma ORM]
         DB[(PostgreSQL)]
+        REDIS[(Redis)]
+        DARAJA[Safaricom Daraja]
+        KRA[KRA eTIMS API]
     end
 
-    UI -- JWT + REST --> AUTH
+    UI -- JWT REST --> AUTH
     UI --> SALES
     UI --> PROC
     UI --> ACC
@@ -260,12 +832,15 @@ flowchart LR
     UI --> HR
     UI --> CONT
 
-    SALES -- posts journal entries --> ACC
-    PROC -- posts AP + invoice entries --> ACC
+    SALES -- posts GL entries --> ACC
+    SALES -- STK push --> MPESA
+    MPESA -- callback --> SALES
+    MPESA --> DARAJA
+    PROC -- posts AP entries --> ACC
     PROC -- updates stock --> INV
     SALES -- stock check --> INV
-    ETIMS -- invoice reporting --> SALES
-    NOTIF -- low stock alerts --> INV
+    ETIMS --> KRA
+    NOTIF -- low-stock alerts --> INV
 
     AUTH --> PRISMA
     SALES --> PRISMA
@@ -276,541 +851,150 @@ flowchart LR
     CONT --> PRISMA
     ETIMS --> PRISMA
     NOTIF --> PRISMA
+    SET --> PRISMA
 
     PRISMA --> DB
+    ETIMS --> REDIS
 ```
 
 ---
 
-### eTIMS Integration Flow
+## Operational Guide
 
-```mermaid
-flowchart TD
-    A([Invoice APPROVED]) --> B{eTIMS enabled\nin settings?}
-    B -- No --> C([Skip eTIMS submission])
-    B -- Yes --> D[Queue invoice for eTIMS\nvia BullMQ job]
-    D --> E[eTIMS worker picks up job]
-    E --> F[Submit to KRA eTIMS API]
-    F --> G{Submission\nSuccessful?}
-    G -- Yes --> H[Record success\nin etims_logs]
-    H --> I[Update invoice with\neTIMS confirmation code]
-    I --> J([Done])
-    G -- No --> K[Record failure\nin etims_logs]
-    K --> L{Retry\ncount exceeded?}
-    L -- No --> M[Requeue with\nexponential backoff]
-    M --> E
-    L -- Yes --> N[Mark as FAILED\nAlert admin via notification]
-    N --> O([Manual investigation\nrequired])
-```
+### Sales to Accounting flow
+
+1. Create sales invoice (DRAFT).
+2. Approve invoice — AR debit, Revenue credit, VAT credit posted automatically.
+3. Collect payment and mark invoice PAID with accurate payment method.
+4. Payment entry posted — available for bank reconciliation.
+
+### M-Pesa payment flow (cashier)
+
+1. Select customer in POS, build cart, press Pay.
+2. Choose Mobile Money, enter phone, confirm STK push.
+3. Customer approves on phone. Invoice marks PAID automatically via callback.
+4. If nothing happens within ~30 s, check the M-Pesa pending panel (auto-refreshes every 7 s).
+5. Use **Retry** to resend STK or **Reconcile** to enter receipt number manually.
+
+### Creating a customer from POS
+
+In the customer dropdown, click the **+** button to open a quick-create form (Name, Phone, Email, Tax PIN). The new customer is auto-selected on save — no navigation away from POS required.
+
+### Purchase flow
+
+1. Create RFQ → Send → Confirm (becomes PO).
+2. Receive goods → stock updated automatically.
+3. Create vendor bill → Approve → Pay.
+
+### Bank reconciliation flow
+
+1. Create bank account and bank statement.
+2. Import statement lines (capture `paymentMethod` where source is known).
+3. Run auto-match, then manually match remaining lines.
+4. Finalize when all lines are matched.
 
 ---
-
-## Payment Mode Reporting and Reconciliation
-
-The system supports reporting by payment mode and reconciling those modes with bank statements.
-
-### Accounting report endpoint
-
-```text
-GET /accounting/reports/payment-modes
-```
-
-Query parameters:
-
-1. startDate (required)
-2. endDate (required)
-3. paymentMethod (optional)
-
-Example:
-
-```text
-/accounting/reports/payment-modes?startDate=2026-04-01&endDate=2026-04-30
-```
-
-Response includes:
-
-1. Sales totals by payment method
-2. Bank statement totals by payment method
-3. Matched and unmatched reconciled amounts
-4. Variance between sales and bank amounts
-
-### Why this matters
-
-1. Confirms whether payment channels reconcile to bank records.
-2. Highlights missing or mismatched statement lines.
-3. Supports daily and period-end financial control.
-
-## Key API Areas
-
-1. Auth: /auth/*
-2. Sales: /sales/*
-3. Accounting: /accounting/*
-4. Inventory: /inventory/*
-5. Procurement: /procurement/*
-6. HR: /hr/*
-7. Contacts: /contacts/*
-
-## API Quick Reference
-
-Use this index for the most common business operations.
-
-| Endpoint | Purpose | Typical Role |
-| --- | --- | --- |
-| POST /auth/login | Sign in and obtain JWT token | All authenticated users |
-| GET /sales/invoices | List invoices with filters | Admin, Sales User, Accountant |
-| PATCH /sales/invoices/:id/approve | Approve invoice and post accounting entry | Admin, Accountant |
-| PATCH /sales/invoices/:id/paid | Mark invoice as paid using payment method | Admin, Accountant |
-| GET /sales/invoices/daily-summary | Daily summary including payment mode totals | Admin, Sales User, Accountant |
-| GET /procurement/rfq | List RFQs and purchase flow state | Procurement Officer, Admin |
-| POST /procurement/rfq/:id/confirm | Convert RFQ into purchase order | Procurement Officer, Admin |
-| POST /procurement/purchase-orders/:id/create-bill | Create vendor bill from purchase order | Procurement Officer, Accountant |
-| PATCH /procurement/vendor-bills/:id/approve | Validate vendor bill for accounting | Accountant, Admin |
-| GET /contacts | Search and list contacts | Admin, Sales User, Procurement Officer |
-| POST /accounting/bank-accounts/:id/statements | Create bank statement | Accountant, Admin |
-| POST /accounting/bank-accounts/:id/statements/:stmtId/import | Import statement lines (with paymentMethod when available) | Accountant, Admin |
-| POST /accounting/bank-accounts/:id/statements/:stmtId/auto-match | Auto-match statement lines to posted journal lines | Accountant, Admin |
-| POST /accounting/bank-accounts/:id/statements/:stmtId/finalize | Finalize statement after full match | Accountant, Admin |
-| GET /accounting/reports/payment-modes | Compare paid sales vs bank amounts by payment mode | Accountant, Admin |
-| GET /accounting/reports/balance-sheet | Generate balance sheet report | Accountant, Admin |
-| GET /accounting/reports/cash-flow | Generate cash flow report | Accountant, Admin |
-
-## Troubleshooting
-
-### Backend fails to start
-
-1. Confirm PostgreSQL is running and credentials are correct.
-2. Run migrations again.
-3. Regenerate Prisma client.
-4. Run typecheck and lint to catch compile issues.
-
-### Reconciliation totals look wrong
-
-1. Ensure statement lines include correct paymentMethod.
-2. Confirm invoices were marked paid with the correct payment method.
-3. Re-run auto-match after data correction.
-
-## Notes for Developers
-
-1. Keep database schema and migrations in sync.
-2. Prefer explicit DTO updates when adding fields to finance-critical flows.
-3. Run npx tsc --noEmit and npm run lint before committing changes.
 
 ## Role-Based User Manual
 
-Use this section as the day-to-day operating guide for each team.
-
 ### Admin
 
-1. Configure system settings and users.
-2. Assign roles based on responsibilities.
-3. Review cross-module dashboards and reconciliation exceptions.
-4. Approve sensitive actions (account deactivation, critical voids, configuration changes).
+- Manage users, roles, and the POS-only access flag.
+- Configure company profile, logo, tax PIN, and eTIMS environment.
+- Review cross-module dashboards and approve sensitive actions.
 
 ### Accountant
 
-1. Review posted invoices and vendor bills.
-2. Validate and complete payments.
-3. Create/import bank statements.
-4. Run auto-match and resolve unmatched lines manually.
-5. Finalize statement after all lines are matched.
-6. Generate payment mode report and investigate variances.
+- Review and approve invoices and vendor bills.
+- Import bank statements and run auto-match reconciliation.
+- Generate all financial reports (balance sheet, cash flow, general ledger, VAT return, payment mode report).
+- Investigate variance between payment channels and bank records.
 
-### Sales User / Cashier
+### Cashier / Sales User
 
-1. Create and approve invoices.
-2. Capture payment method accurately at payment time.
-3. Mark invoices paid only with the actual channel used.
-4. Monitor daily summary by payment method.
+- Create, approve, and pay invoices from POS.
+- Select or create customers directly in the POS dropdown.
+- Initiate M-Pesa STK push and monitor the pending queue panel.
+- Retry or manually reconcile failed M-Pesa transactions without leaving POS.
+- Review daily summary by payment method.
 
 ### Procurement Officer
 
-1. Create RFQ and send to vendor.
-2. Confirm to purchase order.
-3. Receive products.
-4. Create vendor bill for accounting validation and payment.
+- Create and send RFQs to suppliers.
+- Confirm purchase orders.
+- Record goods receipt (updates stock).
+- Create vendor bills for accountant validation and payment.
 
 ### Inventory Manager
 
-1. Maintain products, categories, warehouses.
-2. Validate receiving and stock updates from purchases.
-3. Reconcile stock movements with sales and procurement documents.
+- Manage products, categories, and warehouses.
+- Record stock movements and manual adjustments.
+- Create and validate physical stock counts.
+- Manage serial numbers and lot tracking.
+- Apply landed costs to received stock.
 
 ### HR Manager
 
-1. Maintain employee records.
-2. Process payroll and attendance flows.
-3. Review leave and recruitment pipelines.
+- Maintain employee records and departments.
+- Generate, approve, and pay payroll runs; print payslips.
+- Manage attendance (clock-in/out, bulk import), leave, allowances, and loans.
+- Run appraisals and the full recruitment pipeline (posting → application → interview → offer → hire).
 
-## Daily Operating Checklist
+---
 
-### Sales and Cash Controls (Daily)
+## Daily Checklists
 
-1. Confirm all completed sales are approved.
-2. Confirm all paid invoices have paymentMethod set.
-3. Check daily summary totals by payment method.
+### Sales and Cash Controls
 
-### Banking and Reconciliation (Daily/Weekly)
+- [ ] All completed sales are approved.
+- [ ] All paid invoices have the correct `paymentMethod`.
+- [ ] M-Pesa pending queue is clear — no stuck transactions.
+- [ ] Daily summary totals reviewed per payment method.
 
-1. Import latest bank statement lines.
-2. Ensure payment method is captured on statement lines where possible.
-3. Run auto-match.
-4. Manually match unresolved lines.
-5. Generate payment mode report for variance analysis.
-6. Finalize statement only when unmatched lines are zero.
+### Banking and Reconciliation
 
-### Month-End Finance Checklist
+- [ ] Latest bank statement lines imported.
+- [ ] `paymentMethod` captured on lines where source is known.
+- [ ] Auto-match run.
+- [ ] Unmatched lines manually resolved.
+- [ ] Payment mode report generated for variance analysis.
+- [ ] Statement finalized only when unmatched lines = 0.
 
-1. Confirm no critical unreconciled bank lines remain.
-2. Run payment mode report for full month.
-3. Review aged receivables and aged payables.
-4. Run balance sheet, cash flow, general ledger, VAT return.
-5. Archive/export reports for audit support.
+### Month-End Finance
 
-## Report Usage Examples
+- [ ] No outstanding unreconciled bank lines.
+- [ ] Payment mode report for full month reviewed.
+- [ ] Aged receivables and aged payables reviewed.
+- [ ] Balance sheet, cash flow, general ledger, VAT return generated.
+- [ ] Reports exported/archived for audit.
 
-### Payment Mode Report
+---
 
-```text
-GET /accounting/reports/payment-modes?startDate=2026-04-01&endDate=2026-04-30
-```
+## Error Reference
 
-Use when:
-
-1. You need to compare paid sales vs bank statement totals by payment channel.
-2. You need matched/unmatched amounts by mode.
-3. You need to identify channel-specific variance quickly.
-
-### Focus on a single mode
-
-```text
-GET /accounting/reports/payment-modes?startDate=2026-04-01&endDate=2026-04-30&paymentMethod=BANK_TRANSFER
-```
-
-## Data Entry Rules (Important)
-
-1. Payment method on invoice payment must reflect the real channel used.
-2. Payment method on bank statement line should be filled when source is known.
-3. Avoid using generic or default values for finance-critical fields.
-4. Corrections should be made before finalizing reconciliations.
-
-## Error Codes and Common Fixes
-
-Use this table when API calls fail during daily operations.
-
-| Error / Message | Typical Cause | How to Fix |
+| Error / Message | Cause | Fix |
 | --- | --- | --- |
-| 401 Unauthorized | Missing or expired JWT token | Re-login and send Authorization header with Bearer token |
-| 403 Forbidden | User role lacks permission | Use an account with required role (Admin/Accountant/etc.) |
-| 404 Not Found | Wrong record id or wrong endpoint | Confirm id exists and endpoint path is correct |
-| 409 Conflict | Unique field already exists (invoiceNo, billNumber, contact email, etc.) | Use a unique value or review existing record before create |
-| 422 Validation Failed | Missing required fields or invalid body payload | Check required fields and payload structure in request |
-| Invoice is already APPROVED/PAID | Attempt to re-approve or re-pay non-draft invoice | Refresh record status and run only valid next action |
-| Only APPROVED invoices can be marked as paid | Payment attempted on wrong status | Approve invoice first, then mark as paid |
-| Insufficient stock for product | Sold quantity exceeds available stock | Reduce quantity or replenish stock before approval |
-| Required accounts not found | Chart of accounts not seeded/configured | Create required GL accounts (AR, Revenue, VAT, Cash/Bank) |
-| Statement is already reconciled | Editing/import attempted after finalization | Create a new statement period or reopen workflow policy |
-| X lines are still unmatched. Reconcile all lines first. | Finalize attempted with unresolved matches | Run auto-match, then manual match remaining lines |
-| Payment mode variance is high | Missing or incorrect paymentMethod mapping | Correct payment methods on invoice payments and statement lines, then rerun report and matching |
-
-### Quick Debug Sequence
-
-1. Re-check user role and token validity.
-2. Re-check record status (draft/approved/paid/reconciled).
-3. Re-check required accounting configuration (GL accounts, active bank account).
-4. Re-check paymentMethod values on both invoice payment and statement line.
-5. Re-run reconciliation and payment mode report after corrections.
-
-## Pre-Go-Live Checklist
-
-Run this checklist before moving to production.
-
-### Environment and Security
-
-1. Set production-grade JWT secret and expiry settings.
-2. Confirm database credentials are production-only and not shared with dev.
-3. Restrict CORS to approved frontend domains.
-4. Disable debug-only settings and verbose logs.
-5. Validate role assignments for Admin, Accountant, Sales, Procurement, HR.
-
-### Database and Data Integrity
-
-1. Apply all migrations with npx prisma migrate deploy.
-2. Run npx prisma generate on deployment target.
-3. Seed required master data (chart of accounts, tax setup, warehouse, users).
-4. Confirm required finance accounts exist (AR, Revenue, VAT, Cash/Bank).
-5. Verify backup and restore process with at least one test restore.
-
-### Functional Validation
-
-1. Sales flow: draft invoice -> approve -> paid with payment mode.
-2. Purchase flow: RFQ -> confirm PO -> receive -> vendor bill -> payment.
-3. Banking flow: statement import -> auto/manual match -> finalize.
-4. Reporting: payment mode report, balance sheet, cash flow, VAT return.
-5. Contacts: create company and individual, link and search records.
-
-### Performance and Monitoring
-
-1. Enable application and database monitoring.
-2. Set alerts for API errors, database health, and failed jobs.
-3. Confirm log retention and audit requirements.
-4. Validate response time for key endpoints under expected load.
-
-### Operational Readiness
-
-1. Prepare user onboarding notes by role.
-2. Prepare support runbook for common errors and quick fixes.
-3. Define reconciliation cut-off times and month-end ownership.
-4. Confirm rollback plan for failed deployment.
-
-### Go-Live Sign-Off
-
-1. Technical sign-off (backend/frontend/devops).
-2. Finance sign-off (accounting and reconciliation).
-3. Business sign-off (sales/procurement/hr leads).
-4. Final go-live approval by system owner.
-
-## Day-1 Go-Live Runbook
-
-Use this schedule on launch day for controlled rollout.
-
-### T-60 to T-30 minutes (Pre-Launch)
-
-1. Confirm deployment artifacts are final and approved.
-2. Verify production environment variables and secrets.
-3. Ensure database backup completed and restore point documented.
-4. Confirm monitoring dashboards and alert channels are active.
-
-### T-30 to T-10 minutes (Readiness Gate)
-
-1. Run health checks for API and database.
-2. Confirm key users can authenticate (Admin, Accountant, Sales).
-3. Validate critical endpoints return expected responses.
-4. Freeze non-essential changes until post-launch stabilization.
-
-### T0 (Go-Live)
-
-1. Enable user access.
-2. Announce go-live in support channel.
-3. Start live command center tracking incidents and decisions.
-
-### T+0 to T+60 minutes (Hypercare Phase 1)
-
-1. Execute smoke tests:
-	1. Create/approve/pay invoice.
-	2. RFQ -> PO -> Vendor Bill flow.
-	3. Bank statement import and auto-match.
-	4. Payment mode report generation.
-2. Monitor error rates, response times, and failed jobs.
-3. Triage and classify any issue as blocker/high/normal.
-
-### T+1 to T+4 hours (Hypercare Phase 2)
-
-1. Validate first real business transactions per module.
-2. Confirm accounting postings and balances are consistent.
-3. Confirm reconciliation process remains functional with live data.
-4. Publish hourly status updates to stakeholders.
-
-### End-of-Day Close (Launch Day)
-
-1. Review all incidents and open risks.
-2. Confirm no critical unreconciled finance blockers.
-3. Export initial operational reports for audit trail.
-4. Record lessons learned and priority fixes for Day-2.
-
-## Rollback Triggers and Actions
-
-### Trigger rollback if any of the following occur
-
-1. Sustained authentication failure for business users.
-2. Data integrity issue in accounting postings.
-3. Inability to reconcile statements due to systemic error.
-4. Critical API failure with no hotfix path inside agreed window.
-
-### Rollback actions
-
-1. Disable user write operations.
-2. Restore database to last validated backup point if required.
-3. Revert application release to previous stable version.
-4. Communicate incident status and ETA to stakeholders.
-
-## Launch-Day Contacts Template
-
-Capture this before go-live:
-
-1. Incident Commander:
-2. Backend Owner:
-3. Frontend Owner:
-4. DBA Owner:
-5. Finance Owner:
-6. Business Approver:
-7. Communication Channel:
-
-## Post-Go-Live Week-1 Checklist
-
-Use this section to stabilize operations after launch.
-
-### Daily Technical Health Checks
-
-1. API error rate within agreed threshold.
-2. Average and p95 response times for critical endpoints.
-3. Background job success rates (eTIMS queues, notifications).
-4. Database performance and connection pool health.
-
-### Daily Finance Control Checks
-
-1. Paid invoice totals reconcile to expected payment channels.
-2. Bank statement import completeness for the day.
-3. Auto-match success rate trend monitored.
-4. Unmatched line backlog reviewed and actioned.
-5. Payment mode variance reviewed and escalated if above threshold.
-
-### Daily Operations Checks
-
-1. Sales flow operational (create -> approve -> paid).
-2. Purchase flow operational (RFQ -> PO -> receive -> vendor bill).
-3. Contacts creation/search and role-based access functioning.
-4. No blocker-level UI/API regressions reported by users.
-
-## Week-1 KPI Targets (Suggested)
-
-1. API uptime: >= 99.5%
-2. Critical endpoint p95 response time: <= 1.5s
-3. Payment mode report generation success: 100%
-4. Bank statement auto-match rate: >= 80% (manual cleanup for remainder)
-5. Unmatched lines older than 48 hours: 0 critical items
-
-## Support SLA Guidance (Week-1)
-
-1. P1 (business-stopping): acknowledge <= 15 min, workaround/fix <= 4 hours
-2. P2 (major degradation): acknowledge <= 30 min, fix <= 1 business day
-3. P3 (minor issue): acknowledge <= 4 hours, fix <= 3 business days
-4. P4 (enhancement): triage in weekly planning
-
-## Week-1 Exit Criteria
-
-1. No unresolved P1 incidents.
-2. Reconciliation process stable for at least 3 consecutive business days.
-3. Finance sign-off on payment mode variance monitoring.
-4. User support ticket volume trending down day-over-day.
-
-## Appendix: Operational Templates
-
-Use these templates as copy-paste starting points during support, finance review, and go-live operations.
-
-### Incident Report Template
-
-```text
-Incident Title:
-Date/Time Detected:
-Detected By:
-Severity: P1 / P2 / P3 / P4
-Module Affected:
-Environment: Production / Staging / Development
-
-Summary:
-
-Business Impact:
-
-Technical Impact:
-
-Steps to Reproduce:
-1.
-2.
-3.
-
-Observed Result:
-
-Expected Result:
-
-Immediate Workaround:
-
-Owner:
-Target Resolution Time:
-Current Status:
-Root Cause:
-Corrective Action:
-Preventive Action:
-Sign-Off:
-```
-
-### Reconciliation Exception Template
-
-```text
-Exception ID:
-Date Raised:
-Raised By:
-Bank Account:
-Statement ID:
-Payment Method:
-
-Exception Type:
-- Unmatched bank line
-- Payment mode variance
-- Incorrect payment method
-- Missing statement line
-- Duplicate entry
-
-Reference Numbers:
-- Invoice No:
-- Journal Reference:
-- Statement Line ID:
-
-Amount:
-Transaction Date:
-Description:
-
-Issue Summary:
-
-Investigation Notes:
-
-Proposed Resolution:
-
-Approved By:
-Resolution Date:
-Final Outcome:
-```
-
-### Daily Finance Control Log Template
-
-```text
-Date:
-Reviewed By:
-
-1. Total Paid Invoices:
-2. Total Bank Statement Lines Imported:
-3. Auto-Matched Lines:
-4. Manually Matched Lines:
-5. Unmatched Lines Remaining:
-6. Payment Mode Variance Identified:
-7. Critical Exceptions Raised:
-8. Statement Finalized: Yes / No
-
-Notes:
-```
-
-### Change Approval Template
-
-```text
-Change Title:
-Requested By:
-Date Requested:
-Environment:
-
-Reason for Change:
-
-Modules Affected:
-
-Risk Level: Low / Medium / High
-
-Pre-Checks Completed:
-1.
-2.
-3.
-
-Rollback Plan:
-
-Approved By:
-Scheduled Time:
-Completion Status:
-Post-Change Validation Result:
-```
+| 401 Unauthorized | Missing or expired JWT | Re-login and send `Authorization: Bearer <token>` |
+| 403 Forbidden | Role lacks permission | Use account with required role |
+| 404 Not Found | Wrong ID or endpoint path | Confirm ID exists and endpoint is correct |
+| 409 Conflict | Duplicate unique field | Use unique value or check existing record |
+| 422 Validation Failed | Missing or invalid fields | Check required fields and payload structure |
+| `Invoice is already APPROVED/PAID` | Re-approve or re-pay attempt | Refresh status, only run the valid next action |
+| `Only APPROVED invoices can be marked as paid` | Payment on wrong status | Approve invoice first, then mark as paid |
+| `M-Pesa is not fully configured` | Placeholder values remain in `.env` | Set real values for all `MPESA_*` keys |
+| `MPESA_SHORTCODE must be numeric` | Non-numeric shortcode | Set a valid numeric shortcode |
+| Daraja `errorMessage` in response | Invalid credentials or config | Check consumer key/secret, shortcode, and passkey |
+| `ngrok did not expose a tunnel` | ngrok not running | Start `ngrok http 3000` before running `npm run ngrok:update` |
+
+---
+
+## Developer Notes
+
+- Always run `npx prisma migrate deploy` after pulling schema changes.
+- Use explicit DTOs for any finance-critical field additions.
+- Run `npx tsc --noEmit` and `npm run lint` before committing.
+- `MPESA_CALLBACK_URL` must be a publicly reachable HTTPS URL — use `npm run ngrok:update` during local development.
+- Leave `MPESA_CALLBACK_IP_ALLOWLIST` and `MPESA_CALLBACK_SIGNATURE_SECRET` empty for sandbox; set them for production hardening.
+- BullMQ jobs (eTIMS) require Redis — ensure the Docker container is running.
+- POS idle timeout is 5 minutes. The screen locks automatically and requires PIN re-entry.
+- The `scripts/update-ngrok-url.js` helper uses only Node.js built-in modules — no additional npm install required.

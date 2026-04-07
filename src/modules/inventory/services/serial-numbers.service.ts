@@ -42,7 +42,7 @@ export class SerialNumbersService {
     );
   }
 
-  async findAll(productId?: string, status?: string) {
+  findAll(productId?: string, status?: string) {
     return this.prisma.serialNumber.findMany({
       where: {
         ...(productId && { productId }),
@@ -62,7 +62,7 @@ export class SerialNumbersService {
     return sn;
   }
 
-  async updateStatus(id: string, status: string, warehouseId?: string) {
+  updateStatus(id: string, status: string, warehouseId?: string) {
     return this.prisma.serialNumber.update({
       where: { id },
       data: { status: status as any, ...(warehouseId && { warehouseId }) },
