@@ -165,11 +165,39 @@ model SalesInvoice {
   createdAt    DateTime           @default(now())
   updatedAt    DateTime           @updatedAt
   items        SalesInvoiceItem[]
+  mpesaTransactions MpesaTransaction[]
   etimsInvoice EtimsInvoice?
   quotes       SalesQuote[]
   creditNotes  CreditNote[]
 
   @@map("sales_invoices")
+}
+
+enum MpesaTransactionStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+model MpesaTransaction {
+  id                String                 @id @default(uuid())
+  invoiceId         String
+  invoice           SalesInvoice           @relation(fields: [invoiceId], references: [id])
+  phoneNumber       String
+  amount            Decimal                @db.Decimal(18, 2)
+  merchantRequestId String?
+  checkoutRequestId String?                @unique
+  resultCode        Int?
+  resultDesc        String?
+  receiptNumber     String?
+  transactionDate   DateTime?
+  status            MpesaTransactionStatus @default(PENDING)
+  callbackPayload   Json?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  @@index([invoiceId, status])
+  @@map("mpesa_transactions")
 }
 
 model SalesInvoiceItem {

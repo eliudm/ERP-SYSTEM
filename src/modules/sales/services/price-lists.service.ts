@@ -28,7 +28,7 @@ export class PriceListsService {
   }
 
   // ─── LIST ────────────────────────────────────────────────
-  async findAll() {
+  findAll() {
     return this.prisma.priceList.findMany({
       where: { isActive: true },
       include: { _count: { select: { items: true } } },
@@ -47,7 +47,7 @@ export class PriceListsService {
   }
 
   // ─── UPDATE ──────────────────────────────────────────────
-  async update(id: string, dto: Partial<CreatePriceListDto>) {
+  update(id: string, dto: Partial<CreatePriceListDto>) {
     return this.prisma.priceList.update({
       where: { id },
       data: {
@@ -59,7 +59,7 @@ export class PriceListsService {
   }
 
   // ─── DEACTIVATE ──────────────────────────────────────────
-  async deactivate(id: string) {
+  deactivate(id: string) {
     return this.prisma.priceList.update({
       where: { id },
       data: { isActive: false },
@@ -97,7 +97,7 @@ export class PriceListsService {
   }
 
   // ─── GET ITEMS ───────────────────────────────────────────
-  async getItems(priceListId: string) {
+  getItems(priceListId: string) {
     return this.prisma.priceListItem.findMany({
       where: { priceListId },
       include: { product: true },
@@ -106,7 +106,7 @@ export class PriceListsService {
   }
 
   // ─── DELETE ITEM ─────────────────────────────────────────
-  async removeItem(itemId: string) {
+  removeItem(itemId: string) {
     return this.prisma.priceListItem.delete({ where: { id: itemId } });
   }
 

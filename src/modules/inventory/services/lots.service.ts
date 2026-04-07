@@ -68,7 +68,7 @@ export class LotsService {
     });
   }
 
-  async findAll(productId?: string) {
+  findAll(productId?: string) {
     return this.prisma.lot.findMany({
       where: productId ? { productId } : {},
       include: { product: true },
@@ -88,7 +88,7 @@ export class LotsService {
     return lot;
   }
 
-  async findExpiring(days = 30) {
+  findExpiring(days = 30) {
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() + days);
 
@@ -102,7 +102,7 @@ export class LotsService {
     });
   }
 
-  async update(id: string, dto: Partial<CreateLotDto>) {
+  update(id: string, dto: Partial<CreateLotDto>) {
     return this.prisma.lot.update({
       where: { id },
       data: {

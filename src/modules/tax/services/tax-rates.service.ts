@@ -24,7 +24,7 @@ export class TaxRatesService {
     });
   }
 
-  async findAll(type?: string, activeOnly = true) {
+  findAll(type?: string, activeOnly = true) {
     return this.prisma.taxRate.findMany({
       where: {
         ...(type && { type: type as any }),

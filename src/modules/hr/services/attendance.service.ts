@@ -53,7 +53,7 @@ export class AttendanceService {
     });
   }
 
-  async findAll(employeeId?: string, startDate?: string, endDate?: string) {
+  findAll(employeeId?: string, startDate?: string, endDate?: string) {
     return this.prisma.attendanceRecord.findMany({
       where: {
         ...(employeeId && { employeeId }),

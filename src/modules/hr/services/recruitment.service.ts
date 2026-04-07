@@ -11,7 +11,7 @@ export class RecruitmentService {
 
   // ─── Job Postings ──────────────────────────────────────────────────────────
 
-  async createPosting(data: {
+  createPosting(data: {
     title: string;
     department?: string;
     description?: string;
@@ -26,7 +26,7 @@ export class RecruitmentService {
     });
   }
 
-  async findAllPostings(status?: string) {
+  findAllPostings(status?: string) {
     return this.prisma.jobPosting.findMany({
       where: status ? { status: status as any } : undefined,
       include: { _count: { select: { applications: true } } },
@@ -102,7 +102,7 @@ export class RecruitmentService {
     });
   }
 
-  async findAllApplications(jobPostingId?: string, status?: string) {
+  findAllApplications(jobPostingId?: string, status?: string) {
     return this.prisma.jobApplication.findMany({
       where: {
         ...(jobPostingId && { jobPostingId }),
@@ -167,7 +167,7 @@ export class RecruitmentService {
     });
   }
 
-  async recordInterviewResult(
+  recordInterviewResult(
     interviewId: string,
     result: string,
     feedback?: string,

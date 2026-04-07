@@ -49,7 +49,65 @@ export class UpdateContactDto {
 export class ContactsService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(search?: string, type?: ContactType) {
+  private buildAddress(contact: {
+    street?: string | null;
+    street2?: string | null;
+    city?: string | null;
+    state?: string | null;
+    zip?: string | null;
+    country?: string | null;
+  }) {
+    return [
+      contact.street,
+      contact.street2,
+      contact.city,
+      contact.state,
+      contact.zip,
+      contact.country,
+    ]
+      .filter(Boolean)
+      .join(', ');
+  }
+
+  private async syncContactToCustomer(contact: {
+    id: string;
+    name: string;
+    email?: string | null;
+    phone?: string | null;
+    mobile?: string | null;
+    street?: string | null;
+    street2?: string | null;
+    city?: string | null;
+    state?: string | null;
+    zip?: string | null;
+    country?: string | null;
+    taxId?: string | null;
+    isActive: boolean;
+  }) {
+    const address = this.buildAddress(contact);
+    await this.prisma.customer.upsert({
+      where: { id: contact.id },
+      create: {
+        id: contact.id,
+        name: contact.name,
+        email: contact.email ?? undefined,
+        phone: contact.phone ?? contact.mobile ?? undefined,
+        address: address || undefined,
+        taxPin: contact.taxId ?? undefined,
+        isActive: contact.isActive,
+      },
+      update: {
+        name: contact.name,
+        email: contact.email,
+        phone: contact.phone ?? contact.mobile,
+        address: address || null,
+        taxPin: contact.taxId,
+        isActive: contact.isActive,
+      },
+    });
+  }
+
+  findAll(search?: string, type?: ContactType) {
     return this.prisma.contact.findMany({
       where: {
         isActive: true,
@@ -95,7 +153,7 @@ export class ContactsService {
   }
 
   async create(dto: CreateContactDto) {
-    return this.prisma.contact.create({
+    const contact = await this.prisma.contact.create({
       data: {
         type: dto.type ?? 'INDIVIDUAL',
         name: dto.name,
@@ -120,11 +178,13 @@ export class ContactsService {
         company: { select: { id: true, name: true } },
       },
     });
+    await this.syncContactToCustomer(contact);
+    return contact;
   }
 
   async update(id: string, dto: UpdateContactDto) {
     await this.findOne(id);
-    return this.prisma.contact.update({
+    const contact = await this.prisma.contact.update({
       where: { id },
       data: {
         ...(dto.type !== undefined && { type: dto.type }),
@@ -164,17 +224,24 @@ export class ContactsService {
         },
       },
     });
+    await this.syncContactToCustomer(contact);
+    return contact;
   }
 
   async remove(id: string) {
     await this.findOne(id);
-    return this.prisma.contact.update({
+    const contact = await this.prisma.contact.update({
       where: { id },
       data: { isActive: false },
     });
+    await this.prisma.customer.updateMany({
+      where: { id: contact.id },
+      data: { isActive: false },
+    });
+    return contact;
   }
 
-  async getCompanies(search?: string) {
+  getCompanies(search?: string) {
     return this.prisma.contact.findMany({
       where: {
         type: 'COMPANY',
