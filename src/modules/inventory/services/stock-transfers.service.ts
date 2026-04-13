@@ -58,7 +58,7 @@ export class StockTransfersService {
     });
   }
 
-  async findAll() {
+  findAll() {
     return this.prisma.stockTransfer.findMany({
       include: {
         fromWarehouse: true,

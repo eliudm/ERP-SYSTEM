@@ -277,8 +277,9 @@ export class InvoicesService {
         .catch(() => {});
     }
 
-    // If payment method provided (e.g. POS cash sale), auto-mark as paid
-    if (paymentMethod) {
+    // For instant-settlement methods, mark as paid immediately.
+    // MOBILE_MONEY is settled asynchronously via M-Pesa callback.
+    if (paymentMethod && paymentMethod !== PaymentMethod.MOBILE_MONEY) {
       return this.markAsPaid(id, paymentMethod, userId);
     }
 
