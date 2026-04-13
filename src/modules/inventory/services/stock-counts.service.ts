@@ -57,7 +57,7 @@ export class StockCountsService {
     });
   }
 
-  async findAll() {
+  findAll() {
     return this.prisma.stockCount.findMany({
       include: { warehouse: true, _count: { select: { lines: true } } },
       orderBy: { createdAt: 'desc' },

@@ -301,7 +301,7 @@ export class QuotesService {
     });
   }
 
-  async expire(id: string) {
+  expire(id: string) {
     return this.prisma.salesQuote.update({
       where: { id },
       data: { status: 'EXPIRED' },

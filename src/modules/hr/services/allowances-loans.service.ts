@@ -51,7 +51,7 @@ export class AllowancesLoansService {
     });
   }
 
-  async updateAllowance(
+  updateAllowance(
     id: string,
     data: Partial<{
       amount: number;
@@ -70,14 +70,14 @@ export class AllowancesLoansService {
     });
   }
 
-  async deactivateAllowance(id: string) {
+  deactivateAllowance(id: string) {
     return this.prisma.allowance.update({
       where: { id },
       data: { isActive: false },
     });
   }
 
-  async findAllAllowances(employeeId?: string) {
+  findAllAllowances(employeeId?: string) {
     return this.prisma.allowance.findMany({
       where: employeeId ? { employeeId } : undefined,
       include: { employee: true },
@@ -85,7 +85,7 @@ export class AllowancesLoansService {
     });
   }
 
-  async findAllLoans(employeeId?: string) {
+  findAllLoans(employeeId?: string) {
     return this.prisma.loanDeduction.findMany({
       where: employeeId ? { employeeId } : undefined,
       include: { employee: true },
@@ -93,7 +93,7 @@ export class AllowancesLoansService {
     });
   }
 
-  async getActiveAllowances(employeeId: string) {
+  getActiveAllowances(employeeId: string) {
     const now = new Date();
     return this.prisma.allowance.findMany({
       where: {
@@ -145,7 +145,7 @@ export class AllowancesLoansService {
     });
   }
 
-  async getActiveLoans(employeeId: string) {
+  getActiveLoans(employeeId: string) {
     return this.prisma.loanDeduction.findMany({
       where: { employeeId, isActive: true, balance: { gt: 0 } },
     });
