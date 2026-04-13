@@ -10,16 +10,16 @@ import { LeaveType } from '@prisma/client';
 export class CreateLeaveDto {
   @IsString()
   @IsNotEmpty()
-  employeeId: string;
+  employeeId!: string;
 
   @IsEnum(LeaveType)
-  leaveType: LeaveType;
+  leaveType!: LeaveType;
 
   @IsDateString()
-  startDate: string;
+  startDate!: string;
 
   @IsDateString()
-  endDate: string;
+  endDate!: string;
 
   @IsOptional()
   @IsString()

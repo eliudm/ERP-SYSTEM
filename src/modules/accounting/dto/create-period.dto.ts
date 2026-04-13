@@ -3,11 +3,11 @@ import { IsString, IsNotEmpty, IsDateString } from 'class-validator';
 export class CreatePeriodDto {
   @IsString()
   @IsNotEmpty()
-  name: string;
+  name!: string;
 
   @IsDateString()
-  startDate: string;
+  startDate!: string;
 
   @IsDateString()
-  endDate: string;
+  endDate!: string;
 }

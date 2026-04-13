@@ -75,6 +75,18 @@ export class ProductsService {
     return product;
   }
 
+  // ─── FIND BY BARCODE ──────────────────────────────────────
+  async findByBarcode(barcode: string) {
+    const product = await this.prisma.product.findUnique({
+      where: { barcode },
+      include: { category: true },
+    });
+
+    if (!product)
+      throw new NotFoundException(`No product found with barcode "${barcode}"`);
+    return product;
+  }
+
   // ─── UPDATE PRODUCT ──────────────────────────────────────
   async update(id: string, dto: UpdateProductDto) {
     const product = await this.prisma.product.findUnique({ where: { id } });

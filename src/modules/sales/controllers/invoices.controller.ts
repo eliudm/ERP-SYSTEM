@@ -6,6 +6,7 @@ import {
   Body,
   Param,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { InvoicesService } from '../services/invoices.service';
@@ -26,8 +27,8 @@ export class InvoicesController {
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.SALES_USER)
   @AllowPosUser()
-  create(@Body() dto: CreateInvoiceDto) {
-    return this.invoicesService.create(dto);
+  create(@Body() dto: CreateInvoiceDto, @Req() req: any) {
+    return this.invoicesService.create(dto, req.user?.id);
   }
 
   // GET /sales/invoices
@@ -80,8 +81,14 @@ export class InvoicesController {
     @Param('id') id: string,
     @Body('warehouseId') warehouseId?: string,
     @Body('paymentMethod') paymentMethod?: PaymentMethod,
+    @Req() req?: any,
   ) {
-    return this.invoicesService.approve(id, warehouseId, paymentMethod);
+    return this.invoicesService.approve(
+      id,
+      warehouseId,
+      paymentMethod,
+      req?.user?.id,
+    );
   }
 
   // PATCH /sales/invoices/:id/paid
@@ -91,15 +98,20 @@ export class InvoicesController {
   markAsPaid(
     @Param('id') id: string,
     @Body('paymentMethod') paymentMethod?: PaymentMethod,
+    @Req() req?: any,
   ) {
-    return this.invoicesService.markAsPaid(id, paymentMethod);
+    return this.invoicesService.markAsPaid(id, paymentMethod, req?.user?.id);
   }
 
   // PATCH /sales/invoices/:id/void
   @Patch(':id/void')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.ACCOUNTANT)
-  void(@Param('id') id: string, @Body('reason') reason: string) {
-    return this.invoicesService.void(id, reason);
+  void(
+    @Param('id') id: string,
+    @Body('reason') reason: string,
+    @Req() req: any,
+  ) {
+    return this.invoicesService.void(id, reason, req.user?.id);
   }
 }

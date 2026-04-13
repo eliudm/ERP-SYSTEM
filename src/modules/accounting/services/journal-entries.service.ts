@@ -11,8 +11,8 @@ export class JournalEntriesService {
   ) {}
 
   // ─── CREATE & POST JOURNAL ENTRY ─────────────────────────
-  async create(dto: CreateJournalEntryDto) {
-    return this.postingEngine.postTransaction(dto);
+  async create(dto: CreateJournalEntryDto, userId?: string) {
+    return this.postingEngine.postTransaction(dto, userId);
   }
 
   // ─── GET ALL JOURNAL ENTRIES ─────────────────────────────
@@ -49,8 +49,8 @@ export class JournalEntriesService {
   }
 
   // ─── VOID JOURNAL ENTRY ──────────────────────────────────
-  async void(id: string, reason: string) {
-    return this.postingEngine.voidTransaction(id, reason);
+  async void(id: string, reason: string, userId?: string) {
+    return this.postingEngine.voidTransaction(id, reason, userId);
   }
 
   // ─── GET TRIAL BALANCE ───────────────────────────────────

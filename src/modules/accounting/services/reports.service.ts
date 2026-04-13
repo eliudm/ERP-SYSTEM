@@ -459,4 +459,116 @@ export class ReportsService {
       vatPayable: outputVat - inputVat,
     };
   }
+
+  // ─── PROFIT & LOSS (INCOME STATEMENT) ────────────────────
+  async getProfitAndLoss(startDate: string, endDate: string) {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    const accounts = await this.prisma.account.findMany({
+      where: { type: { in: ['REVENUE', 'EXPENSE'] }, isActive: true },
+      include: {
+        journalLines: {
+          where: {
+            journalEntry: {
+              status: 'POSTED',
+              entryDate: { gte: start, lte: end },
+            },
+          },
+        },
+      },
+      orderBy: { code: 'asc' },
+    });
+
+    const revenue: { code: string; name: string; amount: number }[] = [];
+    const expenses: { code: string; name: string; amount: number }[] = [];
+
+    for (const acc of accounts) {
+      const debit = acc.journalLines.reduce((s, l) => s + Number(l.debit), 0);
+      const credit = acc.journalLines.reduce((s, l) => s + Number(l.credit), 0);
+      const net = credit - debit; // Revenue: credit > debit = positive
+
+      if (acc.type === 'REVENUE') {
+        if (net !== 0)
+          revenue.push({ code: acc.code, name: acc.name, amount: net });
+      } else {
+        const expense = debit - credit; // Expense: debit > credit = positive
+        if (expense !== 0)
+          expenses.push({ code: acc.code, name: acc.name, amount: expense });
+      }
+    }
+
+    const totalRevenue = revenue.reduce((s, r) => s + r.amount, 0);
+    const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0);
+    const grossProfit = totalRevenue;
+    const netProfit = totalRevenue - totalExpenses;
+
+    return {
+      period: { startDate: start, endDate: end },
+      revenue: { lines: revenue, total: totalRevenue },
+      expenses: { lines: expenses, total: totalExpenses },
+      grossProfit,
+      netProfit,
+      netProfitMargin:
+        totalRevenue !== 0 ? (netProfit / totalRevenue) * 100 : 0,
+    };
+  }
+
+  // ─── TRIAL BALANCE ────────────────────────────────────────
+  async getTrialBalance(asOf?: string) {
+    const asOfDate = asOf ? new Date(asOf) : new Date();
+
+    const accounts = await this.prisma.account.findMany({
+      where: { isActive: true },
+      include: {
+        journalLines: {
+          where: {
+            journalEntry: {
+              status: 'POSTED',
+              entryDate: { lte: asOfDate },
+            },
+          },
+        },
+      },
+      orderBy: { code: 'asc' },
+    });
+
+    const lines: {
+      code: string;
+      name: string;
+      type: string;
+      debit: number;
+      credit: number;
+    }[] = [];
+
+    for (const acc of accounts) {
+      const totalDebit = acc.journalLines.reduce(
+        (s, l) => s + Number(l.debit),
+        0,
+      );
+      const totalCredit = acc.journalLines.reduce(
+        (s, l) => s + Number(l.credit),
+        0,
+      );
+      if (totalDebit === 0 && totalCredit === 0) continue;
+
+      lines.push({
+        code: acc.code,
+        name: acc.name,
+        type: acc.type,
+        debit: totalDebit,
+        credit: totalCredit,
+      });
+    }
+
+    const totalDebit = lines.reduce((s, l) => s + l.debit, 0);
+    const totalCredit = lines.reduce((s, l) => s + l.credit, 0);
+
+    return {
+      asOf: asOfDate,
+      lines,
+      totals: { debit: totalDebit, credit: totalCredit },
+      isBalanced: Math.abs(totalDebit - totalCredit) < 0.01,
+    };
+  }
 }

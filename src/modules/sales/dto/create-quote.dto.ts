@@ -12,7 +12,7 @@ import { Type } from 'class-transformer';
 
 export class CreateQuoteItemDto {
   @IsUUID()
-  productId: string;
+  productId!: string;
 
   @IsOptional()
   @IsString()
@@ -20,11 +20,11 @@ export class CreateQuoteItemDto {
 
   @IsNumber()
   @Min(0.01)
-  quantity: number;
+  quantity!: number;
 
   @IsNumber()
   @Min(0)
-  unitPrice: number;
+  unitPrice!: number;
 
   @IsOptional()
   @IsNumber()
@@ -33,12 +33,12 @@ export class CreateQuoteItemDto {
 
   @IsNumber()
   @Min(0)
-  taxRate: number;
+  taxRate!: number;
 }
 
 export class CreateQuoteDto {
   @IsUUID()
-  customerId: string;
+  customerId!: string;
 
   @IsOptional()
   @IsDateString()
@@ -47,7 +47,7 @@ export class CreateQuoteDto {
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => CreateQuoteItemDto)
-  items: CreateQuoteItemDto[];
+  items!: CreateQuoteItemDto[];
 
   @IsOptional()
   @IsString()

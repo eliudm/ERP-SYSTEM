@@ -11,20 +11,20 @@ import { Type } from 'class-transformer';
 export class ReceiveItemDto {
   @IsString()
   @IsNotEmpty()
-  productId: string;
+  productId!: string;
 
   @IsNumber()
   @Min(0.01)
-  quantityReceived: number;
+  quantityReceived!: number;
 
   @IsString()
   @IsNotEmpty()
-  warehouseId: string;
+  warehouseId!: string;
 }
 
 export class ReceiveGoodsDto {
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => ReceiveItemDto)
-  items: ReceiveItemDto[];
+  items!: ReceiveItemDto[];
 }

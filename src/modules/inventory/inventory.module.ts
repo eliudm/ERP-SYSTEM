@@ -8,6 +8,7 @@ import { SerialNumbersController } from './controllers/serial-numbers.controller
 import { LandedCostsController } from './controllers/landed-costs.controller';
 import { StockCountsController } from './controllers/stock-counts.controller';
 import { StockTransfersController } from './controllers/stock-transfers.controller';
+import { ReorderRulesController } from './controllers/reorder-rules.controller';
 import { ProductsService } from './services/products.service';
 import { ProductCategoriesService } from './services/product-categories.service';
 import { WarehousesService } from './services/warehouses.service';
@@ -17,6 +18,7 @@ import { SerialNumbersService } from './services/serial-numbers.service';
 import { LandedCostsService } from './services/landed-costs.service';
 import { StockCountsService } from './services/stock-counts.service';
 import { StockTransfersService } from './services/stock-transfers.service';
+import { ReorderRulesService } from './services/reorder-rules.service';
 import { AccountingModule } from '../accounting/accounting.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 
@@ -32,6 +34,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     LandedCostsController,
     StockCountsController,
     StockTransfersController,
+    ReorderRulesController,
   ],
   providers: [
     ProductsService,
@@ -43,7 +46,8 @@ import { NotificationsModule } from '../notifications/notifications.module';
     LandedCostsService,
     StockCountsService,
     StockTransfersService,
+    ReorderRulesService,
   ],
-  exports: [ProductsService, StockMovementsService],
+  exports: [ProductsService, StockMovementsService, ReorderRulesService],
 })
 export class InventoryModule {}

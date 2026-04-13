@@ -7,7 +7,12 @@ import { PrismaService } from '../../../prisma.service';
 import { PostingEngineService } from '../../accounting/services/posting-engine.service';
 import { StockMovementsService } from '../../inventory/services/stock-movements.service';
 import { CreatePurchaseOrderDto, ReceiveGoodsDto } from '../dto';
-import { PurchaseOrderStatus, MovementType } from '@prisma/client';
+import {
+  ApprovalEntityType,
+  PurchaseOrderStatus,
+  MovementType,
+} from '@prisma/client';
+import { WorkflowService } from '../../workflow/workflow.service';
 
 @Injectable()
 export class PurchaseOrdersService {
@@ -15,6 +20,7 @@ export class PurchaseOrdersService {
     private prisma: PrismaService,
     private postingEngine: PostingEngineService,
     private stockMovements: StockMovementsService,
+    private workflowService: WorkflowService,
   ) {}
 
   // ─── GENERATE ORDER NUMBER ───────────────────────────────
@@ -85,6 +91,11 @@ export class PurchaseOrdersService {
 
   // ─── APPROVE PURCHASE ORDER ──────────────────────────────
   async approve(id: string) {
+    await this.workflowService.assertApprovalIfExists(
+      ApprovalEntityType.PURCHASE_ORDER,
+      id,
+    );
+
     const po = await this.prisma.purchaseOrder.findUnique({
       where: { id },
       include: { supplier: true },
@@ -147,7 +158,7 @@ export class PurchaseOrdersService {
       ],
     });
 
-    return this.prisma.purchaseOrder.update({
+    const updated = await this.prisma.purchaseOrder.update({
       where: { id },
       data: { status: PurchaseOrderStatus.APPROVED },
       include: {
@@ -155,6 +166,13 @@ export class PurchaseOrdersService {
         items: { include: { product: true } },
       },
     });
+
+    await this.workflowService.consumeApprovedRequest(
+      ApprovalEntityType.PURCHASE_ORDER,
+      id,
+    );
+
+    return updated;
   }
 
   // ─── RECEIVE GOODS ───────────────────────────────────────

@@ -24,6 +24,6 @@ export class RolesGuard implements CanActivate {
       [context.getHandler(), context.getClass()],
     );
     if (allowPosUser && user?.posOnly === true) return true;
-    return true;
+    return requiredRoles.includes(user?.role);
   }
 }

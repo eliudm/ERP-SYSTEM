@@ -2,23 +2,34 @@ import { Module } from '@nestjs/common';
 import { MailService } from '../../mail.service';
 import { CustomersController } from './controllers/customers.controller';
 import { InvoicesController } from './controllers/invoices.controller';
+import { RecurringInvoicesController } from './controllers/recurring-invoices.controller';
 import { QuotesController } from './controllers/quotes.controller';
 import { CreditNotesController } from './controllers/credit-notes.controller';
 import { PriceListsController } from './controllers/price-lists.controller';
 import { CustomersService } from './services/customers.service';
 import { InvoicesService } from './services/invoices.service';
+import { RecurringInvoicesService } from './services/recurring-invoices.service';
 import { QuotesService } from './services/quotes.service';
 import { CreditNotesService } from './services/credit-notes.service';
 import { PriceListsService } from './services/price-lists.service';
 import { AccountingModule } from '../accounting/accounting.module';
 import { EtimsModule } from '../etims/etims.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { AuditModule } from '../audit/audit.module';
+import { WorkflowModule } from '../workflow/workflow.module';
 
 @Module({
-  imports: [AccountingModule, EtimsModule, NotificationsModule],
+  imports: [
+    AccountingModule,
+    EtimsModule,
+    NotificationsModule,
+    AuditModule,
+    WorkflowModule,
+  ],
   controllers: [
     CustomersController,
     InvoicesController,
+    RecurringInvoicesController,
     QuotesController,
     CreditNotesController,
     PriceListsController,
@@ -26,6 +37,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
   providers: [
     CustomersService,
     InvoicesService,
+    RecurringInvoicesService,
     QuotesService,
     CreditNotesService,
     PriceListsService,

@@ -17,9 +17,10 @@ import { RecruitmentService } from './services/recruitment.service';
 import { AppraisalsService } from './services/appraisals.service';
 import { AllowancesLoansService } from './services/allowances-loans.service';
 import { AccountingModule } from '../accounting/accounting.module';
+import { WorkflowModule } from '../workflow/workflow.module';
 
 @Module({
-  imports: [AccountingModule],
+  imports: [AccountingModule, WorkflowModule],
   controllers: [
     EmployeesController,
     PayrollController,

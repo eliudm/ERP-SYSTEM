@@ -5,6 +5,7 @@ import {
   Body,
   Param,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { JournalEntriesService } from '../services/journal-entries.service';
@@ -22,8 +23,8 @@ export class JournalEntriesController {
   @Post('journal-entries')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.ACCOUNTANT)
-  create(@Body() dto: CreateJournalEntryDto) {
-    return this.journalService.create(dto);
+  create(@Body() dto: CreateJournalEntryDto, @Req() req: any) {
+    return this.journalService.create(dto, req.user?.id);
   }
 
   @Get('journal-entries')
@@ -39,8 +40,12 @@ export class JournalEntriesController {
   @Post('journal-entries/:id/void')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.ACCOUNTANT)
-  void(@Param('id') id: string, @Body('reason') reason: string) {
-    return this.journalService.void(id, reason);
+  void(
+    @Param('id') id: string,
+    @Body('reason') reason: string,
+    @Req() req: any,
+  ) {
+    return this.journalService.void(id, reason, req.user?.id);
   }
 
   @Get('reports/trial-balance')

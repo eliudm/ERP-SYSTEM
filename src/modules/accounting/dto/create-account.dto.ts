@@ -4,14 +4,14 @@ import { AccountType } from '@prisma/client';
 export class CreateAccountDto {
   @IsString()
   @IsNotEmpty()
-  code: string;
+  code!: string;
 
   @IsString()
   @IsNotEmpty()
-  name: string;
+  name!: string;
 
   @IsEnum(AccountType)
-  type: AccountType;
+  type!: AccountType;
 
   @IsOptional()
   @IsString()

@@ -6,10 +6,14 @@ import {
 import { PrismaService } from '../../../prisma.service';
 import { CreateJournalEntryDto } from '../dto';
 import { JournalStatus } from '@prisma/client';
+import { AuditService } from '../../audit/audit.service';
 
 @Injectable()
 export class PostingEngineService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private auditService: AuditService,
+  ) {}
 
   // ─── VALIDATE JOURNAL BALANCE ────────────────────────────
   validateBalance(lines: { debit: number; credit: number }[]): void {
@@ -65,8 +69,14 @@ export class PostingEngineService {
   }
 
   // ─── POST TRANSACTION ────────────────────────────────────
-  async postTransaction(dto: CreateJournalEntryDto) {
+  async postTransaction(dto: CreateJournalEntryDto, userId?: string) {
     const entryDate = new Date(dto.entryDate);
+    const currency = (dto.currency ?? 'KES').toUpperCase();
+    const exchangeRate = Number(dto.exchangeRate ?? 1);
+
+    if (exchangeRate <= 0) {
+      throw new BadRequestException('Exchange rate must be greater than zero');
+    }
 
     // Step 1: Validate balance
     this.validateBalance(dto.lines);
@@ -94,6 +104,8 @@ export class PostingEngineService {
           reference: dto.reference,
           description: dto.description,
           entryDate,
+          currency,
+          exchangeRate,
           status: JournalStatus.POSTED,
           sourceType: dto.sourceType,
           sourceId: dto.sourceId,
@@ -112,11 +124,29 @@ export class PostingEngineService {
       return entry;
     });
 
+    await this.auditService.log({
+      userId,
+      action: 'CREATE',
+      tableName: 'journal_entries',
+      recordId: journalEntry.id,
+      newValues: {
+        reference: journalEntry.reference,
+        sourceType: journalEntry.sourceType,
+        sourceId: journalEntry.sourceId,
+        currency: journalEntry.currency,
+        exchangeRate: journalEntry.exchangeRate,
+      },
+    });
+
     return journalEntry;
   }
 
   // ─── VOID TRANSACTION ────────────────────────────────────
-  async voidTransaction(journalEntryId: string, reason: string) {
+  async voidTransaction(
+    journalEntryId: string,
+    reason: string,
+    userId?: string,
+  ) {
     const entry = await this.prisma.journalEntry.findUnique({
       where: { id: journalEntryId },
       include: { lines: true },
@@ -145,6 +175,8 @@ export class PostingEngineService {
           reference: `VOID-${entry.reference}`,
           description: `Reversal of ${entry.reference}. Reason: ${reason}`,
           entryDate: new Date(),
+          currency: entry.currency,
+          exchangeRate: entry.exchangeRate,
           status: JournalStatus.POSTED,
           sourceType: 'VOID',
           sourceId: journalEntryId,
@@ -162,6 +194,19 @@ export class PostingEngineService {
       });
 
       return reversing;
+    });
+
+    await this.auditService.log({
+      userId,
+      action: 'VOID',
+      tableName: 'journal_entries',
+      recordId: journalEntryId,
+      oldValues: { status: entry.status },
+      newValues: {
+        status: JournalStatus.VOID,
+        reversingReference: reversingEntry.reference,
+        reason,
+      },
     });
 
     return reversingEntry;
