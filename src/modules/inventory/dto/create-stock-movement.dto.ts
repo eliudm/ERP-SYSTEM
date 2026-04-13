@@ -11,18 +11,18 @@ import { MovementType } from '@prisma/client';
 export class CreateStockMovementDto {
   @IsString()
   @IsNotEmpty()
-  productId: string;
+  productId!: string;
 
   @IsString()
   @IsNotEmpty()
-  warehouseId: string;
+  warehouseId!: string;
 
   @IsEnum(MovementType)
-  movementType: MovementType;
+  movementType!: MovementType;
 
   @IsNumber()
   @Min(0.01)
-  quantity: number;
+  quantity!: number;
 
   @IsOptional()
   @IsNumber()

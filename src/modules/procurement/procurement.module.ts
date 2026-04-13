@@ -11,9 +11,10 @@ import { VendorBillsService } from './services/vendor-bills.service';
 import { PurchaseReturnsService } from './services/purchase-returns.service';
 import { AccountingModule } from '../accounting/accounting.module';
 import { InventoryModule } from '../inventory/inventory.module';
+import { WorkflowModule } from '../workflow/workflow.module';
 
 @Module({
-  imports: [AccountingModule, InventoryModule],
+  imports: [AccountingModule, InventoryModule, WorkflowModule],
   controllers: [
     SuppliersController,
     PurchaseOrdersController,

@@ -2,13 +2,13 @@ import { IsEmail, IsString, IsNotEmpty } from 'class-validator';
 
 export class SendQuoteEmailDto {
   @IsEmail()
-  to: string;
+  to!: string;
 
   @IsString()
   @IsNotEmpty()
-  subject: string;
+  subject!: string;
 
   @IsString()
   @IsNotEmpty()
-  body: string;
+  body!: string;
 }

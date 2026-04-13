@@ -11,14 +11,14 @@ import {
 export class CreateEmployeeDto {
   @IsString()
   @IsNotEmpty()
-  firstName: string;
+  firstName!: string;
 
   @IsString()
   @IsNotEmpty()
-  lastName: string;
+  lastName!: string;
 
   @IsEmail()
-  email: string;
+  email!: string;
 
   @IsOptional()
   @IsString()
@@ -34,8 +34,8 @@ export class CreateEmployeeDto {
 
   @IsNumber()
   @Min(0)
-  salary: number;
+  salary!: number;
 
   @IsDateString()
-  startDate: string;
+  startDate!: string;
 }

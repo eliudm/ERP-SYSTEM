@@ -32,5 +32,5 @@ export class UpdateUserDto {
 export class ResetPasswordDto {
   @IsString()
   @MinLength(8, { message: 'Password must be at least 8 characters' })
-  newPassword: string;
+  newPassword!: string;
 }

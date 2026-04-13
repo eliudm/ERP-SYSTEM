@@ -15,7 +15,7 @@ import { PaymentMethod } from '@prisma/client';
 export class CreateInvoiceItemDto {
   @IsString()
   @IsNotEmpty()
-  productId: string;
+  productId!: string;
 
   @IsOptional()
   @IsString()
@@ -23,24 +23,28 @@ export class CreateInvoiceItemDto {
 
   @IsNumber()
   @Min(0.01)
-  quantity: number;
+  quantity!: number;
 
   @IsNumber()
   @Min(0)
-  unitPrice: number;
+  unitPrice!: number;
 
   @IsNumber()
   @Min(0)
-  taxRate: number; // e.g 0.16 for 16% VAT
+  taxRate!: number; // e.g 0.16 for 16% VAT
 }
 
 export class CreateInvoiceDto {
   @IsString()
   @IsNotEmpty()
-  customerId: string;
+  customerId!: string;
+
+  @IsOptional()
+  @IsString()
+  branchId?: string;
 
   @IsDateString()
-  invoiceDate: string;
+  invoiceDate!: string;
 
   @IsOptional()
   @IsDateString()
@@ -57,5 +61,5 @@ export class CreateInvoiceDto {
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => CreateInvoiceItemDto)
-  items: CreateInvoiceItemDto[];
+  items!: CreateInvoiceItemDto[];
 }

@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  Post,
   Patch,
   Param,
   Query,
@@ -8,6 +9,9 @@ import {
 } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { Role } from '@prisma/client';
 
 @UseGuards(JwtAuthGuard)
 @Controller('notifications')
@@ -42,5 +46,15 @@ export class NotificationsController {
   @Patch(':id/read')
   markRead(@Param('id') id: string) {
     return this.notificationsService.markRead(id);
+  }
+
+  // POST /notifications/reminders/overdue-invoices?daysOverdue=0
+  @Post('reminders/overdue-invoices')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN, Role.ACCOUNTANT)
+  sendOverdueReminders(@Query('daysOverdue') daysOverdue: string) {
+    return this.notificationsService.sendOverdueInvoiceReminders(
+      Number(daysOverdue) || 0,
+    );
   }
 }

@@ -66,6 +66,7 @@ model Account {
   journalLines  JournalLine[]
   bankAccounts  BankAccount[]
   taxRates      TaxRate[]
+  budgetLines   BudgetLine[]
 
   @@map("accounts")
 }
@@ -75,6 +76,8 @@ model JournalEntry {
   reference   String        @unique
   description String?
   entryDate   DateTime
+  currency    String        @default("KES")
+  exchangeRate Decimal      @default(1) @db.Decimal(18, 6)
   status      JournalStatus @default(DRAFT)
   sourceType  String?       // e.g. "SALES_INVOICE", "PAYMENT"
   sourceId    String?       // ID of the source document
@@ -83,6 +86,21 @@ model JournalEntry {
   lines       JournalLine[]
 
   @@map("journal_entries")
+}
+
+model CurrencyRate {
+  id            String   @id @default(uuid())
+  baseCurrency  String
+  quoteCurrency String
+  rate          Decimal  @db.Decimal(18, 6)
+  rateDate      DateTime
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([baseCurrency, quoteCurrency, rateDate])
+  @@index([baseCurrency, quoteCurrency, rateDate])
+  @@map("currency_rates")
 }
 
 model JournalLine {
@@ -144,6 +162,7 @@ model Customer {
   invoices     SalesInvoice[]
   quotes       SalesQuote[]
   creditNotes  CreditNote[]
+  recurringInvoiceTemplates RecurringInvoiceTemplate[]
 
   @@map("customers")
 }
@@ -153,6 +172,8 @@ model SalesInvoice {
   invoiceNo    String             @unique
   customerId   String
   customer     Customer           @relation(fields: [customerId], references: [id])
+  branchId     String?
+  branch       Branch?            @relation(fields: [branchId], references: [id])
   invoiceDate  DateTime
   dueDate      DateTime?
   status       InvoiceStatus      @default(DRAFT)
@@ -168,6 +189,8 @@ model SalesInvoice {
   etimsInvoice EtimsInvoice?
   quotes       SalesQuote[]
   creditNotes  CreditNote[]
+  recurringRuns RecurringInvoiceRun[]
+  notifications Notification[]
 
   @@map("sales_invoices")
 }
@@ -202,6 +225,9 @@ enum MovementType {
 model Warehouse {
   id             String          @id @default(uuid())
   name           String
+  code           String?         @unique
+  branchId       String?
+  branch         Branch?         @relation(fields: [branchId], references: [id])
   location       String?
   isActive       Boolean         @default(true)
   createdAt      DateTime          @default(now())
@@ -212,6 +238,21 @@ model Warehouse {
   transfersTo    StockTransfer[]   @relation("TransferTo")
 
   @@map("warehouses")
+}
+
+model Branch {
+  id         String         @id @default(uuid())
+  name       String
+  code       String         @unique
+  location   String?
+  isActive   Boolean        @default(true)
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+  warehouses Warehouse[]
+  invoices   SalesInvoice[]
+  recurringInvoiceTemplates RecurringInvoiceTemplate[]
+
+  @@map("branches")
 }
 
 model ProductCategory {
@@ -229,6 +270,7 @@ model ProductCategory {
 model Product {
   id              String             @id @default(uuid())
   code            String             @unique
+  barcode         String?            @unique
   name            String
   description     String?
   categoryId      String?
@@ -255,6 +297,10 @@ model Product {
   rfqItems            RFQItem[]
   vendorBillItems     VendorBillItem[]
   purchaseReturnItems PurchaseReturnItem[]
+  recurringTemplateItems RecurringInvoiceTemplateItem[]
+  reorderRules           ReorderRule[]
+  bomProducts            BillOfMaterial[]   @relation("BOMProduct")
+  bomComponents          BOMLine[]          @relation("BOMComponent")
 
   @@map("products")
 }
@@ -302,6 +348,7 @@ model Supplier {
   rfqs            RequestForQuotation[]
   vendorBills     VendorBill[]
   purchaseReturns PurchaseReturn[]
+  reorderRules    ReorderRule[]
 
   @@map("suppliers")
 }
@@ -546,6 +593,10 @@ model EtimsSubmissionLog {
 enum NotificationType {
   LOW_STOCK
   OUT_OF_STOCK
+  PAYMENT_REMINDER
+  APPROVAL_REQUIRED
+  APPROVAL_APPROVED
+  APPROVAL_REJECTED
   SYSTEM
 }
 
@@ -555,6 +606,10 @@ model Notification {
   title      String
   message    String
   productId  String?
+  invoiceId  String?
+  invoice    SalesInvoice?    @relation(fields: [invoiceId], references: [id])
+  recipientEmail String?
+  sentViaEmail  Boolean        @default(false)
   isRead     Boolean          @default(false)
   createdAt  DateTime         @default(now())
 
@@ -663,6 +718,42 @@ enum ContactType {
   INDIVIDUAL
 }
 
+enum LeadStage {
+  NEW
+  QUALIFIED
+  PROPOSAL
+  WON
+  LOST
+}
+
+enum LeadActivityType {
+  CALL
+  EMAIL
+  MEETING
+  FOLLOW_UP
+  NOTE
+}
+
+enum ApprovalEntityType {
+  SALES_INVOICE
+  PURCHASE_ORDER
+  PAYROLL
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CONSUMED
+}
+
+enum RecurringFrequency {
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
 model Contact {
   id           String      @id @default(uuid())
   type         ContactType @default(INDIVIDUAL)
@@ -690,6 +781,66 @@ model Contact {
   updatedAt    DateTime    @updatedAt
 
   @@map("contacts")
+}
+
+model CrmLead {
+  id                String            @id @default(uuid())
+  title             String
+  companyName       String?
+  contactName       String?
+  email             String?
+  phone             String?
+  estimatedValue    Decimal?          @db.Decimal(18, 2)
+  stage             LeadStage         @default(NEW)
+  probability       Int               @default(0)
+  expectedCloseDate DateTime?
+  source            String?
+  notes             String?
+  createdById       String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  activities        CrmLeadActivity[]
+
+  @@map("crm_leads")
+}
+
+model CrmLeadActivity {
+  id          String           @id @default(uuid())
+  leadId       String
+  lead         CrmLead          @relation(fields: [leadId], references: [id])
+  type         LeadActivityType
+  summary      String
+  dueDate      DateTime?
+  completedAt  DateTime?
+  createdById  String?
+  createdAt    DateTime         @default(now())
+
+  @@map("crm_lead_activities")
+}
+
+model ApprovalRequest {
+  id             String             @id @default(uuid())
+  entityType     ApprovalEntityType
+  entityId       String
+  status         ApprovalStatus     @default(PENDING)
+  assignedRole   Role?
+  amountSnapshot Decimal?           @db.Decimal(18, 2)
+  requestedById  String?
+  approvedById   String?
+  rejectedById   String?
+  comments       String?
+  rejectionReason String?
+  dueAt          DateTime?
+  escalationCount Int               @default(0)
+  lastEscalatedAt DateTime?
+  requestedAt    DateTime           @default(now())
+  approvedAt     DateTime?
+  rejectedAt     DateTime?
+  consumedAt     DateTime?
+
+  @@index([entityType, entityId, status])
+  @@index([status, dueAt])
+  @@map("approval_requests")
 }
 
 // ============================================
@@ -938,6 +1089,61 @@ model StockCountLine {
   updatedAt    DateTime   @updatedAt
 
   @@map("stock_count_lines")
+}
+
+model RecurringInvoiceTemplate {
+  id                   String                        @id @default(uuid())
+  name                 String
+  customerId           String
+  customer             Customer                      @relation(fields: [customerId], references: [id])
+  branchId             String?
+  branch               Branch?                       @relation(fields: [branchId], references: [id])
+  frequency            RecurringFrequency            @default(MONTHLY)
+  startDate            DateTime
+  nextRunDate          DateTime
+  endDate              DateTime?
+  isActive             Boolean                       @default(true)
+  autoApprove          Boolean                       @default(false)
+  defaultPaymentMethod PaymentMethod?
+  notes                String?
+  createdById          String?
+  lastRunAt            DateTime?
+  createdAt            DateTime                      @default(now())
+  updatedAt            DateTime                      @updatedAt
+  items                RecurringInvoiceTemplateItem[]
+  runs                 RecurringInvoiceRun[]
+
+  @@index([nextRunDate, isActive])
+  @@map("recurring_invoice_templates")
+}
+
+model RecurringInvoiceTemplateItem {
+  id          String                   @id @default(uuid())
+  templateId  String
+  template    RecurringInvoiceTemplate @relation(fields: [templateId], references: [id])
+  productId   String
+  product     Product                  @relation(fields: [productId], references: [id])
+  description String?
+  quantity    Decimal                  @db.Decimal(18, 2)
+  unitPrice   Decimal                  @db.Decimal(18, 2)
+  taxRate     Decimal                  @db.Decimal(5, 2)
+  createdAt   DateTime                 @default(now())
+
+  @@map("recurring_invoice_template_items")
+}
+
+model RecurringInvoiceRun {
+  id           String                   @id @default(uuid())
+  templateId   String
+  template     RecurringInvoiceTemplate @relation(fields: [templateId], references: [id])
+  runDate      DateTime
+  invoiceId    String?
+  invoice      SalesInvoice?            @relation(fields: [invoiceId], references: [id])
+  status       String
+  errorMessage String?
+  createdAt    DateTime                 @default(now())
+
+  @@map("recurring_invoice_runs")
 }
 
 model ProductVariant {
@@ -1287,5 +1493,181 @@ model LoanDeduction {
   updatedAt        DateTime @updatedAt
 
   @@map("loan_deductions")
+}
+
+// ============================================
+// REORDER RULES
+// ============================================
+
+model ReorderRule {
+  id              String   @id @default(uuid())
+  productId       String
+  product         Product  @relation(fields: [productId], references: [id])
+  preferredSupplierId String?
+  preferredSupplier   Supplier? @relation(fields: [preferredSupplierId], references: [id])
+  reorderPoint    Decimal  @db.Decimal(18, 2) // trigger when stock <= this
+  reorderQty      Decimal  @db.Decimal(18, 2) // suggested qty to order
+  maxStock        Decimal? @db.Decimal(18, 2) // optional max stock level
+  isAutomatic     Boolean  @default(false) // auto-create PO suggestion
+  isActive        Boolean  @default(true)
+  lastTriggeredAt DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([productId])
+  @@map("reorder_rules")
+}
+
+// ============================================
+// BUDGET
+// ============================================
+
+enum BudgetStatus {
+  DRAFT
+  ACTIVE
+  CLOSED
+}
+
+model Budget {
+  id          String       @id @default(uuid())
+  name        String
+  fiscalYear  Int
+  startDate   DateTime
+  endDate     DateTime
+  status      BudgetStatus @default(DRAFT)
+  notes       String?
+  createdById String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  lines       BudgetLine[]
+
+  @@unique([fiscalYear, name])
+  @@map("budgets")
+}
+
+model BudgetLine {
+  id        String  @id @default(uuid())
+  budgetId  String
+  budget    Budget  @relation(fields: [budgetId], references: [id])
+  accountId String
+  account   Account @relation(fields: [accountId], references: [id])
+  month     Int     // 1-12
+  amount    Decimal @db.Decimal(18, 2)
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([budgetId, accountId, month])
+  @@map("budget_lines")
+}
+
+// ============================================
+// MANUFACTURING (MRP)
+// ============================================
+
+enum BOMStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum WorkOrderStatus {
+  DRAFT
+  CONFIRMED
+  IN_PROGRESS
+  DONE
+  CANCELLED
+}
+
+model BillOfMaterial {
+  id          String    @id @default(uuid())
+  name        String
+  productId   String
+  product     Product   @relation("BOMProduct", fields: [productId], references: [id])
+  quantity    Decimal   @default(1) @db.Decimal(18, 2) // output qty per run
+  status      BOMStatus @default(DRAFT)
+  notes       String?
+  createdById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  lines       BOMLine[]
+  workOrders  WorkOrder[]
+
+  @@map("bills_of_material")
+}
+
+model BOMLine {
+  id          String          @id @default(uuid())
+  bomId       String
+  bom         BillOfMaterial  @relation(fields: [bomId], references: [id])
+  productId   String
+  product     Product         @relation("BOMComponent", fields: [productId], references: [id])
+  quantity    Decimal         @db.Decimal(18, 2) // qty per 1 unit of finished product
+  notes       String?
+  createdAt   DateTime        @default(now())
+
+  @@unique([bomId, productId])
+  @@map("bom_lines")
+}
+
+model WorkOrder {
+  id             String          @id @default(uuid())
+  reference      String          @unique
+  bomId          String
+  bom            BillOfMaterial  @relation(fields: [bomId], references: [id])
+  quantity       Decimal         @db.Decimal(18, 2) // how many units to produce
+  status         WorkOrderStatus @default(DRAFT)
+  scheduledStart DateTime?
+  scheduledEnd   DateTime?
+  actualStart    DateTime?
+  actualEnd      DateTime?
+  notes          String?
+  createdById    String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@map("work_orders")
+}
+
+// ============================================
+// PLUGIN SYSTEM
+// ============================================
+
+enum PluginStatus {
+  ACTIVE
+  INACTIVE
+  ERROR
+}
+
+model Plugin {
+  id          String       @id @default(uuid())
+  name        String       @unique
+  version     String
+  description String?
+  author      String?
+  entryPoint  String       // module path or class name
+  config      Json?        // plugin-specific configuration
+  status      PluginStatus @default(INACTIVE)
+  installedAt DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@map("plugins")
+}
+
+// ============================================
+// FEATURE FLAGS
+// ============================================
+
+model FeatureFlag {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  name        String
+  description String?
+  isEnabled   Boolean  @default(false)
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("feature_flags")
 }
 

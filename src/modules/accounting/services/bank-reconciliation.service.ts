@@ -188,25 +188,61 @@ export class BankReconciliationService {
         orderBy: [{ journalEntry: { entryDate: 'asc' } }, { createdAt: 'asc' }],
       });
 
-      let journalLine = candidateLines[0];
-      if (line.paymentMethod) {
-        for (const candidate of candidateLines) {
+      // Score-based matching: amount + date + reference text + payment method
+      let bestCandidate = candidateLines[0];
+      let bestScore = 0;
+
+      for (const candidate of candidateLines) {
+        let score = 1; // base score for amount match
+
+        // Reference matching: check if statement line description contains journal reference or vice versa
+        const desc = line.description.toLowerCase();
+        const ref = (candidate.journalEntry.reference || '').toLowerCase();
+        const jDesc = (candidate.journalEntry.description || '').toLowerCase();
+
+        if (ref && desc.includes(ref)) {
+          score += 3; // strong signal
+        } else if (jDesc && desc.includes(jDesc)) {
+          score += 2;
+        } else if (ref && jDesc) {
+          // Check for partial word overlap
+          const descWords = desc.split(/\s+/).filter((w) => w.length > 3);
+          const refWords = [...ref.split(/\s+/), ...jDesc.split(/\s+/)].filter(
+            (w) => w.length > 3,
+          );
+          const overlap = descWords.filter((w) => refWords.includes(w)).length;
+          if (overlap > 0) score += overlap;
+        }
+
+        // Payment method matching
+        if (line.paymentMethod) {
           const isMethodMatch = await this.isMatchingPaymentMethod(
             candidate.journalEntry.sourceType,
             candidate.journalEntry.sourceId,
             line.paymentMethod,
           );
-          if (isMethodMatch) {
-            journalLine = candidate;
-            break;
-          }
+          if (isMethodMatch) score += 2;
+        }
+
+        // Exact date match bonus
+        const lineDate = new Date(line.transactionDate)
+          .toISOString()
+          .slice(0, 10);
+        const entryDate = new Date(candidate.journalEntry.entryDate)
+          .toISOString()
+          .slice(0, 10);
+        if (lineDate === entryDate) score += 1;
+
+        if (score > bestScore) {
+          bestScore = score;
+          bestCandidate = candidate;
         }
       }
 
-      if (journalLine) {
+      if (bestCandidate) {
         await this.prisma.bankStatementLine.update({
           where: { id: line.id },
-          data: { matchedJournalLineId: journalLine.id, isMatched: true },
+          data: { matchedJournalLineId: bestCandidate.id, isMatched: true },
         });
         matchedCount++;
       }

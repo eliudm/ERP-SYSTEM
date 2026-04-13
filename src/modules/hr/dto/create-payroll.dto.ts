@@ -4,9 +4,9 @@ export class CreatePayrollDto {
   @IsInt()
   @Min(1)
   @Max(12)
-  month: number;
+  month!: number;
 
   @IsInt()
   @Min(2020)
-  year: number;
+  year!: number;
 }

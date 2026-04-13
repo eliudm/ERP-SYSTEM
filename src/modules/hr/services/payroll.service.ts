@@ -7,13 +7,15 @@ import {
 import { PrismaService } from '../../../prisma.service';
 import { PostingEngineService } from '../../accounting/services/posting-engine.service';
 import { CreatePayrollDto } from '../dto';
-import { PayrollStatus } from '@prisma/client';
+import { ApprovalEntityType, PayrollStatus } from '@prisma/client';
+import { WorkflowService } from '../../workflow/workflow.service';
 
 @Injectable()
 export class PayrollService {
   constructor(
     private prisma: PrismaService,
     private postingEngine: PostingEngineService,
+    private workflowService: WorkflowService,
   ) {}
 
   // ─── KENYA PAYE CALCULATION (KRA Tax Bands 2024) ─────────
@@ -242,6 +244,11 @@ export class PayrollService {
 
   // ─── APPROVE & POST PAYROLL ──────────────────────────────
   async approve(id: string) {
+    await this.workflowService.assertApprovalIfExists(
+      ApprovalEntityType.PAYROLL,
+      id,
+    );
+
     const payroll = await this.prisma.payroll.findUnique({
       where: { id },
       include: { lines: { include: { employee: true } } },
@@ -331,11 +338,18 @@ export class PayrollService {
       ],
     });
 
-    return this.prisma.payroll.update({
+    const updated = await this.prisma.payroll.update({
       where: { id },
       data: { status: PayrollStatus.APPROVED },
       include: { lines: { include: { employee: true } } },
     });
+
+    await this.workflowService.consumeApprovedRequest(
+      ApprovalEntityType.PAYROLL,
+      id,
+    );
+
+    return updated;
   }
 
   // ─── MARK PAYROLL AS PAID ────────────────────────────────

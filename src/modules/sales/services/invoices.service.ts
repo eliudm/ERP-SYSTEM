@@ -6,9 +6,16 @@ import {
 import { PrismaService } from '../../../prisma.service';
 import { CreateInvoiceDto } from '../dto';
 import { PostingEngineService } from '../../accounting/services/posting-engine.service';
-import { InvoiceStatus, MovementType, PaymentMethod } from '@prisma/client';
+import {
+  ApprovalEntityType,
+  InvoiceStatus,
+  MovementType,
+  PaymentMethod,
+} from '@prisma/client';
 import { EtimsQueueService } from '../../etims/etims-queue/etims-queue.service';
 import { NotificationsService } from '../../notifications/notifications.service';
+import { AuditService } from '../../audit/audit.service';
+import { WorkflowService } from '../../workflow/workflow.service';
 
 @Injectable()
 export class InvoicesService {
@@ -17,6 +24,8 @@ export class InvoicesService {
     private postingEngine: PostingEngineService,
     private etimsQueue: EtimsQueueService,
     private notificationsService: NotificationsService,
+    private auditService: AuditService,
+    private workflowService: WorkflowService,
   ) {}
 
   // ─── GENERATE INVOICE NUMBER ─────────────────────────────
@@ -27,7 +36,7 @@ export class InvoicesService {
   }
 
   // ─── CREATE INVOICE (DRAFT) ──────────────────────────────
-  async create(dto: CreateInvoiceDto) {
+  async create(dto: CreateInvoiceDto, userId?: string) {
     // Validate customer exists
     const customer = await this.prisma.customer.findUnique({
       where: { id: dto.customerId },
@@ -75,6 +84,7 @@ export class InvoicesService {
       data: {
         invoiceNo,
         customerId: dto.customerId,
+        branchId: dto.branchId ?? null,
         invoiceDate: new Date(dto.invoiceDate),
         dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
         status: InvoiceStatus.DRAFT,
@@ -91,6 +101,19 @@ export class InvoicesService {
       },
     });
 
+    await this.auditService.log({
+      userId,
+      action: 'CREATE',
+      tableName: 'sales_invoices',
+      recordId: invoice.id,
+      newValues: {
+        invoiceNo: invoice.invoiceNo,
+        customerId: invoice.customerId,
+        total: invoice.total,
+        status: invoice.status,
+      },
+    });
+
     return invoice;
   }
 
@@ -99,7 +122,13 @@ export class InvoicesService {
     id: string,
     warehouseId?: string,
     paymentMethod?: PaymentMethod,
+    userId?: string,
   ) {
+    await this.workflowService.assertApprovalIfExists(
+      ApprovalEntityType.SALES_INVOICE,
+      id,
+    );
+
     const invoice = await this.prisma.salesInvoice.findUnique({
       where: { id },
       include: {
@@ -209,13 +238,34 @@ export class InvoicesService {
 
       return tx.salesInvoice.update({
         where: { id },
-        data: { status: InvoiceStatus.APPROVED },
+        data: {
+          status: InvoiceStatus.APPROVED,
+          branchId: warehouse.branchId ?? null,
+        },
         include: {
           customer: true,
           items: { include: { product: true } },
         },
       });
     });
+
+    await this.auditService.log({
+      userId,
+      action: 'APPROVE',
+      tableName: 'sales_invoices',
+      recordId: id,
+      oldValues: { status: invoice.status },
+      newValues: {
+        status: InvoiceStatus.APPROVED,
+        warehouseId: warehouse.id,
+        branchId: warehouse.branchId ?? null,
+      },
+    });
+
+    await this.workflowService.consumeApprovedRequest(
+      ApprovalEntityType.SALES_INVOICE,
+      id,
+    );
 
     // Automatically queue eTIMS submission
     await this.etimsQueue.addSubmitJob(id);
@@ -229,7 +279,7 @@ export class InvoicesService {
 
     // If payment method provided (e.g. POS cash sale), auto-mark as paid
     if (paymentMethod) {
-      return this.markAsPaid(id, paymentMethod);
+      return this.markAsPaid(id, paymentMethod, userId);
     }
 
     return approvedInvoice;
@@ -239,6 +289,7 @@ export class InvoicesService {
   async markAsPaid(
     id: string,
     paymentMethod: PaymentMethod = PaymentMethod.CASH,
+    userId?: string,
   ) {
     const invoice = await this.prisma.salesInvoice.findUnique({
       where: { id },
@@ -292,11 +343,25 @@ export class InvoicesService {
     });
 
     // Update status to PAID
-    return this.prisma.salesInvoice.update({
+    const paid = await this.prisma.salesInvoice.update({
       where: { id },
       data: { status: InvoiceStatus.PAID, paymentMethod, paidAt: new Date() },
       include: { customer: true },
     });
+
+    await this.auditService.log({
+      userId,
+      action: 'MARK_PAID',
+      tableName: 'sales_invoices',
+      recordId: id,
+      oldValues: { status: invoice.status },
+      newValues: {
+        status: InvoiceStatus.PAID,
+        paymentMethod,
+      },
+    });
+
+    return paid;
   }
 
   // ─── MAP PAYMENT METHOD TO ACCOUNT CODE ──────────────────
@@ -318,7 +383,7 @@ export class InvoicesService {
   }
 
   // ─── VOID INVOICE ────────────────────────────────────────
-  async void(id: string, reason: string) {
+  async void(id: string, reason: string, userId?: string) {
     const invoice = await this.prisma.salesInvoice.findUnique({
       where: { id },
     });
@@ -339,13 +404,24 @@ export class InvoicesService {
     });
 
     if (journalEntry) {
-      await this.postingEngine.voidTransaction(journalEntry.id, reason);
+      await this.postingEngine.voidTransaction(journalEntry.id, reason, userId);
     }
 
-    return this.prisma.salesInvoice.update({
+    const voided = await this.prisma.salesInvoice.update({
       where: { id },
       data: { status: InvoiceStatus.VOID },
     });
+
+    await this.auditService.log({
+      userId,
+      action: 'VOID',
+      tableName: 'sales_invoices',
+      recordId: id,
+      oldValues: { status: invoice.status },
+      newValues: { status: InvoiceStatus.VOID, reason },
+    });
+
+    return voided;
   }
 
   // ─── GET ALL INVOICES ────────────────────────────────────

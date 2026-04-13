@@ -12,7 +12,7 @@ import {
 export class CreatePriceListDto {
   @IsString()
   @IsNotEmpty()
-  name: string;
+  name!: string;
 
   @IsOptional()
   @IsString()
@@ -33,11 +33,11 @@ export class CreatePriceListDto {
 
 export class CreatePriceListItemDto {
   @IsUUID()
-  productId: string;
+  productId!: string;
 
   @IsNumber()
   @Min(0)
-  price: number;
+  price!: number;
 
   @IsOptional()
   @IsNumber()

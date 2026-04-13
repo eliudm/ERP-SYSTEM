@@ -9,11 +9,11 @@ import {
 export class CreateProductDto {
   @IsString()
   @IsNotEmpty()
-  code: string;
+  code!: string;
 
   @IsString()
   @IsNotEmpty()
-  name: string;
+  name!: string;
 
   @IsOptional()
   @IsString()
@@ -25,7 +25,7 @@ export class CreateProductDto {
 
   @IsNumber()
   @Min(0)
-  unitPrice: number;
+  unitPrice!: number;
 
   @IsOptional()
   @IsNumber()

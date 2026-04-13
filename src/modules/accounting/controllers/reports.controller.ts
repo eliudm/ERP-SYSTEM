@@ -60,4 +60,17 @@ export class ReportsController {
       paymentMethod,
     );
   }
+
+  @Get('profit-and-loss')
+  getProfitAndLoss(
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+  ) {
+    return this.reportsService.getProfitAndLoss(startDate, endDate);
+  }
+
+  @Get('trial-balance')
+  getTrialBalance(@Query('asOf') asOf?: string) {
+    return this.reportsService.getTrialBalance(asOf);
+  }
 }

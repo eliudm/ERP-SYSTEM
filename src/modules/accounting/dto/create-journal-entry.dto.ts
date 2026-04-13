@@ -13,15 +13,15 @@ import { Type } from 'class-transformer';
 export class CreateJournalLineDto {
   @IsString()
   @IsNotEmpty()
-  accountId: string;
+  accountId!: string;
 
   @IsNumber()
   @Min(0)
-  debit: number;
+  debit!: number;
 
   @IsNumber()
   @Min(0)
-  credit: number;
+  credit!: number;
 
   @IsOptional()
   @IsString()
@@ -31,14 +31,23 @@ export class CreateJournalLineDto {
 export class CreateJournalEntryDto {
   @IsString()
   @IsNotEmpty()
-  reference: string;
+  reference!: string;
 
   @IsOptional()
   @IsString()
   description?: string;
 
   @IsDateString()
-  entryDate: string;
+  entryDate!: string;
+
+  @IsOptional()
+  @IsString()
+  currency?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0.000001)
+  exchangeRate?: number;
 
   @IsOptional()
   @IsString()
@@ -51,5 +60,5 @@ export class CreateJournalEntryDto {
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => CreateJournalLineDto)
-  lines: CreateJournalLineDto[];
+  lines!: CreateJournalLineDto[];
 }
