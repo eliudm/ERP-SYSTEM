@@ -77,7 +77,6 @@ export const LoginPage: React.FC = () => {
             layout="vertical"
             onFinish={onFinish}
             size="large"
-            initialValues={{ email: 'testadmin@erp.com' }}
           >
             <Form.Item
               name="email"
