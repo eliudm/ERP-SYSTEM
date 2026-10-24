@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { MailService } from './mail.service';
 import { PrismaModule } from './prisma.module';
+import { CacheModule } from './cache.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { AccountingModule } from './modules/accounting/accounting.module';
 import { SalesModule } from './modules/sales/sales.module';
@@ -32,6 +33,7 @@ import { AiInsightsModule } from './modules/ai-insights/ai-insights.module';
   exports: [MailService],
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    CacheModule,
     PrismaModule,
     AuthModule,
     AccountingModule,
