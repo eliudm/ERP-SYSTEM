@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { json, urlencoded } from 'express';
 import helmet from 'helmet';
 import { AllExceptionsFilter } from './all-exceptions.filter';
@@ -42,7 +43,20 @@ async function bootstrap() {
   // API prefix
   app.setGlobalPrefix('api/v1');
 
+  // Swagger / OpenAPI docs
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('ERP Backend API')
+    .setDescription(
+      'Multi-module ERP backend: sales, accounting, inventory, procurement, HR, M-Pesa, and eTIMS.',
+    )
+    .setVersion('1.0.0')
+    .addBearerAuth()
+    .build();
+  const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
+  SwaggerModule.setup('api/docs', app, swaggerDocument);
+
   await app.listen(3000);
   console.log('🚀 ERP Server running on http://localhost:3000/api/v1');
+  console.log('📚 API docs available at http://localhost:3000/api/docs');
 }
 bootstrap();
