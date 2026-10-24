@@ -9,9 +9,12 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { AllowancesLoansService } from '../services/allowances-loans.service';
 
+@ApiTags('hr')
+@ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller('hr/employees')
 export class AllowancesLoansController {
@@ -21,6 +24,7 @@ export class AllowancesLoansController {
 
   // ─── Allowances ─────────────────────────────────────────────────────────────
 
+  @ApiOperation({ summary: 'Create a new allowance for an employee' })
   @Post(':id/allowances')
   createAllowance(
     @Param('id') id: string,
@@ -40,11 +44,13 @@ export class AllowancesLoansController {
     });
   }
 
+  @ApiOperation({ summary: 'List allowances for an employee' })
   @Get(':id/allowances')
   findAllowances(@Param('id') id: string) {
     return this.allowancesLoansService.findAllowances(id);
   }
 
+  @ApiOperation({ summary: 'Update an existing allowance' })
   @Patch(':id/allowances/:allowanceId')
   updateAllowance(
     @Param('allowanceId') allowanceId: string,
@@ -60,6 +66,7 @@ export class AllowancesLoansController {
     return this.allowancesLoansService.updateAllowance(allowanceId, body);
   }
 
+  @ApiOperation({ summary: 'Deactivate an employee allowance' })
   @Post(':id/allowances/:allowanceId/deactivate')
   deactivateAllowance(@Param('allowanceId') allowanceId: string) {
     return this.allowancesLoansService.deactivateAllowance(allowanceId);
@@ -67,6 +74,7 @@ export class AllowancesLoansController {
 
   // ─── Loans ──────────────────────────────────────────────────────────────────
 
+  @ApiOperation({ summary: 'Create a new loan for an employee' })
   @Post(':id/loans')
   createLoan(
     @Param('id') id: string,
@@ -81,16 +89,19 @@ export class AllowancesLoansController {
     return this.allowancesLoansService.createLoan({ ...body, employeeId: id });
   }
 
+  @ApiOperation({ summary: 'List loans for an employee' })
   @Get(':id/loans')
   findLoans(@Param('id') id: string) {
     return this.allowancesLoansService.findLoans(id);
   }
 
+  @ApiOperation({ summary: 'Get a summary of an employee loan' })
   @Get(':id/loans/summary')
   getLoanSummary(@Param('id') id: string) {
     return this.allowancesLoansService.getLoanSummary(id);
   }
 
+  @ApiOperation({ summary: 'Record an installment payment towards a loan' })
   @Post(':id/loans/:loanId/pay-installment')
   recordInstallmentPayment(
     @Param('loanId') loanId: string,
@@ -103,6 +114,8 @@ export class AllowancesLoansController {
   }
 }
 
+@ApiTags('hr')
+@ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller('hr')
 export class HrAllowancesLoansGlobalController {
@@ -112,11 +125,13 @@ export class HrAllowancesLoansGlobalController {
 
   // ─── Global Allowances ───────────────────────────────────────────────────────
 
+  @ApiOperation({ summary: 'List all allowances, optionally filtered by employee' })
   @Get('allowances')
   getAllAllowances(@Query('employeeId') employeeId?: string) {
     return this.allowancesLoansService.findAllAllowances(employeeId);
   }
 
+  @ApiOperation({ summary: 'Create a new allowance' })
   @Post('allowances')
   createAllowance(
     @Body()
@@ -133,6 +148,7 @@ export class HrAllowancesLoansGlobalController {
     return this.allowancesLoansService.createAllowance(body);
   }
 
+  @ApiOperation({ summary: 'Deactivate an allowance by id' })
   @Delete('allowances/:id')
   deactivateAllowance(@Param('id') id: string) {
     return this.allowancesLoansService.deactivateAllowance(id);
@@ -140,11 +156,13 @@ export class HrAllowancesLoansGlobalController {
 
   // ─── Global Loans ────────────────────────────────────────────────────────────
 
+  @ApiOperation({ summary: 'List all loans, optionally filtered by employee' })
   @Get('loans')
   getAllLoans(@Query('employeeId') employeeId?: string) {
     return this.allowancesLoansService.findAllLoans(employeeId);
   }
 
+  @ApiOperation({ summary: 'Create a new loan' })
   @Post('loans')
   createLoan(
     @Body()

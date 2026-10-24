@@ -8,14 +8,18 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { AppraisalsService } from '../services/appraisals.service';
 
+@ApiTags('hr')
+@ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller('hr/appraisals')
 export class AppraisalsController {
   constructor(private readonly appraisalsService: AppraisalsService) {}
 
+  @ApiOperation({ summary: 'Create a new performance appraisal' })
   @Post()
   create(
     @Body()
@@ -29,6 +33,7 @@ export class AppraisalsController {
     return this.appraisalsService.create(body);
   }
 
+  @ApiOperation({ summary: 'List appraisals, optionally filtered by employee, period, or status' })
   @Get()
   findAll(
     @Query('employeeId') employeeId?: string,
@@ -38,11 +43,13 @@ export class AppraisalsController {
     return this.appraisalsService.findAll(employeeId, period, status);
   }
 
+  @ApiOperation({ summary: 'Get a single appraisal by id' })
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.appraisalsService.findOne(id);
   }
 
+  @ApiOperation({ summary: 'Add a scoring item to an appraisal' })
   @Post(':id/items')
   addItem(
     @Param('id') id: string,
@@ -51,6 +58,7 @@ export class AppraisalsController {
     return this.appraisalsService.addItem(id, body);
   }
 
+  @ApiOperation({ summary: 'Record a score and achievement for an appraisal item' })
   @Patch(':appraisalId/items/:itemId/score')
   scoreItem(
     @Param('appraisalId') appraisalId: string,
@@ -65,11 +73,13 @@ export class AppraisalsController {
     );
   }
 
+  @ApiOperation({ summary: 'Submit an appraisal for approval' })
   @Post(':id/submit')
   submit(@Param('id') id: string) {
     return this.appraisalsService.submit(id);
   }
 
+  @ApiOperation({ summary: 'Approve an appraisal with optional comments' })
   @Post(':id/approve')
   approve(@Param('id') id: string, @Body() body: { comments?: string }) {
     return this.appraisalsService.approve(id, body.comments);

@@ -9,6 +9,7 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   CreateLeadActivityDto,
   CreateLeadDto,
@@ -22,11 +23,14 @@ import { AllowPosUser } from '../auth/decorators/allow-pos-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { LeadStage, Role } from '@prisma/client';
 
+@ApiTags('crm')
+@ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller('crm')
 export class CrmController {
   constructor(private readonly crmService: CrmService) {}
 
+  @ApiOperation({ summary: 'List CRM leads, optionally filtered by stage and search term' })
   @Get('leads')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.SALES_USER)
@@ -38,6 +42,7 @@ export class CrmController {
     return this.crmService.findLeads(stage, search);
   }
 
+  @ApiOperation({ summary: 'Get the lead pipeline summary (counts/value by stage)' })
   @Get('pipeline')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.SALES_USER)
@@ -46,6 +51,7 @@ export class CrmController {
     return this.crmService.getPipeline();
   }
 
+  @ApiOperation({ summary: 'Get a single lead by id' })
   @Get('leads/:id')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.SALES_USER)
@@ -54,6 +60,7 @@ export class CrmController {
     return this.crmService.findLead(id);
   }
 
+  @ApiOperation({ summary: 'Create a new lead' })
   @Post('leads')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.SALES_USER)
@@ -62,6 +69,7 @@ export class CrmController {
     return this.crmService.createLead(dto, req.user?.id);
   }
 
+  @ApiOperation({ summary: 'Update a lead\'s details' })
   @Patch('leads/:id')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.SALES_USER)
@@ -70,6 +78,7 @@ export class CrmController {
     return this.crmService.updateLead(id, dto);
   }
 
+  @ApiOperation({ summary: 'Move a lead to a different pipeline stage' })
   @Patch('leads/:id/stage')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.SALES_USER)
@@ -78,6 +87,7 @@ export class CrmController {
     return this.crmService.updateStage(id, dto.stage);
   }
 
+  @ApiOperation({ summary: 'Add an activity entry to a lead' })
   @Post('leads/:id/activities')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.SALES_USER)

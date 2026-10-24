@@ -7,6 +7,7 @@ import {
   Param,
   UseGuards,
 } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   StockCountsService,
   CreateStockCountDto,
@@ -16,11 +17,14 @@ import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
 import { Role } from '@prisma/client';
 
+@ApiTags('inventory')
+@ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller('inventory/stock-counts')
 export class StockCountsController {
   constructor(private stockCountsService: StockCountsService) {}
 
+  @ApiOperation({ summary: 'Create a new stock count' })
   @Post()
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.INVENTORY_MANAGER)
@@ -28,16 +32,19 @@ export class StockCountsController {
     return this.stockCountsService.create(dto);
   }
 
+  @ApiOperation({ summary: 'List all stock counts' })
   @Get()
   findAll() {
     return this.stockCountsService.findAll();
   }
 
+  @ApiOperation({ summary: 'Get a stock count by ID' })
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.stockCountsService.findOne(id);
   }
 
+  @ApiOperation({ summary: 'Start a stock count' })
   @Post(':id/start')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.INVENTORY_MANAGER)
@@ -45,6 +52,7 @@ export class StockCountsController {
     return this.stockCountsService.startCount(id);
   }
 
+  @ApiOperation({ summary: 'Record the counted quantity for a product line in a stock count' })
   @Patch(':id/lines/:productId')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.INVENTORY_MANAGER)
@@ -56,6 +64,7 @@ export class StockCountsController {
     return this.stockCountsService.updateLine(id, productId, countedQty);
   }
 
+  @ApiOperation({ summary: 'Validate a stock count and reconcile stock discrepancies' })
   @Post(':id/validate')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.INVENTORY_MANAGER)

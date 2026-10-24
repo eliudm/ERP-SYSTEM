@@ -16,7 +16,10 @@ import { Role } from '@prisma/client';
 import { RecurringInvoicesService } from '../services/recurring-invoices.service';
 import { CreateRecurringInvoiceTemplateDto } from '../dto/recurring/create-recurring-invoice-template.dto';
 import { UpdateRecurringInvoiceTemplateDto } from '../dto/recurring/update-recurring-invoice-template.dto';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
+@ApiTags('sales')
+@ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller('sales/recurring-invoices')
 export class RecurringInvoicesController {
@@ -24,6 +27,9 @@ export class RecurringInvoicesController {
     private readonly recurringInvoicesService: RecurringInvoicesService,
   ) {}
 
+  @ApiOperation({
+    summary: 'List recurring invoice templates, optionally filtered by active status',
+  })
   @Get('templates')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.ACCOUNTANT, Role.SALES_USER)
@@ -31,6 +37,7 @@ export class RecurringInvoicesController {
     return this.recurringInvoicesService.findTemplates(isActive);
   }
 
+  @ApiOperation({ summary: 'Get a recurring invoice template by ID' })
   @Get('templates/:id')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.ACCOUNTANT, Role.SALES_USER)
@@ -38,6 +45,7 @@ export class RecurringInvoicesController {
     return this.recurringInvoicesService.findTemplate(id);
   }
 
+  @ApiOperation({ summary: 'Create a new recurring invoice template' })
   @Post('templates')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.ACCOUNTANT)
@@ -48,6 +56,7 @@ export class RecurringInvoicesController {
     return this.recurringInvoicesService.createTemplate(dto, req.user?.id);
   }
 
+  @ApiOperation({ summary: 'Update a recurring invoice template' })
   @Patch('templates/:id')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.ACCOUNTANT)
@@ -59,6 +68,9 @@ export class RecurringInvoicesController {
     return this.recurringInvoicesService.updateTemplate(id, dto, req.user?.id);
   }
 
+  @ApiOperation({
+    summary: 'Run all due recurring invoice templates and generate their invoices',
+  })
   @Post('run-due')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.ACCOUNTANT)

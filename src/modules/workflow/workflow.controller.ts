@@ -8,6 +8,7 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ApprovalEntityType, ApprovalStatus, Role } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -43,11 +44,14 @@ class RejectRequestDto {
   reason?: string;
 }
 
+@ApiTags('workflow')
+@ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller('workflow/requests')
 export class WorkflowController {
   constructor(private readonly workflowService: WorkflowService) {}
 
+  @ApiOperation({ summary: 'List approval requests, optionally filtered by entity type, entity id, and status' })
   @Get()
   findAll(
     @Query('entityType') entityType?: ApprovalEntityType,
@@ -57,6 +61,7 @@ export class WorkflowController {
     return this.workflowService.findRequests(entityType, entityId, status);
   }
 
+  @ApiOperation({ summary: 'Create a new approval request for an entity' })
   @Post()
   @UseGuards(RolesGuard)
   @Roles(
@@ -76,6 +81,7 @@ export class WorkflowController {
     );
   }
 
+  @ApiOperation({ summary: 'Escalate overdue pending approval requests' })
   @Post('run-overdue-check')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.ACCOUNTANT)
@@ -83,6 +89,7 @@ export class WorkflowController {
     return this.workflowService.escalateOverduePendingRequests();
   }
 
+  @ApiOperation({ summary: 'Approve an approval request' })
   @Post(':id/approve')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.ACCOUNTANT, Role.PROCUREMENT_OFFICER, Role.HR_MANAGER)
@@ -99,6 +106,7 @@ export class WorkflowController {
     );
   }
 
+  @ApiOperation({ summary: 'Reject an approval request' })
   @Post(':id/reject')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.ACCOUNTANT, Role.PROCUREMENT_OFFICER, Role.HR_MANAGER)

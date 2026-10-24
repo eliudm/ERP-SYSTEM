@@ -19,7 +19,10 @@ import { Role, PaymentMethod, MpesaTransactionStatus } from '@prisma/client';
 import { InitiateMpesaPaymentDto } from '../dto/initiate-mpesa-payment.dto';
 import { MpesaService } from '../services/mpesa.service';
 import { ReconcileMpesaTransactionDto } from '../dto/reconcile-mpesa-transaction.dto';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
+@ApiTags('sales')
+@ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller('sales/invoices')
 export class InvoicesController {
@@ -29,6 +32,7 @@ export class InvoicesController {
   ) {}
 
   // POST /sales/invoices
+  @ApiOperation({ summary: 'Create a draft sales invoice' })
   @Post()
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.SALES_USER)
@@ -38,6 +42,9 @@ export class InvoicesController {
   }
 
   // GET /sales/invoices
+  @ApiOperation({
+    summary: 'List sales invoices with pagination, optionally filtered by status',
+  })
   @Get()
   findAll(
     @Query('page') page: string,
@@ -48,6 +55,7 @@ export class InvoicesController {
   }
 
   // GET /sales/invoices/summary
+  @ApiOperation({ summary: 'Get sales summary totals for a date range' })
   @Get('summary')
   getSummary(
     @Query('startDate') startDate: string,
@@ -57,6 +65,7 @@ export class InvoicesController {
   }
 
   // GET /sales/invoices/monthly?year=2026
+  @ApiOperation({ summary: 'Get monthly sales totals for a given year' })
   @Get('monthly')
   getMonthly(@Query('year') year: string) {
     return this.invoicesService.getMonthlySales(
@@ -65,6 +74,7 @@ export class InvoicesController {
   }
 
   // GET /sales/invoices/daily-summary?date=2026-04-02
+  @ApiOperation({ summary: 'Get sales summary totals for a given day' })
   @Get('daily-summary')
   getDailySummary(@Query('date') date: string) {
     return this.invoicesService.getDailySummary(
@@ -72,6 +82,9 @@ export class InvoicesController {
     );
   }
 
+  @ApiOperation({
+    summary: 'List pending M-Pesa transactions, optionally filtered by status',
+  })
   @Get('mpesa/pending')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.ACCOUNTANT, Role.SALES_USER)
@@ -82,6 +95,7 @@ export class InvoicesController {
     return this.mpesaService.getPendingTransactions(status);
   }
 
+  @ApiOperation({ summary: 'Retry a failed or stuck M-Pesa transaction' })
   @Post('mpesa/transactions/:transactionId/retry')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.ACCOUNTANT, Role.SALES_USER)
@@ -90,6 +104,7 @@ export class InvoicesController {
     return this.mpesaService.retryTransaction(transactionId);
   }
 
+  @ApiOperation({ summary: 'Manually reconcile an M-Pesa transaction' })
   @Patch('mpesa/transactions/:transactionId/reconcile')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.ACCOUNTANT, Role.SALES_USER)
@@ -102,12 +117,16 @@ export class InvoicesController {
   }
 
   // GET /sales/invoices/:id
+  @ApiOperation({ summary: 'Get a sales invoice by ID' })
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.invoicesService.findOne(id);
   }
 
   // PATCH /sales/invoices/:id/approve
+  @ApiOperation({
+    summary: 'Approve a sales invoice, deducting stock and recording payment',
+  })
   @Patch(':id/approve')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.ACCOUNTANT)
@@ -127,6 +146,7 @@ export class InvoicesController {
   }
 
   // PATCH /sales/invoices/:id/paid
+  @ApiOperation({ summary: 'Mark a sales invoice as paid' })
   @Patch(':id/paid')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.ACCOUNTANT)
@@ -138,6 +158,7 @@ export class InvoicesController {
     return this.invoicesService.markAsPaid(id, paymentMethod, req?.user?.id);
   }
 
+  @ApiOperation({ summary: 'Initiate an M-Pesa STK push payment for an invoice' })
   @Post(':id/mpesa/stk-push')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.ACCOUNTANT, Role.SALES_USER)
@@ -149,6 +170,7 @@ export class InvoicesController {
     return this.mpesaService.initiateStkPush(id, dto);
   }
 
+  @ApiOperation({ summary: "Get an invoice's M-Pesa payment status" })
   @Get(':id/mpesa/status')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.ACCOUNTANT, Role.SALES_USER)
@@ -158,6 +180,7 @@ export class InvoicesController {
   }
 
   // PATCH /sales/invoices/:id/void
+  @ApiOperation({ summary: 'Void a sales invoice' })
   @Patch(':id/void')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.ACCOUNTANT)

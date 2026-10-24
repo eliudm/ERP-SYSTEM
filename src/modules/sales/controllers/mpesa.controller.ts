@@ -9,11 +9,16 @@ import {
 } from '@nestjs/common';
 import { MpesaService } from '../services/mpesa.service';
 import type { Request } from 'express';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
 
+@ApiTags('sales')
 @Controller('payments/mpesa')
 export class MpesaController {
   constructor(private readonly mpesaService: MpesaService) {}
 
+  @ApiOperation({
+    summary: 'Receive and process an M-Pesa payment callback from Safaricom',
+  })
   @Post('callback')
   @HttpCode(200)
   async callback(
