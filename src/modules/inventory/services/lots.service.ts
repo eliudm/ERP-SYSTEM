@@ -68,11 +68,13 @@ export class LotsService {
     });
   }
 
-  findAll(productId?: string) {
+  findAll(productId?: string, page = 1, limit = 200) {
     return this.prisma.lot.findMany({
       where: productId ? { productId } : {},
       include: { product: true },
       orderBy: { createdAt: 'desc' },
+      skip: (page - 1) * limit,
+      take: limit,
     });
   }
 

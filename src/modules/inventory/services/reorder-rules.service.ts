@@ -54,6 +54,7 @@ export class ReorderRulesService {
       where: activeOnly ? { isActive: true } : {},
       include: { product: true, preferredSupplier: true },
       orderBy: { product: { name: 'asc' } },
+      take: 1000,
     });
   }
 

@@ -57,10 +57,12 @@ export class StockCountsService {
     });
   }
 
-  findAll() {
+  findAll(page = 1, limit = 200) {
     return this.prisma.stockCount.findMany({
       include: { warehouse: true, _count: { select: { lines: true } } },
       orderBy: { createdAt: 'desc' },
+      skip: (page - 1) * limit,
+      take: limit,
     });
   }
 

@@ -32,6 +32,7 @@ export class LandedCostsService {
     return this.prisma.landedCost.findMany({
       include: { purchaseOrder: true, items: { include: { product: true } } },
       orderBy: { createdAt: 'desc' },
+      take: 500,
     });
   }
 

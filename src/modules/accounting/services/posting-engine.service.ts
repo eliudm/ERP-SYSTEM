@@ -33,10 +33,14 @@ export class PostingEngineService {
 
   // ─── VALIDATE ACCOUNTS EXIST ────────────────────────────
   async validateAccounts(lines: { accountId: string }[]): Promise<void> {
+    const accountIds = [...new Set(lines.map((l) => l.accountId))];
+    const accounts = await this.prisma.account.findMany({
+      where: { id: { in: accountIds } },
+    });
+    const accountsById = new Map(accounts.map((a) => [a.id, a]));
+
     for (const line of lines) {
-      const account = await this.prisma.account.findUnique({
-        where: { id: line.accountId },
-      });
+      const account = accountsById.get(line.accountId);
       if (!account) {
         throw new NotFoundException(
           `Account with ID ${line.accountId} not found`,

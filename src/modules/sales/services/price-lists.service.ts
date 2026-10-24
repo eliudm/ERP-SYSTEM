@@ -33,6 +33,7 @@ export class PriceListsService {
       where: { isActive: true },
       include: { _count: { select: { items: true } } },
       orderBy: { name: 'asc' },
+      take: 500,
     });
   }
 

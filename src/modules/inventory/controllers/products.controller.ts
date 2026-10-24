@@ -31,8 +31,15 @@ export class ProductsController {
   findAll(
     @Query('search') search: string,
     @Query('categoryId') categoryId?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
-    return this.productsService.findAll(search, categoryId);
+    return this.productsService.findAll(
+      search,
+      categoryId,
+      page ? Number(page) : undefined,
+      limit ? Number(limit) : undefined,
+    );
   }
 
   @Get('low-stock')

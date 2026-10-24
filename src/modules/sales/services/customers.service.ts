@@ -157,7 +157,7 @@ export class CustomersService {
   }
 
   // ─── GET ALL CUSTOMERS ───────────────────────────────────
-  async findAll(search?: string) {
+  async findAll(search?: string, page = 1, limit = 200) {
     await this.syncContactsToCustomers(search);
     return this.prisma.customer.findMany({
       where: {
@@ -171,6 +171,8 @@ export class CustomersService {
         }),
       },
       orderBy: { name: 'asc' },
+      skip: (page - 1) * limit,
+      take: limit,
     });
   }
 

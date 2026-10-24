@@ -40,7 +40,12 @@ export class ProductsService {
   }
 
   // ─── GET ALL PRODUCTS ────────────────────────────────────
-  async findAll(search?: string, categoryId?: string) {
+  async findAll(
+    search?: string,
+    categoryId?: string,
+    page = 1,
+    limit = 200,
+  ) {
     return this.prisma.product.findMany({
       where: {
         isActive: true,
@@ -54,6 +59,8 @@ export class ProductsService {
       },
       include: { category: true },
       orderBy: { code: 'asc' },
+      skip: (page - 1) * limit,
+      take: limit,
     });
   }
 

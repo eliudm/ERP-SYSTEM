@@ -49,10 +49,14 @@ export class InvoicesService {
 
     const itemsData: any[] = [];
 
+    const productIds = [...new Set(dto.items.map((item) => item.productId))];
+    const products = await this.prisma.product.findMany({
+      where: { id: { in: productIds } },
+    });
+    const productsById = new Map(products.map((p) => [p.id, p]));
+
     for (const item of dto.items) {
-      const product = await this.prisma.product.findUnique({
-        where: { id: item.productId },
-      });
+      const product = productsById.get(item.productId);
       if (!product) {
         throw new NotFoundException(
           `Product with ID ${item.productId} not found`,

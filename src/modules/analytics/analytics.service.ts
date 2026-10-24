@@ -1,12 +1,37 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma.service';
+import { CacheService } from '../../cache.service';
+
+const REPORT_CACHE_TTL_SECONDS = 120;
 
 @Injectable()
 export class AnalyticsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private cache: CacheService,
+  ) {}
+
+  private async cached<T>(key: string, compute: () => Promise<T>): Promise<T> {
+    const hit = await this.cache.get<T>(key);
+    if (hit) return hit;
+    const result = await compute();
+    await this.cache.set(key, result, REPORT_CACHE_TTL_SECONDS);
+    return result;
+  }
 
   // ─── SALES TREND (daily/monthly aggregation) ─────────────
   async getSalesTrend(
+    startDate: string,
+    endDate: string,
+    granularity: 'day' | 'month' = 'month',
+  ) {
+    return this.cached(
+      `analytics:sales-trend:${startDate}:${endDate}:${granularity}`,
+      () => this.computeSalesTrend(startDate, endDate, granularity),
+    );
+  }
+
+  private async computeSalesTrend(
     startDate: string,
     endDate: string,
     granularity: 'day' | 'month' = 'month',
@@ -64,6 +89,17 @@ export class AnalyticsService {
     endDate: string,
     granularity: 'day' | 'month' = 'month',
   ) {
+    return this.cached(
+      `analytics:expense-trend:${startDate}:${endDate}:${granularity}`,
+      () => this.computeExpenseTrend(startDate, endDate, granularity),
+    );
+  }
+
+  private async computeExpenseTrend(
+    startDate: string,
+    endDate: string,
+    granularity: 'day' | 'month' = 'month',
+  ) {
     const start = new Date(startDate);
     const end = new Date(endDate);
 
@@ -104,6 +140,17 @@ export class AnalyticsService {
 
   // ─── PROFIT TREND ────────────────────────────────────────
   async getProfitTrend(
+    startDate: string,
+    endDate: string,
+    granularity: 'day' | 'month' = 'month',
+  ) {
+    return this.cached(
+      `analytics:profit-trend:${startDate}:${endDate}:${granularity}`,
+      () => this.computeProfitTrend(startDate, endDate, granularity),
+    );
+  }
+
+  private async computeProfitTrend(
     startDate: string,
     endDate: string,
     granularity: 'day' | 'month' = 'month',
@@ -173,6 +220,17 @@ export class AnalyticsService {
 
   // ─── TOP PRODUCTS (by revenue) ───────────────────────────
   async getTopProducts(startDate: string, endDate: string, limit = 10) {
+    return this.cached(
+      `analytics:top-products:${startDate}:${endDate}:${limit}`,
+      () => this.computeTopProducts(startDate, endDate, limit),
+    );
+  }
+
+  private async computeTopProducts(
+    startDate: string,
+    endDate: string,
+    limit = 10,
+  ) {
     const start = new Date(startDate);
     const end = new Date(endDate);
 
@@ -226,6 +284,17 @@ export class AnalyticsService {
 
   // ─── TOP CUSTOMERS (by revenue) ──────────────────────────
   async getTopCustomers(startDate: string, endDate: string, limit = 10) {
+    return this.cached(
+      `analytics:top-customers:${startDate}:${endDate}:${limit}`,
+      () => this.computeTopCustomers(startDate, endDate, limit),
+    );
+  }
+
+  private async computeTopCustomers(
+    startDate: string,
+    endDate: string,
+    limit = 10,
+  ) {
     const start = new Date(startDate);
     const end = new Date(endDate);
 
@@ -277,6 +346,16 @@ export class AnalyticsService {
 
   // ─── SALES BY PAYMENT METHOD ─────────────────────────────
   async getSalesByPaymentMethod(startDate: string, endDate: string) {
+    return this.cached(
+      `analytics:sales-by-payment-method:${startDate}:${endDate}`,
+      () => this.computeSalesByPaymentMethod(startDate, endDate),
+    );
+  }
+
+  private async computeSalesByPaymentMethod(
+    startDate: string,
+    endDate: string,
+  ) {
     const start = new Date(startDate);
     const end = new Date(endDate);
 
@@ -312,6 +391,12 @@ export class AnalyticsService {
 
   // ─── INVENTORY VALUATION SUMMARY ─────────────────────────
   async getInventorySummary() {
+    return this.cached('analytics:inventory-summary', () =>
+      this.computeInventorySummary(),
+    );
+  }
+
+  private async computeInventorySummary() {
     const products = await this.prisma.product.findMany({
       where: { isActive: true },
       include: { category: { select: { name: true } } },

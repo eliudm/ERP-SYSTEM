@@ -123,15 +123,20 @@ export class NotificationsService {
     let created = 0;
     let emailed = 0;
 
+    const existingReminders = await this.prisma.notification.findMany({
+      where: {
+        invoiceId: { in: overdue.map((invoice) => invoice.id) },
+        type: NotificationType.PAYMENT_REMINDER,
+        isRead: false,
+      },
+      select: { invoiceId: true },
+    });
+    const invoiceIdsWithReminder = new Set(
+      existingReminders.map((n) => n.invoiceId),
+    );
+
     for (const invoice of overdue) {
-      const exists = await this.prisma.notification.findFirst({
-        where: {
-          invoiceId: invoice.id,
-          type: NotificationType.PAYMENT_REMINDER,
-          isRead: false,
-        },
-      });
-      if (exists) continue;
+      if (invoiceIdsWithReminder.has(invoice.id)) continue;
 
       const title = `Payment reminder: ${invoice.invoiceNo}`;
       const message = `Invoice ${invoice.invoiceNo} for ${invoice.customer.name} is overdue. Amount due: ${Number(invoice.total).toFixed(2)}.`;

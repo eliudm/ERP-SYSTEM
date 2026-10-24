@@ -44,11 +44,13 @@ export class RecurringInvoicesService {
       throw new BadRequestException('Template must have at least one item');
     }
 
+    const productIds = [...new Set(dto.items.map((item) => item.productId))];
+    const products = await this.prisma.product.findMany({
+      where: { id: { in: productIds } },
+    });
+    const foundProductIds = new Set(products.map((p) => p.id));
     for (const item of dto.items) {
-      const product = await this.prisma.product.findUnique({
-        where: { id: item.productId },
-      });
-      if (!product) {
+      if (!foundProductIds.has(item.productId)) {
         throw new NotFoundException(`Product ${item.productId} not found`);
       }
     }

@@ -42,7 +42,7 @@ export class SerialNumbersService {
     );
   }
 
-  findAll(productId?: string, status?: string) {
+  findAll(productId?: string, status?: string, page = 1, limit = 200) {
     return this.prisma.serialNumber.findMany({
       where: {
         ...(productId && { productId }),
@@ -50,6 +50,8 @@ export class SerialNumbersService {
       },
       include: { product: true, warehouse: true },
       orderBy: { createdAt: 'desc' },
+      skip: (page - 1) * limit,
+      take: limit,
     });
   }
 

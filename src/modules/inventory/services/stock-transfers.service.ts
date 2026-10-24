@@ -58,7 +58,7 @@ export class StockTransfersService {
     });
   }
 
-  findAll() {
+  findAll(page = 1, limit = 200) {
     return this.prisma.stockTransfer.findMany({
       include: {
         fromWarehouse: true,
@@ -66,6 +66,8 @@ export class StockTransfersService {
         _count: { select: { lines: true } },
       },
       orderBy: { createdAt: 'desc' },
+      skip: (page - 1) * limit,
+      take: limit,
     });
   }
 
@@ -92,10 +94,9 @@ export class StockTransfersService {
     }
 
     // Validate stock availability from source warehouse
+    // (transfer.lines[*].product is already loaded via findOne's include — no need to refetch)
     for (const line of transfer.lines) {
-      const product = await this.prisma.product.findUnique({
-        where: { id: line.productId },
-      });
+      const product = line.product;
       if (!product)
         throw new NotFoundException(`Product ${line.productId} not found`);
       if (Number(product.stockQuantity) < Number(line.quantity)) {
