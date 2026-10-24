@@ -134,6 +134,7 @@ REDIS_PORT=6379
 # ── JWT ────────────────────────────────────────────────────
 JWT_SECRET=change_this_to_a_long_random_secret
 JWT_EXPIRES_IN=7d
+REFRESH_TOKEN_EXPIRES_DAYS=30
 
 # ── App ────────────────────────────────────────────────────
 PORT=3000
@@ -273,7 +274,9 @@ All endpoints are prefixed with `/api/v1`. Authentication via `Authorization: Be
 | Method | Path | Description | Roles |
 | -------- | ------ | ------------- | ------- |
 | `POST` | `/auth/register` | Create first admin account | Public |
-| `POST` | `/auth/login` | Login and receive JWT | Public |
+| `POST` | `/auth/login` | Login, receive access + refresh token | Public |
+| `POST` | `/auth/refresh` | Exchange a refresh token for a new access token (rotates it) | Public |
+| `POST` | `/auth/logout` | Revoke a refresh token | Public |
 | `GET` | `/auth/profile` | Current user profile | Authenticated |
 | `GET` | `/auth/users` | List all users | Admin |
 | `POST` | `/auth/users` | Create user | Admin |

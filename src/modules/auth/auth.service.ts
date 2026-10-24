@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma.service';
 import {
   RegisterDto,
@@ -15,13 +16,84 @@ import {
   ResetPasswordDto,
 } from './dto';
 import * as bcrypt from 'bcrypt';
+import { randomBytes, createHash } from 'crypto';
+
+const REFRESH_TOKEN_BYTES = 40;
 
 @Injectable()
 export class AuthService {
   constructor(
     private prisma: PrismaService,
     private jwt: JwtService,
+    private config: ConfigService,
   ) {}
+
+  private hashRefreshToken(rawToken: string): string {
+    return createHash('sha256').update(rawToken).digest('hex');
+  }
+
+  private refreshTokenTtlMs(): number {
+    const days = Number(this.config.get('REFRESH_TOKEN_EXPIRES_DAYS', '30'));
+    return days * 24 * 60 * 60 * 1000;
+  }
+
+  private async issueRefreshToken(userId: string): Promise<string> {
+    const rawToken = randomBytes(REFRESH_TOKEN_BYTES).toString('hex');
+    await this.prisma.refreshToken.create({
+      data: {
+        userId,
+        tokenHash: this.hashRefreshToken(rawToken),
+        expiresAt: new Date(Date.now() + this.refreshTokenTtlMs()),
+      },
+    });
+    return rawToken;
+  }
+
+  // ─── REFRESH ACCESS TOKEN ────────────────────────────────
+  async refreshTokens(rawToken: string) {
+    const tokenHash = this.hashRefreshToken(rawToken);
+    const stored = await this.prisma.refreshToken.findUnique({
+      where: { tokenHash },
+      include: { user: true },
+    });
+
+    if (
+      !stored ||
+      stored.revokedAt ||
+      stored.expiresAt.getTime() < Date.now()
+    ) {
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
+
+    if (!stored.user.isActive) {
+      throw new UnauthorizedException('Account is deactivated');
+    }
+
+    // Rotate: revoke the used token and issue a brand new pair
+    await this.prisma.refreshToken.update({
+      where: { id: stored.id },
+      data: { revokedAt: new Date() },
+    });
+
+    return this.signToken(
+      stored.user.id,
+      stored.user.email,
+      stored.user.role,
+      stored.user.posOnly,
+      stored.user.firstName,
+      stored.user.lastName,
+    );
+  }
+
+  // ─── LOGOUT (revoke refresh token) ───────────────────────
+  async logout(rawToken: string) {
+    const tokenHash = this.hashRefreshToken(rawToken);
+    await this.prisma.refreshToken.updateMany({
+      where: { tokenHash, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    return { message: 'Logged out' };
+  }
 
   // ─── REGISTER ───────────────────────────────────────────
   async register(dto: RegisterDto) {
@@ -250,10 +322,14 @@ export class AuthService {
   ) {
     const payload = { sub: userId, email, role, posOnly, firstName, lastName };
 
-    const token = await this.jwt.signAsync(payload);
+    const [token, refreshToken] = await Promise.all([
+      this.jwt.signAsync(payload),
+      this.issueRefreshToken(userId),
+    ]);
 
     return {
       access_token: token,
+      refresh_token: refreshToken,
       user: { id: userId, email, role, posOnly, firstName, lastName },
     };
   }
