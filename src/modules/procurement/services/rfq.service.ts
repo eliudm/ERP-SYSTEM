@@ -4,6 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../../prisma.service';
+import { getCurrentTenantId } from '../../../tenant-context';
 import { PostingEngineService } from '../../accounting/services/posting-engine.service';
 import { PurchaseOrderStatus } from '@prisma/client';
 
@@ -224,6 +225,7 @@ export class RFQService {
     // Create PO (APPROVED so it can be received immediately)
     const po = await this.prisma.purchaseOrder.create({
       data: {
+        tenantId: getCurrentTenantId()!,
         orderNo,
         supplierId: rfq.supplierId,
         rfqId: id,

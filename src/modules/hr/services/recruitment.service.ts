@@ -4,6 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../../prisma.service';
+import { getCurrentTenantId } from '../../../tenant-context';
 
 @Injectable()
 export class RecruitmentService {
@@ -199,6 +200,7 @@ export class RecruitmentService {
 
     const employee = await this.prisma.employee.create({
       data: {
+        tenantId: getCurrentTenantId()!,
         employeeNo: `EMP-${Date.now()}`,
         firstName: app.applicantName.split(' ')[0] || app.applicantName,
         lastName: app.applicantName.split(' ').slice(1).join(' ') || '-',

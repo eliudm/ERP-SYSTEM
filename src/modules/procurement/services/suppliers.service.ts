@@ -4,6 +4,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../../../prisma.service';
+import { getCurrentTenantId } from '../../../tenant-context';
 import { CreateSupplierDto, UpdateSupplierDto } from '../dto';
 
 @Injectable()
@@ -21,7 +22,9 @@ export class SuppliersService {
       }
     }
 
-    return this.prisma.supplier.create({ data: dto });
+    return this.prisma.supplier.create({
+      data: { ...dto, tenantId: getCurrentTenantId()! },
+    });
   }
 
   // ─── GET ALL SUPPLIERS ───────────────────────────────────

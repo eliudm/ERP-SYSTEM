@@ -4,6 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../../prisma.service';
+import { getCurrentTenantId } from '../../../tenant-context';
 
 export class CreateTransferDto {
   fromWarehouseId: string;
@@ -111,6 +112,7 @@ export class StockTransfersService {
       ...transfer.lines.map((line) =>
         this.prisma.stockMovement.create({
           data: {
+            tenantId: getCurrentTenantId()!,
             productId: line.productId,
             warehouseId: transfer.fromWarehouseId,
             movementType: 'OUT',
@@ -124,6 +126,7 @@ export class StockTransfersService {
       ...transfer.lines.map((line) =>
         this.prisma.stockMovement.create({
           data: {
+            tenantId: getCurrentTenantId()!,
             productId: line.productId,
             warehouseId: transfer.toWarehouseId,
             movementType: 'IN',

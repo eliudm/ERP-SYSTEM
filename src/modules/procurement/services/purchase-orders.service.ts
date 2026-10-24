@@ -76,6 +76,7 @@ export class PurchaseOrdersService {
 
     return this.prisma.purchaseOrder.create({
       data: {
+        tenantId: supplier.tenantId,
         orderNo,
         supplierId: dto.supplierId,
         orderDate: new Date(dto.orderDate),

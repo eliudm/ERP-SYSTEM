@@ -14,6 +14,7 @@ const mockPrisma = () => ({
   },
   journalEntry: {
     findUnique: jest.fn(),
+    findFirst: jest.fn(),
   },
   $transaction: jest.fn(),
 });
@@ -129,7 +130,7 @@ describe('PostingEngineService', () => {
         { id: 'acc-2', code: '4000', name: 'Sales', isActive: true },
       ]);
       prisma.accountingPeriod.findFirst.mockResolvedValue(null);
-      prisma.journalEntry.findUnique.mockResolvedValue(null);
+      prisma.journalEntry.findFirst.mockResolvedValue(null);
     };
 
     it('should post a balanced transaction and write an audit log', async () => {
@@ -194,7 +195,7 @@ describe('PostingEngineService', () => {
       prisma.accountingPeriod.findFirst.mockResolvedValue({ name: 'Jan 2024' });
 
       await expect(service.postTransaction(dto, 'user-1')).rejects.toThrow(BadRequestException);
-      expect(prisma.journalEntry.findUnique).not.toHaveBeenCalled();
+      expect(prisma.journalEntry.findFirst).not.toHaveBeenCalled();
     });
 
     it('should throw BadRequestException when the reference already exists', async () => {
@@ -203,7 +204,7 @@ describe('PostingEngineService', () => {
         { id: 'acc-2', code: '4000', name: 'Sales', isActive: true },
       ]);
       prisma.accountingPeriod.findFirst.mockResolvedValue(null);
-      prisma.journalEntry.findUnique.mockResolvedValue({ id: 'existing' });
+      prisma.journalEntry.findFirst.mockResolvedValue({ id: 'existing' });
 
       await expect(service.postTransaction(dto, 'user-1')).rejects.toThrow(BadRequestException);
       expect(prisma.$transaction).not.toHaveBeenCalled();

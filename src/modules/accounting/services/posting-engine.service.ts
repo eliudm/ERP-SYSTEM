@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../../prisma.service';
+import { getCurrentTenantId } from '../../../tenant-context';
 import { CreateJournalEntryDto } from '../dto';
 import { JournalStatus } from '@prisma/client';
 import { AuditService } from '../../audit/audit.service';
@@ -91,8 +92,9 @@ export class PostingEngineService {
     // Step 3: Check period is not locked
     await this.checkPeriodLock(entryDate);
 
-    // Step 4: Check reference is unique
-    const existing = await this.prisma.journalEntry.findUnique({
+    // Step 4: Check reference is unique (per tenant — see
+    // tenant-scoping.extension.ts, hence findFirst not findUnique)
+    const existing = await this.prisma.journalEntry.findFirst({
       where: { reference: dto.reference },
     });
     if (existing) {
@@ -105,6 +107,7 @@ export class PostingEngineService {
     const journalEntry = await this.prisma.$transaction(async (tx) => {
       const entry = await tx.journalEntry.create({
         data: {
+          tenantId: getCurrentTenantId()!,
           reference: dto.reference,
           description: dto.description,
           entryDate,
@@ -176,6 +179,7 @@ export class PostingEngineService {
       // Create reversing journal entry
       const reversing = await tx.journalEntry.create({
         data: {
+          tenantId: entry.tenantId,
           reference: `VOID-${entry.reference}`,
           description: `Reversal of ${entry.reference}. Reason: ${reason}`,
           entryDate: new Date(),

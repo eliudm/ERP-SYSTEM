@@ -10,6 +10,7 @@ import {
 const mockPrisma = () => ({
   product: {
     findUnique: jest.fn(),
+    findFirst: jest.fn(),
     findMany: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
@@ -37,7 +38,7 @@ describe('ProductsService', () => {
     const dto = { code: 'P-1', name: 'Widget' } as any;
 
     it('should create a product when code is unique and no category given', async () => {
-      prisma.product.findUnique.mockResolvedValue(null);
+      prisma.product.findFirst.mockResolvedValue(null);
       const expected = { id: 'prod-1', ...dto };
       prisma.product.create.mockResolvedValue(expected);
 
@@ -52,7 +53,7 @@ describe('ProductsService', () => {
 
     it('should create a product when categoryId is valid', async () => {
       const dtoWithCategory = { ...dto, categoryId: 'cat-1' };
-      prisma.product.findUnique.mockResolvedValue(null);
+      prisma.product.findFirst.mockResolvedValue(null);
       prisma.productCategory.findUnique.mockResolvedValue({ id: 'cat-1' });
       prisma.product.create.mockResolvedValue({ id: 'prod-1', ...dtoWithCategory });
 
@@ -65,14 +66,14 @@ describe('ProductsService', () => {
     });
 
     it('should throw ConflictException if code already exists', async () => {
-      prisma.product.findUnique.mockResolvedValue({ id: 'existing' });
+      prisma.product.findFirst.mockResolvedValue({ id: 'existing' });
 
       await expect(service.create(dto)).rejects.toThrow(ConflictException);
       expect(prisma.product.create).not.toHaveBeenCalled();
     });
 
     it('should throw BadRequestException if categoryId not found', async () => {
-      prisma.product.findUnique.mockResolvedValue(null);
+      prisma.product.findFirst.mockResolvedValue(null);
       prisma.productCategory.findUnique.mockResolvedValue(null);
 
       await expect(
@@ -153,11 +154,11 @@ describe('ProductsService', () => {
   describe('findByBarcode', () => {
     it('should return a product by barcode', async () => {
       const product = { id: 'prod-1', barcode: '12345' };
-      prisma.product.findUnique.mockResolvedValue(product);
+      prisma.product.findFirst.mockResolvedValue(product);
 
       const result = await service.findByBarcode('12345');
 
-      expect(prisma.product.findUnique).toHaveBeenCalledWith({
+      expect(prisma.product.findFirst).toHaveBeenCalledWith({
         where: { barcode: '12345' },
         include: { category: true },
       });
@@ -165,7 +166,7 @@ describe('ProductsService', () => {
     });
 
     it('should throw NotFoundException if no product has the barcode', async () => {
-      prisma.product.findUnique.mockResolvedValue(null);
+      prisma.product.findFirst.mockResolvedValue(null);
 
       await expect(service.findByBarcode('missing')).rejects.toThrow(
         NotFoundException,

@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../../prisma.service';
+import { getCurrentTenantId } from '../../../tenant-context';
 import { CreateWarehouseDto } from '../dto';
 
 @Injectable()
@@ -8,7 +9,9 @@ export class WarehousesService {
 
   // ─── CREATE WAREHOUSE ────────────────────────────────────
   async create(dto: CreateWarehouseDto) {
-    return this.prisma.warehouse.create({ data: dto });
+    return this.prisma.warehouse.create({
+      data: { ...dto, tenantId: getCurrentTenantId()! },
+    });
   }
 
   // ─── GET ALL WAREHOUSES ──────────────────────────────────

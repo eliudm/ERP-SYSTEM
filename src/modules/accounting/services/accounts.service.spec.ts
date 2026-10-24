@@ -6,6 +6,7 @@ import { ConflictException, NotFoundException } from '@nestjs/common';
 const mockPrisma = () => ({
   account: {
     findUnique: jest.fn(),
+    findFirst: jest.fn(),
     findMany: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
@@ -33,13 +34,13 @@ describe('AccountsService', () => {
     const dto = { code: '1000', name: 'Cash', type: 'ASSET' as any };
 
     it('should create the account when code is unique', async () => {
-      prisma.account.findUnique.mockResolvedValue(null);
+      prisma.account.findFirst.mockResolvedValue(null);
       const expected = { id: 'acc-1', ...dto };
       prisma.account.create.mockResolvedValue(expected);
 
       const result = await service.create(dto);
 
-      expect(prisma.account.findUnique).toHaveBeenCalledWith({
+      expect(prisma.account.findFirst).toHaveBeenCalledWith({
         where: { code: dto.code },
       });
       expect(prisma.account.create).toHaveBeenCalledWith({
@@ -50,7 +51,7 @@ describe('AccountsService', () => {
     });
 
     it('should throw ConflictException when code already exists', async () => {
-      prisma.account.findUnique.mockResolvedValue({ id: 'existing' });
+      prisma.account.findFirst.mockResolvedValue({ id: 'existing' });
 
       await expect(service.create(dto)).rejects.toThrow(ConflictException);
       expect(prisma.account.create).not.toHaveBeenCalled();
@@ -191,12 +192,12 @@ describe('AccountsService', () => {
 
   describe('seedChartOfAccounts', () => {
     it('should create only accounts that do not already exist', async () => {
-      prisma.account.findUnique.mockResolvedValue({ id: 'existing' });
+      prisma.account.findFirst.mockResolvedValue({ id: 'existing' });
       prisma.account.create.mockResolvedValue({ id: 'new-1' });
 
       const result = await service.seedChartOfAccounts();
 
-      expect(prisma.account.findUnique).toHaveBeenCalledTimes(19);
+      expect(prisma.account.findFirst).toHaveBeenCalledTimes(19);
       expect(prisma.account.create).not.toHaveBeenCalled();
       expect(result).toEqual({
         message: 'Seeded 0 accounts successfully',
@@ -205,7 +206,7 @@ describe('AccountsService', () => {
     });
 
     it('should create accounts that do not exist yet', async () => {
-      prisma.account.findUnique.mockResolvedValue(null);
+      prisma.account.findFirst.mockResolvedValue(null);
       prisma.account.create.mockImplementation(({ data }: any) =>
         Promise.resolve({ id: `acc-${data.code}`, ...data }),
       );

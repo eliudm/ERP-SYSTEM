@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../../prisma.service';
+import { getCurrentTenantId } from '../../../tenant-context';
 import { CreateAccountDto } from '../dto';
 
 @Injectable()
@@ -12,7 +13,9 @@ export class AccountsService {
 
   // ─── CREATE ACCOUNT ──────────────────────────────────────
   async create(dto: CreateAccountDto) {
-    const existing = await this.prisma.account.findUnique({
+    // findFirst, not findUnique: code is only unique per-tenant now, and the
+    // tenant filter is applied automatically (see tenant-scoping.extension.ts)
+    const existing = await this.prisma.account.findFirst({
       where: { code: dto.code },
     });
 
@@ -23,7 +26,9 @@ export class AccountsService {
     }
 
     return this.prisma.account.create({
-      data: dto,
+      // tenantId is guaranteed by JwtAuthGuard + TenantContextInterceptor on
+      // every route that reaches here
+      data: { ...dto, tenantId: getCurrentTenantId()! },
       include: { parent: true },
     });
   }
@@ -141,7 +146,7 @@ export class AccountsService {
 
     const created: unknown[] = [];
     for (const account of accounts) {
-      const exists = await this.prisma.account.findUnique({
+      const exists = await this.prisma.account.findFirst({
         where: { code: account.code },
       });
       if (!exists) {

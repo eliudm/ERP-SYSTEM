@@ -4,6 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../../prisma.service';
+import { getCurrentTenantId } from '../../../tenant-context';
 import { PostingEngineService } from '../../accounting/services/posting-engine.service';
 
 export class CreatePurchaseReturnDto {
@@ -125,6 +126,7 @@ export class PurchaseReturnsService {
       ...pr.items.map((item) =>
         this.prisma.stockMovement.create({
           data: {
+            tenantId: getCurrentTenantId()!,
             productId: item.productId,
             warehouseId: (async () => {
               const wh = await this.prisma.warehouse.findFirst({

@@ -7,6 +7,7 @@ const mockPrisma = () => ({
   employee: {
     count: jest.fn(),
     findUnique: jest.fn(),
+    findFirst: jest.fn(),
     findMany: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
@@ -38,7 +39,7 @@ describe('EmployeesService', () => {
     };
 
     it('should create an employee with a generated employee number', async () => {
-      prisma.employee.findUnique.mockResolvedValue(null);
+      prisma.employee.findFirst.mockResolvedValue(null);
       prisma.employee.count.mockResolvedValue(3);
       const expected = { id: 'emp-1', ...dto, employeeNo: 'EMP-0004' };
       prisma.employee.create.mockResolvedValue(expected);
@@ -56,7 +57,7 @@ describe('EmployeesService', () => {
     });
 
     it('should throw ConflictException if email already exists', async () => {
-      prisma.employee.findUnique.mockResolvedValue({ id: 'existing' });
+      prisma.employee.findFirst.mockResolvedValue({ id: 'existing' });
 
       await expect(service.create(dto as any)).rejects.toThrow(
         ConflictException,

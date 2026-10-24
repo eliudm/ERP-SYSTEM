@@ -1,11 +1,12 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { MailService } from './mail.service';
 import { PrismaModule } from './prisma.module';
 import { CacheModule } from './cache.module';
+import { TenantContextInterceptor } from './tenant-context.interceptor';
 import { AuthModule } from './modules/auth/auth.module';
 import { AccountingModule } from './modules/accounting/accounting.module';
 import { SalesModule } from './modules/sales/sales.module';
@@ -34,6 +35,7 @@ import { AiInsightsModule } from './modules/ai-insights/ai-insights.module';
   providers: [
     MailService,
     { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_INTERCEPTOR, useClass: TenantContextInterceptor },
   ],
   exports: [MailService],
   imports: [

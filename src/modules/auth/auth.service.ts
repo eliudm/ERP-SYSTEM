@@ -7,6 +7,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma.service';
+import { getCurrentTenantId } from '../../tenant-context';
 import {
   RegisterDto,
   LoginDto,
@@ -35,6 +36,23 @@ export class AuthService {
   private refreshTokenTtlMs(): number {
     const days = Number(this.config.get('REFRESH_TOKEN_EXPIRES_DAYS', '30'));
     return days * 24 * 60 * 60 * 1000;
+  }
+
+  private async generateUniqueTenantSlug(base: string): Promise<string> {
+    const normalized =
+      base
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '') || 'company';
+
+    let slug = normalized;
+    let suffix = 0;
+    while (await this.prisma.tenant.findUnique({ where: { slug } })) {
+      suffix += 1;
+      slug = `${normalized}-${suffix}`;
+    }
+    return slug;
   }
 
   private async issueRefreshToken(userId: string): Promise<string> {
@@ -106,12 +124,25 @@ export class AuthService {
       throw new ConflictException('Email already in use');
     }
 
+    // Registering creates a brand-new company (tenant). Adding further users
+    // to an existing company goes through POST /auth/users (createUser)
+    // instead, which inherits the calling admin's tenant automatically.
+    const tenant = await this.prisma.tenant.create({
+      data: {
+        name: dto.companyName?.trim() || `${dto.firstName} ${dto.lastName}`,
+        slug: await this.generateUniqueTenantSlug(
+          dto.companyName || `${dto.firstName}-${dto.lastName}`,
+        ),
+      },
+    });
+
     // Hash password
     const hashedPassword = await bcrypt.hash(dto.password, 12);
 
     // Create user
     const user = await this.prisma.user.create({
       data: {
+        tenantId: tenant.id,
         firstName: dto.firstName,
         lastName: dto.lastName,
         email: dto.email,
@@ -250,6 +281,8 @@ export class AuthService {
     const hashed = await bcrypt.hash(dto.password, 12);
     const user = await this.prisma.user.create({
       data: {
+        // joins the calling admin's own company
+        tenantId: getCurrentTenantId()!,
         firstName: dto.firstName,
         lastName: dto.lastName,
         email: dto.email,

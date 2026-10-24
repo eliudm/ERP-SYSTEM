@@ -4,6 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../../prisma.service';
+import { getCurrentTenantId } from '../../../tenant-context';
 
 export class CreateStockCountDto {
   warehouseId: string;
@@ -118,6 +119,7 @@ export class StockCountsService {
       ...adjustmentLines.map((line) =>
         this.prisma.stockMovement.create({
           data: {
+            tenantId: getCurrentTenantId()!,
             productId: line.productId,
             warehouseId: sc.warehouseId,
             movementType: 'ADJUSTMENT',

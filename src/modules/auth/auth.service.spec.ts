@@ -16,6 +16,10 @@ const mockPrisma = () => ({
     create: jest.fn(),
     update: jest.fn(),
   },
+  tenant: {
+    findUnique: jest.fn().mockResolvedValue(null),
+    create: jest.fn(),
+  },
   refreshToken: {
     findUnique: jest.fn(),
     create: jest.fn(),
@@ -73,14 +77,19 @@ describe('AuthService', () => {
 
     it('should create a user and return tokens', async () => {
       prisma.user.findUnique.mockResolvedValue(null);
+      prisma.tenant.create.mockResolvedValue({ id: 'tenant-1' });
       (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-password');
       prisma.user.create.mockResolvedValue(user);
       prisma.refreshToken.create.mockResolvedValue({});
 
       const result = await service.register(dto);
 
+      expect(prisma.tenant.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ name: 'Jane Doe' }),
+      });
       expect(prisma.user.create).toHaveBeenCalledWith({
         data: {
+          tenantId: 'tenant-1',
           firstName: dto.firstName,
           lastName: dto.lastName,
           email: dto.email,

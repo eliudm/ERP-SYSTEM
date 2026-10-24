@@ -5,6 +5,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../../../prisma.service';
+import { getCurrentTenantId } from '../../../tenant-context';
 import { CreateQuoteDto, UpdateQuoteDto } from '../dto/create-quote.dto';
 import { PostingEngineService } from '../../accounting/services/posting-engine.service';
 import { MailService } from '../../../mail.service';
@@ -261,6 +262,7 @@ export class QuotesService {
 
     const invoice = await this.prisma.salesInvoice.create({
       data: {
+        tenantId: getCurrentTenantId()!,
         invoiceNo,
         customerId: quote.customerId,
         invoiceDate: new Date(),

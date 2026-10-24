@@ -13,6 +13,15 @@ const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
+  // seed.ts runs standalone (not through NestJS), so it never goes through
+  // the tenant-scoping Prisma extension — tenantId has to be passed
+  // explicitly on every tenant-scoped model below.
+  const tenant = await prisma.tenant.upsert({
+    where: { slug: 'default-company' },
+    update: {},
+    create: { name: 'Default Company', slug: 'default-company' },
+  });
+
   await prisma.systemSetting.upsert({
     where: { key: 'system' },
     update: {},
@@ -39,6 +48,7 @@ async function main() {
     update: {},
     create: {
       id: 'default-warehouse',
+      tenantId: tenant.id,
       name: 'Main Warehouse',
       location: 'Nairobi',
     },
@@ -94,9 +104,9 @@ async function main() {
 
   for (const product of products) {
     await prisma.product.upsert({
-      where: { code: product.code },
+      where: { tenantId_code: { tenantId: tenant.id, code: product.code } },
       update: {},
-      create: product,
+      create: { ...product, tenantId: tenant.id },
     });
   }
 

@@ -4,6 +4,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../../../prisma.service';
+import { getCurrentTenantId } from '../../../tenant-context';
 import { CreateEmployeeDto, UpdateEmployeeDto } from '../dto';
 
 @Injectable()
@@ -19,7 +20,9 @@ export class EmployeesService {
 
   // ─── CREATE EMPLOYEE ─────────────────────────────────────
   async create(dto: CreateEmployeeDto) {
-    const existing = await this.prisma.employee.findUnique({
+    // findFirst, not findUnique: email is only unique per-tenant now, and the
+    // tenant filter is applied automatically (see tenant-scoping.extension.ts)
+    const existing = await this.prisma.employee.findFirst({
       where: { email: dto.email },
     });
 
@@ -32,6 +35,7 @@ export class EmployeesService {
     return this.prisma.employee.create({
       data: {
         ...dto,
+        tenantId: getCurrentTenantId()!,
         employeeNo,
         startDate: new Date(dto.startDate),
       },

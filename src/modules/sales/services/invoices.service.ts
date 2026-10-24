@@ -86,6 +86,7 @@ export class InvoicesService {
     // Create invoice in database
     const invoice = await this.prisma.salesInvoice.create({
       data: {
+        tenantId: customer.tenantId,
         invoiceNo,
         customerId: dto.customerId,
         branchId: dto.branchId ?? null,
@@ -221,6 +222,7 @@ export class InvoicesService {
       for (const item of invoice.items) {
         await tx.stockMovement.create({
           data: {
+            tenantId: invoice.tenantId,
             productId: item.productId,
             warehouseId: warehouse.id,
             movementType: MovementType.OUT,

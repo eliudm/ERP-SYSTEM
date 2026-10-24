@@ -4,6 +4,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../../../prisma.service';
+import { getCurrentTenantId } from '../../../tenant-context';
 import { CreateCustomerDto, UpdateCustomerDto } from '../dto';
 
 @Injectable()
@@ -41,6 +42,7 @@ export class CustomersService {
       where: { id: contact.id },
       create: {
         id: contact.id,
+        tenantId: getCurrentTenantId()!,
         name: contact.name,
         email: contact.email ?? undefined,
         phone: contact.phone ?? contact.mobile ?? undefined,
@@ -97,6 +99,7 @@ export class CustomersService {
           where: { id: contact.id },
           create: {
             id: contact.id,
+            tenantId: getCurrentTenantId()!,
             name: contact.name,
             email: contact.email ?? undefined,
             phone: contact.phone ?? contact.mobile ?? undefined,
@@ -129,7 +132,9 @@ export class CustomersService {
       }
     }
 
-    const customer = await this.prisma.customer.create({ data: dto });
+    const customer = await this.prisma.customer.create({
+      data: { ...dto, tenantId: getCurrentTenantId()! },
+    });
 
     await this.prisma.contact.upsert({
       where: { id: customer.id },

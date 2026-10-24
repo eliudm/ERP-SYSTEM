@@ -4,6 +4,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma.service';
+import { getCurrentTenantId } from '../../tenant-context';
 import { IsBoolean, IsOptional, IsString } from 'class-validator';
 
 export class CreateBranchDto {
@@ -41,14 +42,18 @@ export class BranchesService {
   constructor(private prisma: PrismaService) {}
 
   async create(dto: CreateBranchDto) {
-    const exists = await this.prisma.branch.findUnique({
+    // findFirst, not findUnique: code is only unique per-tenant now, and the
+    // tenant filter is applied automatically (see tenant-scoping.extension.ts)
+    const exists = await this.prisma.branch.findFirst({
       where: { code: dto.code },
     });
     if (exists) {
       throw new ConflictException(`Branch code "${dto.code}" already exists`);
     }
 
-    return this.prisma.branch.create({ data: dto });
+    return this.prisma.branch.create({
+      data: { ...dto, tenantId: getCurrentTenantId()! },
+    });
   }
 
   findAll() {
@@ -77,7 +82,7 @@ export class BranchesService {
     await this.findOne(id);
 
     if (dto.code) {
-      const existing = await this.prisma.branch.findUnique({
+      const existing = await this.prisma.branch.findFirst({
         where: { code: dto.code },
       });
       if (existing && existing.id !== id) {

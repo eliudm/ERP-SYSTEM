@@ -5,6 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../../prisma.service';
+import { getCurrentTenantId } from '../../../tenant-context';
 import { CreateProductDto, UpdateProductDto } from '../dto';
 
 @Injectable()
@@ -13,7 +14,9 @@ export class ProductsService {
 
   // ─── CREATE PRODUCT ──────────────────────────────────────
   async create(dto: CreateProductDto) {
-    const existing = await this.prisma.product.findUnique({
+    // findFirst, not findUnique: code is only unique per-tenant now, and the
+    // tenant filter is applied automatically (see tenant-scoping.extension.ts)
+    const existing = await this.prisma.product.findFirst({
       where: { code: dto.code },
     });
 
@@ -34,7 +37,7 @@ export class ProductsService {
     }
 
     return this.prisma.product.create({
-      data: dto,
+      data: { ...dto, tenantId: getCurrentTenantId()! },
       include: { category: true },
     });
   }
@@ -84,7 +87,9 @@ export class ProductsService {
 
   // ─── FIND BY BARCODE ──────────────────────────────────────
   async findByBarcode(barcode: string) {
-    const product = await this.prisma.product.findUnique({
+    // findFirst, not findUnique: barcode is only unique per-tenant now, and
+    // the tenant filter is applied automatically (tenant-scoping.extension.ts)
+    const product = await this.prisma.product.findFirst({
       where: { barcode },
       include: { category: true },
     });

@@ -13,6 +13,7 @@ import { ApprovalEntityType, PayrollStatus } from '@prisma/client';
 const mockPrisma = () => ({
   payroll: {
     findUnique: jest.fn(),
+    findFirst: jest.fn(),
     findMany: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
@@ -101,7 +102,7 @@ describe('PayrollService', () => {
     const dto = { month: 1, year: 2025 };
 
     it('should throw ConflictException if payroll already exists for the period', async () => {
-      prisma.payroll.findUnique.mockResolvedValue({ id: 'existing' });
+      prisma.payroll.findFirst.mockResolvedValue({ id: 'existing' });
 
       await expect(service.generate(dto as any)).rejects.toThrow(
         ConflictException,
@@ -109,7 +110,7 @@ describe('PayrollService', () => {
     });
 
     it('should throw BadRequestException if there are no active employees', async () => {
-      prisma.payroll.findUnique.mockResolvedValue(null);
+      prisma.payroll.findFirst.mockResolvedValue(null);
       prisma.employee.findMany.mockResolvedValue([]);
 
       await expect(service.generate(dto as any)).rejects.toThrow(
@@ -118,7 +119,7 @@ describe('PayrollService', () => {
     });
 
     it('should build payroll lines with calculated deductions and totals', async () => {
-      prisma.payroll.findUnique.mockResolvedValue(null);
+      prisma.payroll.findFirst.mockResolvedValue(null);
       prisma.employee.findMany.mockResolvedValue([
         { id: 'emp-1', salary: 20000 },
       ]);
@@ -160,7 +161,7 @@ describe('PayrollService', () => {
     });
 
     it('should add active allowances to gross pay and deduct active loan installments from net pay', async () => {
-      prisma.payroll.findUnique.mockResolvedValue(null);
+      prisma.payroll.findFirst.mockResolvedValue(null);
       prisma.employee.findMany.mockResolvedValue([
         { id: 'emp-1', salary: 20000 },
       ]);

@@ -5,6 +5,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../../../prisma.service';
+import { getCurrentTenantId } from '../../../tenant-context';
 import { PostingEngineService } from '../../accounting/services/posting-engine.service';
 import { CreatePayrollDto } from '../dto';
 import { ApprovalEntityType, PayrollStatus } from '@prisma/client';
@@ -102,9 +103,11 @@ export class PayrollService {
 
   // ─── GENERATE PAYROLL ────────────────────────────────────
   async generate(dto: CreatePayrollDto) {
-    // Check if payroll already exists for this month
-    const existing = await this.prisma.payroll.findUnique({
-      where: { month_year: { month: dto.month, year: dto.year } },
+    // Check if payroll already exists for this month. findFirst, not
+    // findUnique: (month, year) is only unique per-tenant now, and the
+    // tenant filter is applied automatically (tenant-scoping.extension.ts)
+    const existing = await this.prisma.payroll.findFirst({
+      where: { month: dto.month, year: dto.year },
     });
 
     if (existing) {
@@ -225,6 +228,7 @@ export class PayrollService {
     const [payroll] = await this.prisma.$transaction([
       this.prisma.payroll.create({
         data: {
+          tenantId: getCurrentTenantId()!,
           month: dto.month,
           year: dto.year,
           status: PayrollStatus.DRAFT,

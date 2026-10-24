@@ -46,6 +46,7 @@ export class StockMovementsService {
       // Record movement
       const movement = await tx.stockMovement.create({
         data: {
+          tenantId: product.tenantId,
           productId: dto.productId,
           warehouseId: dto.warehouseId,
           movementType: dto.movementType,
@@ -244,6 +245,7 @@ export class StockMovementsService {
     const movement = await this.prisma.$transaction(async (tx) => {
       const mov = await tx.stockMovement.create({
         data: {
+          tenantId: product.tenantId,
           productId,
           warehouseId,
           movementType: MovementType.ADJUSTMENT,
