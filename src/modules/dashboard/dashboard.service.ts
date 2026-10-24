@@ -1,11 +1,27 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma.service';
+import { CacheService } from '../../cache.service';
+
+const OVERVIEW_CACHE_TTL_SECONDS = 60;
 
 @Injectable()
 export class DashboardService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private cache: CacheService,
+  ) {}
 
   async getOverview(from?: string, to?: string) {
+    const cacheKey = `dashboard:overview:${from ?? ''}:${to ?? ''}`;
+    const cached = await this.cache.get(cacheKey);
+    if (cached) return cached;
+
+    const result = await this.computeOverview(from, to);
+    await this.cache.set(cacheKey, result, OVERVIEW_CACHE_TTL_SECONDS);
+    return result;
+  }
+
+  private async computeOverview(from?: string, to?: string) {
     const now = new Date();
     const startOfToday = new Date(
       now.getFullYear(),
