@@ -4,6 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../../prisma.service';
+import { getCurrentTenantId } from '../../../tenant-context';
 
 @Injectable()
 export class AttendanceService {
@@ -22,7 +23,7 @@ export class AttendanceService {
     if (open) throw new BadRequestException('Employee is already clocked in');
 
     return this.prisma.attendanceRecord.create({
-      data: { employeeId, clockIn: new Date(), notes },
+      data: { tenantId: employee.tenantId, employeeId, clockIn: new Date(), notes },
       include: { employee: true },
     });
   }
@@ -115,6 +116,7 @@ export class AttendanceService {
         );
         return this.prisma.attendanceRecord.create({
           data: {
+            tenantId: getCurrentTenantId()!,
             employeeId: r.employeeId,
             clockIn,
             clockOut,

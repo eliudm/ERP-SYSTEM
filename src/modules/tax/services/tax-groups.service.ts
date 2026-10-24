@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../../prisma.service';
+import { getCurrentTenantId } from '../../../tenant-context';
 
 @Injectable()
 export class TaxGroupsService {
@@ -10,7 +11,9 @@ export class TaxGroupsService {
     description?: string;
     taxRateIds: string[];
   }) {
-    return this.prisma.taxGroup.create({ data });
+    return this.prisma.taxGroup.create({
+      data: { ...data, tenantId: getCurrentTenantId()! },
+    });
   }
 
   async findAll() {

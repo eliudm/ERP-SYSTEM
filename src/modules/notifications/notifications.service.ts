@@ -69,8 +69,9 @@ export class NotificationsService {
     if (!product || !product.isActive) return;
 
     const qty = Number(product.stockQuantity);
-    const settings = await this.prisma.systemSetting.findUnique({
-      where: { key: 'system' },
+    // findFirst, not findUnique: key is only unique per-tenant now
+    const settings = await this.prisma.systemSetting.findFirst({
+      where: { key: 'system', tenantId: product.tenantId },
     });
     const threshold = settings?.lowStockThreshold ?? 5;
 
@@ -95,7 +96,7 @@ export class NotificationsService {
         : `${product.name} (${product.code}) has only ${qty} unit${qty === 1 ? '' : 's'} remaining. Reorder soon.`;
 
     const notification = await this.prisma.notification.create({
-      data: { type, title, message, productId },
+      data: { tenantId: product.tenantId, type, title, message, productId },
     });
 
     await this.sendToAdminAndAccountantEmails(
@@ -143,6 +144,7 @@ export class NotificationsService {
 
       const notification = await this.prisma.notification.create({
         data: {
+          tenantId: invoice.tenantId,
           type: NotificationType.PAYMENT_REMINDER,
           title,
           message,
@@ -176,6 +178,7 @@ export class NotificationsService {
   }
 
   async notifyApprovalRequired(
+    tenantId: string,
     entityType: string,
     entityId: string,
     assignedRole?: Role,
@@ -190,6 +193,7 @@ export class NotificationsService {
 
     await this.prisma.notification.create({
       data: {
+        tenantId,
         type: NotificationType.APPROVAL_REQUIRED,
         title,
         message,
@@ -200,6 +204,7 @@ export class NotificationsService {
   }
 
   async notifyApprovalDecision(
+    tenantId: string,
     status: 'APPROVED' | 'REJECTED',
     entityType: string,
     entityId: string,
@@ -218,6 +223,7 @@ export class NotificationsService {
 
     const notification = await this.prisma.notification.create({
       data: {
+        tenantId,
         type,
         title,
         message,
@@ -241,6 +247,7 @@ export class NotificationsService {
   }
 
   async notifyApprovalOverdue(
+    tenantId: string,
     entityType: string,
     entityId: string,
     dueAt?: Date | null,
@@ -251,6 +258,7 @@ export class NotificationsService {
 
     await this.prisma.notification.create({
       data: {
+        tenantId,
         type: NotificationType.SYSTEM,
         title,
         message,

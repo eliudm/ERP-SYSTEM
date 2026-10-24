@@ -140,6 +140,7 @@ export class CustomersService {
       where: { id: customer.id },
       create: {
         id: customer.id,
+        tenantId: customer.tenantId,
         type: 'INDIVIDUAL',
         name: customer.name,
         email: customer.email,
@@ -212,6 +213,7 @@ export class CustomersService {
       where: { id: updatedCustomer.id },
       create: {
         id: updatedCustomer.id,
+        tenantId: updatedCustomer.tenantId,
         type: 'INDIVIDUAL',
         name: updatedCustomer.name,
         email: updatedCustomer.email,

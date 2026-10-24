@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma.service';
+import { getCurrentTenantId } from '../../tenant-context';
 
 export interface CreateAuditLogInput {
   userId?: string | null;
@@ -18,6 +19,7 @@ export class AuditService {
   log(input: CreateAuditLogInput) {
     return this.prisma.auditLog.create({
       data: {
+        tenantId: getCurrentTenantId()!,
         userId: input.userId ?? null,
         action: input.action,
         tableName: input.tableName,

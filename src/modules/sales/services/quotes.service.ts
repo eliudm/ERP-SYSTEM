@@ -57,6 +57,7 @@ export class QuotesService {
 
     return this.prisma.salesQuote.create({
       data: {
+        tenantId: customer.tenantId,
         quoteNumber,
         customerId: dto.customerId,
         validUntil: dto.validUntil ? new Date(dto.validUntil) : undefined,

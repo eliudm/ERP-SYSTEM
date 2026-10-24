@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { BudgetStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma.service';
+import { getCurrentTenantId } from '../../tenant-context';
 import {
   CreateBudgetDto,
   CreateBudgetLineDto,
@@ -29,6 +30,7 @@ export class BudgetService {
 
     return this.prisma.budget.create({
       data: {
+        tenantId: getCurrentTenantId()!,
         name: dto.name,
         fiscalYear: dto.fiscalYear,
         startDate: new Date(dto.startDate),

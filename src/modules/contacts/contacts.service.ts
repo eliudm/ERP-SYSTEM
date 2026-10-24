@@ -157,6 +157,7 @@ export class ContactsService {
   async create(dto: CreateContactDto) {
     const contact = await this.prisma.contact.create({
       data: {
+        tenantId: getCurrentTenantId()!,
         type: dto.type ?? 'INDIVIDUAL',
         name: dto.name,
         companyId: dto.companyId || null,

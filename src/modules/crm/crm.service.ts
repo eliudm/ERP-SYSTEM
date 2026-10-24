@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma.service';
+import { getCurrentTenantId } from '../../tenant-context';
 import { LeadActivityType, LeadStage } from '@prisma/client';
 import {
   IsDateString,
@@ -132,6 +133,7 @@ export class CrmService {
   createLead(dto: CreateLeadDto, userId?: string) {
     return this.prisma.crmLead.create({
       data: {
+        tenantId: getCurrentTenantId()!,
         title: dto.title,
         companyName: dto.companyName,
         contactName: dto.contactName,

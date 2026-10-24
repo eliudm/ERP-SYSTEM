@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../../prisma.service';
+import { getCurrentTenantId } from '../../../tenant-context';
 import {
   CreatePriceListDto,
   CreatePriceListItemDto,
@@ -21,6 +22,7 @@ export class PriceListsService {
     return this.prisma.priceList.create({
       data: {
         ...dto,
+        tenantId: getCurrentTenantId()!,
         validFrom: dto.validFrom ? new Date(dto.validFrom) : undefined,
         validTo: dto.validTo ? new Date(dto.validTo) : undefined,
       },

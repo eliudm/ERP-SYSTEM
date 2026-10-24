@@ -37,6 +37,7 @@ export class ReorderRulesService {
 
     return this.prisma.reorderRule.create({
       data: {
+        tenantId: product.tenantId,
         productId: dto.productId,
         preferredSupplierId: dto.preferredSupplierId,
         reorderPoint: dto.reorderPoint,

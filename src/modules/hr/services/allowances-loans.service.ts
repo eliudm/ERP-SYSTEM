@@ -27,6 +27,7 @@ export class AllowancesLoansService {
 
     return this.prisma.allowance.create({
       data: {
+        tenantId: employee.tenantId,
         employeeId: data.employeeId,
         type: data.type as any,
         amount: data.amount,
@@ -122,6 +123,7 @@ export class AllowancesLoansService {
 
     return this.prisma.loanDeduction.create({
       data: {
+        tenantId: employee.tenantId,
         employeeId: data.employeeId,
         totalAmount: data.totalAmount,
         balance: data.totalAmount,

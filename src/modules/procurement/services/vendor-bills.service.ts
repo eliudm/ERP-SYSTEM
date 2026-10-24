@@ -52,6 +52,7 @@ export class VendorBillsService {
 
     return this.prisma.vendorBill.create({
       data: {
+        tenantId: supplier.tenantId,
         billNumber,
         supplierId: dto.supplierId,
         purchaseOrderId: dto.purchaseOrderId,

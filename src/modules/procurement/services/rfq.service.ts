@@ -87,6 +87,7 @@ export class RFQService {
 
     return this.prisma.requestForQuotation.create({
       data: {
+        tenantId: supplier.tenantId,
         rfqNumber,
         supplierId: dto.supplierId,
         requestDate: dto.requestDate ? new Date(dto.requestDate) : new Date(),

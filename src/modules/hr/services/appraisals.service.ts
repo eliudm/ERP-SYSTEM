@@ -22,6 +22,7 @@ export class AppraisalsService {
 
     return this.prisma.appraisal.create({
       data: {
+        tenantId: employee.tenantId,
         employeeId: data.employeeId,
         reviewerId: data.reviewerId,
         period: data.period,

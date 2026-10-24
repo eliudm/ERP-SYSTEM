@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma.service';
+import { getCurrentTenantId } from '../../tenant-context';
 import { UpdateSystemSettingsDto } from './dto/update-system-settings.dto';
 
 @Injectable()
@@ -7,10 +8,12 @@ export class SettingsService {
   constructor(private readonly prisma: PrismaService) {}
 
   private async ensureSystemSettings() {
+    const tenantId = getCurrentTenantId()!;
     return this.prisma.systemSetting.upsert({
-      where: { key: 'system' },
+      where: { tenantId_key: { tenantId, key: 'system' } },
       update: {},
       create: {
+        tenantId,
         key: 'system',
         companyName: 'Nexora ERP',
         companyPin: 'P051234567X',
@@ -37,7 +40,9 @@ export class SettingsService {
     await this.ensureSystemSettings();
 
     return this.prisma.systemSetting.update({
-      where: { key: 'system' },
+      where: {
+        tenantId_key: { tenantId: getCurrentTenantId()!, key: 'system' },
+      },
       data: dto,
     });
   }

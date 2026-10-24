@@ -48,6 +48,7 @@ export class CreditNotesService {
 
     return this.prisma.creditNote.create({
       data: {
+        tenantId: customer.tenantId,
         creditNoteNumber,
         customerId: dto.customerId,
         invoiceId: dto.invoiceId,

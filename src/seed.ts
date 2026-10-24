@@ -23,9 +23,10 @@ async function main() {
   });
 
   await prisma.systemSetting.upsert({
-    where: { key: 'system' },
+    where: { tenantId_key: { tenantId: tenant.id, key: 'system' } },
     update: {},
     create: {
+      tenantId: tenant.id,
       key: 'system',
       companyName: 'Nexora ERP',
       companyPin: 'P051234567X',
@@ -56,14 +57,14 @@ async function main() {
 
   const categories = await Promise.all([
     prisma.productCategory.upsert({
-      where: { name: 'Furniture' },
+      where: { tenantId_name: { tenantId: tenant.id, name: 'Furniture' } },
       update: {},
-      create: { name: 'Furniture' },
+      create: { tenantId: tenant.id, name: 'Furniture' },
     }),
     prisma.productCategory.upsert({
-      where: { name: 'Accessories' },
+      where: { tenantId_name: { tenantId: tenant.id, name: 'Accessories' } },
       update: {},
-      create: { name: 'Accessories' },
+      create: { tenantId: tenant.id, name: 'Accessories' },
     }),
   ]);
 

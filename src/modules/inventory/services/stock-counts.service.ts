@@ -41,6 +41,7 @@ export class StockCountsService {
 
     return this.prisma.stockCount.create({
       data: {
+        tenantId: warehouse.tenantId,
         reference,
         warehouseId: dto.warehouseId,
         countDate: new Date(dto.countDate),

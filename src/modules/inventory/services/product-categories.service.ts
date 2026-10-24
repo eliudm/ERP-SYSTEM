@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../../prisma.service';
+import { getCurrentTenantId } from '../../../tenant-context';
 import { CreateProductCategoryDto, UpdateProductCategoryDto } from '../dto';
 
 @Injectable()
@@ -13,7 +14,7 @@ export class ProductCategoriesService {
   async create(dto: CreateProductCategoryDto) {
     const normalizedName = dto.name.trim();
 
-    const existing = await this.prisma.productCategory.findUnique({
+    const existing = await this.prisma.productCategory.findFirst({
       where: { name: normalizedName },
     });
 
@@ -22,7 +23,12 @@ export class ProductCategoriesService {
     }
 
     return this.prisma.productCategory.create({
-      data: { name: normalizedName, color: dto.color, icon: dto.icon },
+      data: {
+        tenantId: getCurrentTenantId()!,
+        name: normalizedName,
+        color: dto.color,
+        icon: dto.icon,
+      },
     });
   }
 

@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { PaymentMethod } from '@prisma/client';
 import { PrismaService } from '../../../prisma.service';
+import { getCurrentTenantId } from '../../../tenant-context';
 
 export class CreateBankAccountDto {
   name: string;
@@ -35,7 +36,11 @@ export class BankReconciliationService {
   // ─── BANK ACCOUNTS ───────────────────────────────────────
   createBankAccount(dto: CreateBankAccountDto) {
     return this.prisma.bankAccount.create({
-      data: { ...dto, currency: dto.currency || 'KES' },
+      data: {
+        ...dto,
+        tenantId: getCurrentTenantId()!,
+        currency: dto.currency || 'KES',
+      },
     });
   }
 
@@ -75,6 +80,7 @@ export class BankReconciliationService {
 
     return this.prisma.bankStatement.create({
       data: {
+        tenantId: account.tenantId,
         bankAccountId,
         statementDate: new Date(dto.statementDate),
         openingBalance: dto.openingBalance,

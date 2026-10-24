@@ -40,6 +40,7 @@ export class StockTransfersService {
 
     return this.prisma.stockTransfer.create({
       data: {
+        tenantId: from.tenantId,
         reference,
         fromWarehouseId: dto.fromWarehouseId,
         toWarehouseId: dto.toWarehouseId,

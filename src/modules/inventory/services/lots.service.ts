@@ -55,6 +55,7 @@ export class LotsService {
 
     return this.prisma.lot.create({
       data: {
+        tenantId: product.tenantId,
         lotNumber,
         productId: dto.productId,
         expiryDate: dto.expiryDate ? new Date(dto.expiryDate) : undefined,

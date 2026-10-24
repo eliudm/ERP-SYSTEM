@@ -19,6 +19,7 @@ export class SerialNumbersService {
 
     return this.prisma.serialNumber.create({
       data: {
+        tenantId: product.tenantId,
         serial: dto.serial,
         productId: dto.productId,
         warehouseId: dto.warehouseId,
@@ -36,7 +37,7 @@ export class SerialNumbersService {
     return this.prisma.$transaction(
       serials.map((serial) =>
         this.prisma.serialNumber.create({
-          data: { serial, productId, warehouseId },
+          data: { tenantId: product.tenantId, serial, productId, warehouseId },
         }),
       ),
     );
@@ -56,7 +57,9 @@ export class SerialNumbersService {
   }
 
   async findBySerial(serial: string) {
-    const sn = await this.prisma.serialNumber.findUnique({
+    // findFirst, not findUnique: serial is only unique per-tenant now, and
+    // the tenant filter is applied automatically (tenant-scoping.extension.ts)
+    const sn = await this.prisma.serialNumber.findFirst({
       where: { serial },
       include: { product: true, warehouse: true },
     });

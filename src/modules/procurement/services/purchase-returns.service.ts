@@ -41,6 +41,7 @@ export class PurchaseReturnsService {
 
     return this.prisma.purchaseReturn.create({
       data: {
+        tenantId: supplier.tenantId,
         returnNumber,
         supplierId: dto.supplierId,
         purchaseOrderId: dto.purchaseOrderId,

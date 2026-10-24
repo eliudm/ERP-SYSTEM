@@ -34,6 +34,7 @@ export class BomService {
 
     return this.prisma.billOfMaterial.create({
       data: {
+        tenantId: product.tenantId,
         name: dto.name,
         productId: dto.productId,
         quantity: dto.quantity ?? 1,

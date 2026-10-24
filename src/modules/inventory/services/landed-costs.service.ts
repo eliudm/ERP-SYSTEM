@@ -4,6 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../../prisma.service';
+import { getCurrentTenantId } from '../../../tenant-context';
 
 export class CreateLandedCostDto {
   purchaseOrderId?: string;
@@ -19,6 +20,7 @@ export class LandedCostsService {
   create(dto: CreateLandedCostDto) {
     return this.prisma.landedCost.create({
       data: {
+        tenantId: getCurrentTenantId()!,
         purchaseOrderId: dto.purchaseOrderId,
         description: dto.description,
         amount: dto.amount,

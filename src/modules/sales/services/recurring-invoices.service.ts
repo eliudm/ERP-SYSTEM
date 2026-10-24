@@ -59,6 +59,7 @@ export class RecurringInvoicesService {
 
     const template = await this.prisma.recurringInvoiceTemplate.create({
       data: {
+        tenantId: customer.tenantId,
         name: dto.name,
         customerId: dto.customerId,
         branchId: dto.branchId,

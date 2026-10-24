@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { ApprovalEntityType, ApprovalStatus, Role } from '@prisma/client';
 import { PrismaService } from '../../prisma.service';
+import { getCurrentTenantId } from '../../tenant-context';
 import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
@@ -45,6 +46,7 @@ export class WorkflowService {
 
     const created = await this.prisma.approvalRequest.create({
       data: {
+        tenantId: getCurrentTenantId()!,
         entityType,
         entityId,
         assignedRole,
@@ -56,6 +58,7 @@ export class WorkflowService {
     });
 
     await this.notificationsService.notifyApprovalRequired(
+      created.tenantId,
       entityType,
       entityId,
       assignedRole,
@@ -82,6 +85,7 @@ export class WorkflowService {
 
     for (const request of overdue) {
       await this.notificationsService.notifyApprovalOverdue(
+        request.tenantId,
         request.entityType,
         request.entityId,
         request.dueAt,
@@ -145,6 +149,7 @@ export class WorkflowService {
       : null;
 
     await this.notificationsService.notifyApprovalDecision(
+      request.tenantId,
       'APPROVED',
       request.entityType,
       request.entityId,
@@ -194,6 +199,7 @@ export class WorkflowService {
       : null;
 
     await this.notificationsService.notifyApprovalDecision(
+      request.tenantId,
       'REJECTED',
       request.entityType,
       request.entityId,

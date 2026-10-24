@@ -58,6 +58,7 @@ export class LeaveService {
 
     return this.prisma.leaveRequest.create({
       data: {
+        tenantId: employee.tenantId,
         employeeId: dto.employeeId,
         leaveType: dto.leaveType,
         startDate: start,

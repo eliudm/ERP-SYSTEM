@@ -22,6 +22,7 @@ export class RecruitmentService {
     return this.prisma.jobPosting.create({
       data: {
         ...data,
+        tenantId: getCurrentTenantId()!,
         closingDate: data.closingDate ? new Date(data.closingDate) : undefined,
       },
     });
@@ -93,6 +94,7 @@ export class RecruitmentService {
 
     return this.prisma.jobApplication.create({
       data: {
+        tenantId: posting.tenantId,
         jobPostingId: data.jobPostingId,
         applicantName: data.applicantName,
         email: data.applicantEmail,

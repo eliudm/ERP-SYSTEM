@@ -26,6 +26,7 @@ export class WorkOrderService {
 
     return this.prisma.workOrder.create({
       data: {
+        tenantId: bom.tenantId,
         reference,
         bomId: dto.bomId,
         quantity: dto.quantity,

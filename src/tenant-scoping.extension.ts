@@ -2,11 +2,12 @@ import type { PrismaClient } from '@prisma/client';
 import { getCurrentTenantId } from './tenant-context';
 
 /**
- * Models isolated per tenant (Phase 1 — the highest-traffic core entities).
- * Every other model is NOT yet tenant-scoped: queries on them run exactly as
- * before. Expanding this set is the natural next phase of multi-tenancy.
+ * Models isolated per tenant. CurrencyRate, Plugin, and FeatureFlag are
+ * deliberately NOT included — kept as shared/global data (market exchange
+ * rates, platform-level config), not per-company data.
  */
 const TENANT_SCOPED_MODELS = new Set([
+  // Phase 1
   'User',
   'Branch',
   'Customer',
@@ -20,6 +21,42 @@ const TENANT_SCOPED_MODELS = new Set([
   'PurchaseOrder',
   'Employee',
   'Payroll',
+  // Phase 2
+  'AccountingPeriod',
+  'BankAccount',
+  'BankStatement',
+  'TaxRate',
+  'TaxGroup',
+  'AuditLog',
+  'Notification',
+  'SystemSetting',
+  'ApprovalRequest',
+  'SalesQuote',
+  'CreditNote',
+  'PriceList',
+  'RecurringInvoiceTemplate',
+  'ProductCategory',
+  'Lot',
+  'SerialNumber',
+  'LandedCost',
+  'StockCount',
+  'StockTransfer',
+  'ReorderRule',
+  'RequestForQuotation',
+  'VendorBill',
+  'PurchaseReturn',
+  'LeaveRequest',
+  'AttendanceRecord',
+  'JobPosting',
+  'JobApplication',
+  'Appraisal',
+  'Allowance',
+  'LoanDeduction',
+  'Contact',
+  'CrmLead',
+  'Budget',
+  'BillOfMaterial',
+  'WorkOrder',
 ]);
 
 const UNIQUE_WHERE_OPERATIONS = new Set([
@@ -39,6 +76,20 @@ const FILTER_WHERE_OPERATIONS = new Set([
   'aggregate',
   'groupBy',
 ]);
+
+/**
+ * True if `where` already pins a tenant itself — either a bare `tenantId`
+ * key, or a compound-unique key whose name starts with `tenantId_` (e.g.
+ * `tenantId_key`, `tenantId_code`). Blindly adding a top-level `tenantId` on
+ * top of one of those would send Prisma an unrecognized field and fail at
+ * runtime, so those callers are left exactly as they are.
+ */
+function alreadyTenantScoped(where: Record<string, any> | undefined): boolean {
+  if (!where) return false;
+  return Object.keys(where).some(
+    (key) => key === 'tenantId' || key.startsWith('tenantId_'),
+  );
+}
 
 /**
  * Wraps a PrismaClient so every operation on a TENANT_SCOPED_MODELS model is
@@ -65,8 +116,9 @@ export function withTenantScoping<T extends PrismaClient>(client: T): T {
           const scopedArgs = args as Record<string, any>;
 
           if (
-            UNIQUE_WHERE_OPERATIONS.has(operation) ||
-            FILTER_WHERE_OPERATIONS.has(operation)
+            (UNIQUE_WHERE_OPERATIONS.has(operation) ||
+              FILTER_WHERE_OPERATIONS.has(operation)) &&
+            !alreadyTenantScoped(scopedArgs.where)
           ) {
             scopedArgs.where = { ...(scopedArgs.where ?? {}), tenantId };
           }
@@ -82,7 +134,9 @@ export function withTenantScoping<T extends PrismaClient>(client: T): T {
           }
 
           if (operation === 'upsert') {
-            scopedArgs.where = { ...(scopedArgs.where ?? {}), tenantId };
+            if (!alreadyTenantScoped(scopedArgs.where)) {
+              scopedArgs.where = { ...(scopedArgs.where ?? {}), tenantId };
+            }
             scopedArgs.create = { tenantId, ...(scopedArgs.create ?? {}) };
           }
 

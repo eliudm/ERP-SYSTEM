@@ -36,6 +36,43 @@ model Tenant {
   employees      Employee[]
   payrolls       Payroll[]
 
+  // Phase 2
+  accountingPeriods         AccountingPeriod[]
+  bankAccounts              BankAccount[]
+  bankStatements            BankStatement[]
+  taxRates                  TaxRate[]
+  taxGroups                 TaxGroup[]
+  auditLogs                 AuditLog[]
+  notifications             Notification[]
+  systemSettings            SystemSetting[]
+  approvalRequests          ApprovalRequest[]
+  salesQuotes               SalesQuote[]
+  creditNotes               CreditNote[]
+  priceLists                PriceList[]
+  recurringInvoiceTemplates RecurringInvoiceTemplate[]
+  productCategories         ProductCategory[]
+  lots                      Lot[]
+  serialNumbers             SerialNumber[]
+  landedCosts               LandedCost[]
+  stockCounts               StockCount[]
+  stockTransfers            StockTransfer[]
+  reorderRules              ReorderRule[]
+  requestsForQuotation      RequestForQuotation[]
+  vendorBills               VendorBill[]
+  purchaseReturns           PurchaseReturn[]
+  leaveRequests             LeaveRequest[]
+  attendanceRecords         AttendanceRecord[]
+  jobPostings               JobPosting[]
+  jobApplications           JobApplication[]
+  appraisals                Appraisal[]
+  allowances                Allowance[]
+  loanDeductions            LoanDeduction[]
+  contacts                  Contact[]
+  crmLeads                  CrmLead[]
+  budgets                   Budget[]
+  billsOfMaterial           BillOfMaterial[]
+  workOrders                WorkOrder[]
+
   @@map("tenants")
 }
 
@@ -184,12 +221,15 @@ model JournalLine {
 
 model AccountingPeriod {
   id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
   name      String
   startDate DateTime
   endDate   DateTime
   isLocked  Boolean  @default(false)
   createdAt DateTime @default(now())
 
+  @@index([tenantId])
   @@map("accounting_periods")
 }
 
@@ -371,13 +411,17 @@ model Branch {
 
 model ProductCategory {
   id        String    @id @default(uuid())
-  name      String    @unique
+  tenantId  String
+  tenant    Tenant    @relation(fields: [tenantId], references: [id])
+  name      String
   color     String? // hex color e.g. "#1677ff"
   icon      String? // emoji e.g. "\uD83E\uDE91"
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   products  Product[]
 
+  @@unique([tenantId, name])
+  @@index([tenantId])
   @@map("product_categories")
 }
 
@@ -666,6 +710,8 @@ model PayrollLine {
 
 model LeaveRequest {
   id         String      @id @default(uuid())
+  tenantId   String
+  tenant     Tenant      @relation(fields: [tenantId], references: [id])
   employeeId String
   employee   Employee    @relation(fields: [employeeId], references: [id])
   leaveType  LeaveType
@@ -678,6 +724,7 @@ model LeaveRequest {
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
 
+  @@index([tenantId])
   @@index([employeeId])
   @@index([status])
   @@map("leave_requests")
@@ -688,7 +735,10 @@ model LeaveRequest {
 // ============================================
 
 model SystemSetting {
-  key                String   @id
+  id                 String   @id @default(uuid())
+  tenantId           String
+  tenant             Tenant   @relation(fields: [tenantId], references: [id])
+  key                String   @default("system")
   companyName        String
   companyLogo        String?  @db.Text
   companyPin         String?
@@ -705,6 +755,8 @@ model SystemSetting {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
+  @@unique([tenantId, key])
+  @@index([tenantId])
   @@map("system_settings")
 }
 
@@ -714,6 +766,8 @@ model SystemSetting {
 
 model AuditLog {
   id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
   userId    String?
   action    String
   tableName String
@@ -723,6 +777,7 @@ model AuditLog {
   ipAddress String?
   createdAt DateTime @default(now())
 
+  @@index([tenantId])
   @@index([tableName, recordId])
   @@index([userId])
   @@index([createdAt])
@@ -760,6 +815,8 @@ enum NotificationType {
 
 model Notification {
   id             String           @id @default(uuid())
+  tenantId       String
+  tenant         Tenant           @relation(fields: [tenantId], references: [id])
   type           NotificationType
   title          String
   message        String
@@ -771,6 +828,7 @@ model Notification {
   isRead         Boolean          @default(false)
   createdAt      DateTime         @default(now())
 
+  @@index([tenantId])
   @@index([invoiceId])
   @@index([isRead])
   @@index([type])
@@ -788,6 +846,8 @@ enum BankStatementStatus {
 
 model BankAccount {
   id            String          @id @default(uuid())
+  tenantId      String
+  tenant        Tenant          @relation(fields: [tenantId], references: [id])
   name          String
   accountNumber String
   bankName      String
@@ -799,11 +859,14 @@ model BankAccount {
   updatedAt     DateTime        @updatedAt
   statements    BankStatement[]
 
+  @@index([tenantId])
   @@map("bank_accounts")
 }
 
 model BankStatement {
   id             String              @id @default(uuid())
+  tenantId       String
+  tenant         Tenant              @relation(fields: [tenantId], references: [id])
   bankAccountId  String
   bankAccount    BankAccount         @relation(fields: [bankAccountId], references: [id])
   statementDate  DateTime
@@ -814,6 +877,7 @@ model BankStatement {
   updatedAt      DateTime            @updatedAt
   lines          BankStatementLine[]
 
+  @@index([tenantId])
   @@map("bank_statements")
 }
 
@@ -848,6 +912,8 @@ enum TaxRateType {
 
 model TaxRate {
   id          String      @id @default(uuid())
+  tenantId    String
+  tenant      Tenant      @relation(fields: [tenantId], references: [id])
   name        String
   rate        Decimal     @db.Decimal(5, 4)
   type        TaxRateType
@@ -858,17 +924,21 @@ model TaxRate {
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
+  @@index([tenantId])
   @@map("tax_rates")
 }
 
 model TaxGroup {
   id          String   @id @default(uuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
   name        String
   description String?
   taxRateIds  String[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  @@index([tenantId])
   @@map("tax_groups")
 }
 
@@ -919,6 +989,8 @@ enum RecurringFrequency {
 
 model Contact {
   id           String      @id @default(uuid())
+  tenantId     String
+  tenant       Tenant      @relation(fields: [tenantId], references: [id])
   type         ContactType @default(INDIVIDUAL)
   name         String
   companyId    String?
@@ -943,11 +1015,14 @@ model Contact {
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
+  @@index([tenantId])
   @@map("contacts")
 }
 
 model CrmLead {
   id                String            @id @default(uuid())
+  tenantId          String
+  tenant            Tenant            @relation(fields: [tenantId], references: [id])
   title             String
   companyName       String?
   contactName       String?
@@ -964,6 +1039,7 @@ model CrmLead {
   updatedAt         DateTime          @updatedAt
   activities        CrmLeadActivity[]
 
+  @@index([tenantId])
   @@index([stage])
   @@map("crm_leads")
 }
@@ -985,6 +1061,8 @@ model CrmLeadActivity {
 
 model ApprovalRequest {
   id              String             @id @default(uuid())
+  tenantId        String
+  tenant          Tenant             @relation(fields: [tenantId], references: [id])
   entityType      ApprovalEntityType
   entityId        String
   status          ApprovalStatus     @default(PENDING)
@@ -1003,6 +1081,7 @@ model ApprovalRequest {
   rejectedAt      DateTime?
   consumedAt      DateTime?
 
+  @@index([tenantId])
   @@index([entityType, entityId, status])
   @@index([status, dueAt])
   @@map("approval_requests")
@@ -1028,7 +1107,9 @@ enum CreditNoteStatus {
 
 model SalesQuote {
   id          String           @id @default(uuid())
-  quoteNumber String           @unique
+  tenantId    String
+  tenant      Tenant           @relation(fields: [tenantId], references: [id])
+  quoteNumber String
   customerId  String
   customer    Customer         @relation(fields: [customerId], references: [id])
   invoiceId   String?
@@ -1043,6 +1124,8 @@ model SalesQuote {
   updatedAt   DateTime         @updatedAt
   items       SalesQuoteItem[]
 
+  @@unique([tenantId, quoteNumber])
+  @@index([tenantId])
   @@index([customerId])
   @@index([status])
   @@map("sales_quotes")
@@ -1070,7 +1153,9 @@ model SalesQuoteItem {
 
 model CreditNote {
   id               String           @id @default(uuid())
-  creditNoteNumber String           @unique
+  tenantId         String
+  tenant           Tenant           @relation(fields: [tenantId], references: [id])
+  creditNoteNumber String
   customerId       String
   customer         Customer         @relation(fields: [customerId], references: [id])
   invoiceId        String?
@@ -1086,6 +1171,8 @@ model CreditNote {
   updatedAt        DateTime         @updatedAt
   items            CreditNoteItem[]
 
+  @@unique([tenantId, creditNoteNumber])
+  @@index([tenantId])
   @@index([customerId])
   @@index([status])
   @@map("credit_notes")
@@ -1112,6 +1199,8 @@ model CreditNoteItem {
 
 model PriceList {
   id        String          @id @default(uuid())
+  tenantId  String
+  tenant    Tenant          @relation(fields: [tenantId], references: [id])
   name      String
   currency  String          @default("KES")
   validFrom DateTime?
@@ -1122,6 +1211,7 @@ model PriceList {
   updatedAt DateTime        @updatedAt
   items     PriceListItem[]
 
+  @@index([tenantId])
   @@map("price_lists")
 }
 
@@ -1177,7 +1267,9 @@ enum TransferStatus {
 
 model Lot {
   id              String          @id @default(uuid())
-  lotNumber       String          @unique
+  tenantId        String
+  tenant          Tenant          @relation(fields: [tenantId], references: [id])
+  lotNumber       String
   productId       String
   product         Product         @relation(fields: [productId], references: [id])
   expiryDate      DateTime?
@@ -1188,6 +1280,8 @@ model Lot {
   updatedAt       DateTime        @updatedAt
   stockMovements  StockMovement[]
 
+  @@unique([tenantId, lotNumber])
+  @@index([tenantId])
   @@index([productId])
   @@index([expiryDate])
   @@map("lots")
@@ -1195,7 +1289,9 @@ model Lot {
 
 model SerialNumber {
   id            String       @id @default(uuid())
-  serial        String       @unique
+  tenantId      String
+  tenant        Tenant       @relation(fields: [tenantId], references: [id])
+  serial        String
   productId     String
   product       Product      @relation(fields: [productId], references: [id])
   warehouseId   String?
@@ -1205,6 +1301,8 @@ model SerialNumber {
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
+  @@unique([tenantId, serial])
+  @@index([tenantId])
   @@index([productId])
   @@index([warehouseId])
   @@index([status])
@@ -1213,6 +1311,8 @@ model SerialNumber {
 
 model LandedCost {
   id              String           @id @default(uuid())
+  tenantId        String
+  tenant          Tenant           @relation(fields: [tenantId], references: [id])
   purchaseOrderId String?
   purchaseOrder   PurchaseOrder?   @relation(fields: [purchaseOrderId], references: [id])
   description     String?
@@ -1224,6 +1324,7 @@ model LandedCost {
   updatedAt       DateTime         @updatedAt
   items           LandedCostItem[]
 
+  @@index([tenantId])
   @@index([purchaseOrderId])
   @@map("landed_costs")
 }
@@ -1244,7 +1345,9 @@ model LandedCostItem {
 
 model StockCount {
   id          String           @id @default(uuid())
-  reference   String           @unique
+  tenantId    String
+  tenant      Tenant           @relation(fields: [tenantId], references: [id])
+  reference   String
   warehouseId String
   warehouse   Warehouse        @relation(fields: [warehouseId], references: [id])
   status      StockCountStatus @default(DRAFT)
@@ -1255,6 +1358,8 @@ model StockCount {
   updatedAt   DateTime         @updatedAt
   lines       StockCountLine[]
 
+  @@unique([tenantId, reference])
+  @@index([tenantId])
   @@index([warehouseId])
   @@index([status])
   @@map("stock_counts")
@@ -1279,6 +1384,8 @@ model StockCountLine {
 
 model RecurringInvoiceTemplate {
   id                   String                         @id @default(uuid())
+  tenantId             String
+  tenant               Tenant                         @relation(fields: [tenantId], references: [id])
   name                 String
   customerId           String
   customer             Customer                       @relation(fields: [customerId], references: [id])
@@ -1299,6 +1406,7 @@ model RecurringInvoiceTemplate {
   items                RecurringInvoiceTemplateItem[]
   runs                 RecurringInvoiceRun[]
 
+  @@index([tenantId])
   @@index([nextRunDate, isActive])
   @@map("recurring_invoice_templates")
 }
@@ -1349,7 +1457,9 @@ model ProductVariant {
 
 model StockTransfer {
   id              String              @id @default(uuid())
-  reference       String              @unique
+  tenantId        String
+  tenant          Tenant              @relation(fields: [tenantId], references: [id])
+  reference       String
   fromWarehouseId String
   fromWarehouse   Warehouse           @relation("TransferFrom", fields: [fromWarehouseId], references: [id])
   toWarehouseId   String
@@ -1361,6 +1471,8 @@ model StockTransfer {
   updatedAt       DateTime            @updatedAt
   lines           StockTransferLine[]
 
+  @@unique([tenantId, reference])
+  @@index([tenantId])
   @@index([fromWarehouseId])
   @@index([toWarehouseId])
   @@index([status])
@@ -1407,7 +1519,9 @@ enum PurchaseReturnStatus {
 
 model RequestForQuotation {
   id              String         @id @default(uuid())
-  rfqNumber       String         @unique
+  tenantId        String
+  tenant          Tenant         @relation(fields: [tenantId], references: [id])
+  rfqNumber       String
   supplierId      String
   supplier        Supplier       @relation(fields: [supplierId], references: [id])
   status          RFQStatus      @default(DRAFT)
@@ -1423,6 +1537,8 @@ model RequestForQuotation {
   items           RFQItem[]
   purchaseOrder   PurchaseOrder?
 
+  @@unique([tenantId, rfqNumber])
+  @@index([tenantId])
   @@index([supplierId])
   @@index([status])
   @@map("requests_for_quotation")
@@ -1449,7 +1565,9 @@ model RFQItem {
 
 model VendorBill {
   id              String           @id @default(uuid())
-  billNumber      String           @unique
+  tenantId        String
+  tenant          Tenant           @relation(fields: [tenantId], references: [id])
+  billNumber      String
   supplierId      String
   supplier        Supplier         @relation(fields: [supplierId], references: [id])
   purchaseOrderId String?
@@ -1466,6 +1584,8 @@ model VendorBill {
   updatedAt       DateTime         @updatedAt
   items           VendorBillItem[]
 
+  @@unique([tenantId, billNumber])
+  @@index([tenantId])
   @@index([supplierId])
   @@index([purchaseOrderId])
   @@index([status])
@@ -1493,7 +1613,9 @@ model VendorBillItem {
 
 model PurchaseReturn {
   id              String               @id @default(uuid())
-  returnNumber    String               @unique
+  tenantId        String
+  tenant          Tenant               @relation(fields: [tenantId], references: [id])
+  returnNumber    String
   supplierId      String
   supplier        Supplier             @relation(fields: [supplierId], references: [id])
   purchaseOrderId String?
@@ -1506,6 +1628,8 @@ model PurchaseReturn {
   updatedAt       DateTime             @updatedAt
   items           PurchaseReturnItem[]
 
+  @@unique([tenantId, returnNumber])
+  @@index([tenantId])
   @@index([supplierId])
   @@index([purchaseOrderId])
   @@map("purchase_returns")
@@ -1571,6 +1695,8 @@ enum AllowanceType {
 
 model AttendanceRecord {
   id           String         @id @default(uuid())
+  tenantId     String
+  tenant       Tenant         @relation(fields: [tenantId], references: [id])
   employeeId   String
   employee     Employee       @relation(fields: [employeeId], references: [id])
   clockIn      DateTime
@@ -1581,6 +1707,7 @@ model AttendanceRecord {
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
 
+  @@index([tenantId])
   @@index([employeeId])
   @@index([clockIn])
   @@map("attendance_records")
@@ -1588,6 +1715,8 @@ model AttendanceRecord {
 
 model JobPosting {
   id           String           @id @default(uuid())
+  tenantId     String
+  tenant       Tenant           @relation(fields: [tenantId], references: [id])
   title        String
   department   String?
   description  String?
@@ -1598,11 +1727,14 @@ model JobPosting {
   updatedAt    DateTime         @updatedAt
   applications JobApplication[]
 
+  @@index([tenantId])
   @@map("job_postings")
 }
 
 model JobApplication {
   id            String            @id @default(uuid())
+  tenantId      String
+  tenant        Tenant            @relation(fields: [tenantId], references: [id])
   jobPostingId  String
   jobPosting    JobPosting        @relation(fields: [jobPostingId], references: [id])
   applicantName String
@@ -1616,6 +1748,7 @@ model JobApplication {
   updatedAt     DateTime          @updatedAt
   interviews    Interview[]
 
+  @@index([tenantId])
   @@index([jobPostingId])
   @@index([status])
   @@map("job_applications")
@@ -1640,6 +1773,8 @@ model Interview {
 
 model Appraisal {
   id           String          @id @default(uuid())
+  tenantId     String
+  tenant       Tenant          @relation(fields: [tenantId], references: [id])
   employeeId   String
   employee     Employee        @relation(fields: [employeeId], references: [id])
   reviewerId   String
@@ -1653,6 +1788,7 @@ model Appraisal {
   updatedAt    DateTime        @updatedAt
   items        AppraisalItem[]
 
+  @@index([tenantId])
   @@index([employeeId])
   @@index([status])
   @@map("appraisals")
@@ -1676,6 +1812,8 @@ model AppraisalItem {
 
 model Allowance {
   id          String        @id @default(uuid())
+  tenantId    String
+  tenant      Tenant        @relation(fields: [tenantId], references: [id])
   employeeId  String
   employee    Employee      @relation(fields: [employeeId], references: [id])
   type        AllowanceType
@@ -1688,6 +1826,7 @@ model Allowance {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
+  @@index([tenantId])
   @@index([employeeId])
   @@index([isActive])
   @@map("allowances")
@@ -1695,6 +1834,8 @@ model Allowance {
 
 model LoanDeduction {
   id               String   @id @default(uuid())
+  tenantId         String
+  tenant           Tenant   @relation(fields: [tenantId], references: [id])
   employeeId       String
   employee         Employee @relation(fields: [employeeId], references: [id])
   description      String?
@@ -1706,6 +1847,7 @@ model LoanDeduction {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
+  @@index([tenantId])
   @@index([employeeId])
   @@index([isActive])
   @@map("loan_deductions")
@@ -1717,6 +1859,8 @@ model LoanDeduction {
 
 model ReorderRule {
   id                  String    @id @default(uuid())
+  tenantId            String
+  tenant              Tenant    @relation(fields: [tenantId], references: [id])
   productId           String
   product             Product   @relation(fields: [productId], references: [id])
   preferredSupplierId String?
@@ -1731,6 +1875,7 @@ model ReorderRule {
   updatedAt           DateTime  @updatedAt
 
   @@unique([productId])
+  @@index([tenantId])
   @@map("reorder_rules")
 }
 
@@ -1746,6 +1891,8 @@ enum BudgetStatus {
 
 model Budget {
   id          String       @id @default(uuid())
+  tenantId    String
+  tenant      Tenant       @relation(fields: [tenantId], references: [id])
   name        String
   fiscalYear  Int
   startDate   DateTime
@@ -1757,7 +1904,8 @@ model Budget {
   updatedAt   DateTime     @updatedAt
   lines       BudgetLine[]
 
-  @@unique([fiscalYear, name])
+  @@unique([tenantId, fiscalYear, name])
+  @@index([tenantId])
   @@map("budgets")
 }
 
@@ -1798,6 +1946,8 @@ enum WorkOrderStatus {
 
 model BillOfMaterial {
   id          String      @id @default(uuid())
+  tenantId    String
+  tenant      Tenant      @relation(fields: [tenantId], references: [id])
   name        String
   productId   String
   product     Product     @relation("BOMProduct", fields: [productId], references: [id])
@@ -1810,6 +1960,7 @@ model BillOfMaterial {
   lines       BOMLine[]
   workOrders  WorkOrder[]
 
+  @@index([tenantId])
   @@index([productId])
   @@index([status])
   @@map("bills_of_material")
@@ -1832,7 +1983,9 @@ model BOMLine {
 
 model WorkOrder {
   id             String          @id @default(uuid())
-  reference      String          @unique
+  tenantId       String
+  tenant         Tenant          @relation(fields: [tenantId], references: [id])
+  reference      String
   bomId          String
   bom            BillOfMaterial  @relation(fields: [bomId], references: [id])
   quantity       Decimal         @db.Decimal(18, 2) // how many units to produce
@@ -1846,6 +1999,8 @@ model WorkOrder {
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
+  @@unique([tenantId, reference])
+  @@index([tenantId])
   @@index([bomId])
   @@index([status])
   @@map("work_orders")
