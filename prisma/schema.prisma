@@ -20,16 +20,16 @@ enum Role {
 }
 
 model User {
-  id           String   @id @default(uuid())
-  email        String   @unique
-  password     String
-  firstName    String
-  lastName     String
-  role         Role     @default(SALES_USER)
-  posOnly      Boolean  @default(false)
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  firstName String
+  lastName  String
+  role      Role     @default(SALES_USER)
+  posOnly   Boolean  @default(false)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("users")
 }
@@ -53,38 +53,42 @@ enum JournalStatus {
 }
 
 model Account {
-  id            String      @id @default(uuid())
-  code          String      @unique
-  name          String
-  type          AccountType
-  parentId      String?
-  parent        Account?    @relation("AccountTree", fields: [parentId], references: [id])
-  children      Account[]   @relation("AccountTree")
-  isActive      Boolean     @default(true)
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-  journalLines  JournalLine[]
-  bankAccounts  BankAccount[]
-  taxRates      TaxRate[]
-  budgetLines   BudgetLine[]
+  id           String        @id @default(uuid())
+  code         String        @unique
+  name         String
+  type         AccountType
+  parentId     String?
+  parent       Account?      @relation("AccountTree", fields: [parentId], references: [id])
+  children     Account[]     @relation("AccountTree")
+  isActive     Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  journalLines JournalLine[]
+  bankAccounts BankAccount[]
+  taxRates     TaxRate[]
+  budgetLines  BudgetLine[]
 
+  @@index([parentId])
   @@map("accounts")
 }
 
 model JournalEntry {
-  id          String        @id @default(uuid())
-  reference   String        @unique
-  description String?
-  entryDate   DateTime
-  currency    String        @default("KES")
-  exchangeRate Decimal      @default(1) @db.Decimal(18, 6)
-  status      JournalStatus @default(DRAFT)
-  sourceType  String?       // e.g. "SALES_INVOICE", "PAYMENT"
-  sourceId    String?       // ID of the source document
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-  lines       JournalLine[]
+  id           String        @id @default(uuid())
+  reference    String        @unique
+  description  String?
+  entryDate    DateTime
+  currency     String        @default("KES")
+  exchangeRate Decimal       @default(1) @db.Decimal(18, 6)
+  status       JournalStatus @default(DRAFT)
+  sourceType   String? // e.g. "SALES_INVOICE", "PAYMENT"
+  sourceId     String? // ID of the source document
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  lines        JournalLine[]
 
+  @@index([entryDate])
+  @@index([status])
+  @@index([sourceType, sourceId])
   @@map("journal_entries")
 }
 
@@ -104,17 +108,19 @@ model CurrencyRate {
 }
 
 model JournalLine {
-  id             String       @id @default(uuid())
-  journalEntryId String
-  journalEntry   JournalEntry @relation(fields: [journalEntryId], references: [id])
-  accountId      String
-  account        Account      @relation(fields: [accountId], references: [id])
-  debit          Decimal      @default(0) @db.Decimal(18, 2)
-  credit         Decimal      @default(0) @db.Decimal(18, 2)
+  id                 String              @id @default(uuid())
+  journalEntryId     String
+  journalEntry       JournalEntry        @relation(fields: [journalEntryId], references: [id])
+  accountId          String
+  account            Account             @relation(fields: [accountId], references: [id])
+  debit              Decimal             @default(0) @db.Decimal(18, 2)
+  credit             Decimal             @default(0) @db.Decimal(18, 2)
   description        String?
   createdAt          DateTime            @default(now())
   bankStatementLines BankStatementLine[]
 
+  @@index([journalEntryId])
+  @@index([accountId])
   @@map("journal_lines")
 }
 
@@ -150,49 +156,53 @@ enum PaymentMethod {
 }
 
 model Customer {
-  id           String         @id @default(uuid())
-  name         String
-  email        String?
-  phone        String?
-  address      String?
-  taxPin       String?        // KRA PIN
-  isActive     Boolean        @default(true)
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
-  invoices     SalesInvoice[]
-  quotes       SalesQuote[]
-  creditNotes  CreditNote[]
+  id                        String                     @id @default(uuid())
+  name                      String
+  email                     String?
+  phone                     String?
+  address                   String?
+  taxPin                    String? // KRA PIN
+  isActive                  Boolean                    @default(true)
+  createdAt                 DateTime                   @default(now())
+  updatedAt                 DateTime                   @updatedAt
+  invoices                  SalesInvoice[]
+  quotes                    SalesQuote[]
+  creditNotes               CreditNote[]
   recurringInvoiceTemplates RecurringInvoiceTemplate[]
 
   @@map("customers")
 }
 
 model SalesInvoice {
-  id           String             @id @default(uuid())
-  invoiceNo    String             @unique
-  customerId   String
-  customer     Customer           @relation(fields: [customerId], references: [id])
-  branchId     String?
-  branch       Branch?            @relation(fields: [branchId], references: [id])
-  invoiceDate  DateTime
-  dueDate      DateTime?
-  status       InvoiceStatus      @default(DRAFT)
-  subtotal     Decimal            @db.Decimal(18, 2)
-  taxAmount    Decimal            @db.Decimal(18, 2)
-  total        Decimal            @db.Decimal(18, 2)
-  paymentMethod PaymentMethod?
-  paidAt       DateTime?
-  notes        String?
-  createdAt    DateTime           @default(now())
-  updatedAt    DateTime           @updatedAt
-  items        SalesInvoiceItem[]
+  id                String                @id @default(uuid())
+  invoiceNo         String                @unique
+  customerId        String
+  customer          Customer              @relation(fields: [customerId], references: [id])
+  branchId          String?
+  branch            Branch?               @relation(fields: [branchId], references: [id])
+  invoiceDate       DateTime
+  dueDate           DateTime?
+  status            InvoiceStatus         @default(DRAFT)
+  subtotal          Decimal               @db.Decimal(18, 2)
+  taxAmount         Decimal               @db.Decimal(18, 2)
+  total             Decimal               @db.Decimal(18, 2)
+  paymentMethod     PaymentMethod?
+  paidAt            DateTime?
+  notes             String?
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+  items             SalesInvoiceItem[]
   mpesaTransactions MpesaTransaction[]
-  etimsInvoice EtimsInvoice?
-  quotes       SalesQuote[]
-  creditNotes  CreditNote[]
-  recurringRuns RecurringInvoiceRun[]
-  notifications Notification[]
+  etimsInvoice      EtimsInvoice?
+  quotes            SalesQuote[]
+  creditNotes       CreditNote[]
+  recurringRuns     RecurringInvoiceRun[]
+  notifications     Notification[]
 
+  @@index([customerId])
+  @@index([branchId])
+  @@index([status])
+  @@index([invoiceDate])
   @@map("sales_invoices")
 }
 
@@ -237,6 +247,8 @@ model SalesInvoiceItem {
   lineTotal   Decimal      @db.Decimal(18, 2)
   createdAt   DateTime     @default(now())
 
+  @@index([invoiceId])
+  @@index([productId])
   @@map("sales_invoice_items")
 }
 
@@ -258,26 +270,27 @@ model Warehouse {
   branch         Branch?         @relation(fields: [branchId], references: [id])
   location       String?
   isActive       Boolean         @default(true)
-  createdAt      DateTime          @default(now())
+  createdAt      DateTime        @default(now())
   stockMovements StockMovement[]
   stockCounts    StockCount[]
   serialNumbers  SerialNumber[]
-  transfersFrom  StockTransfer[]   @relation("TransferFrom")
-  transfersTo    StockTransfer[]   @relation("TransferTo")
+  transfersFrom  StockTransfer[] @relation("TransferFrom")
+  transfersTo    StockTransfer[] @relation("TransferTo")
 
+  @@index([branchId])
   @@map("warehouses")
 }
 
 model Branch {
-  id         String         @id @default(uuid())
-  name       String
-  code       String         @unique
-  location   String?
-  isActive   Boolean        @default(true)
-  createdAt  DateTime       @default(now())
-  updatedAt  DateTime       @updatedAt
-  warehouses Warehouse[]
-  invoices   SalesInvoice[]
+  id                        String                     @id @default(uuid())
+  name                      String
+  code                      String                     @unique
+  location                  String?
+  isActive                  Boolean                    @default(true)
+  createdAt                 DateTime                   @default(now())
+  updatedAt                 DateTime                   @updatedAt
+  warehouses                Warehouse[]
+  invoices                  SalesInvoice[]
   recurringInvoiceTemplates RecurringInvoiceTemplate[]
 
   @@map("branches")
@@ -286,8 +299,8 @@ model Branch {
 model ProductCategory {
   id        String    @id @default(uuid())
   name      String    @unique
-  color     String?   // hex color e.g. "#1677ff"
-  icon      String?   // emoji e.g. "\uD83E\uDE91"
+  color     String? // hex color e.g. "#1677ff"
+  icon      String? // emoji e.g. "\uD83E\uDE91"
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   products  Product[]
@@ -296,58 +309,64 @@ model ProductCategory {
 }
 
 model Product {
-  id              String             @id @default(uuid())
-  code            String             @unique
-  barcode         String?            @unique
-  name            String
-  description     String?
-  categoryId      String?
-  category        ProductCategory?   @relation(fields: [categoryId], references: [id])
-  unitPrice       Decimal            @db.Decimal(18, 2)
-  taxRate         Decimal            @default(0.16) @db.Decimal(5, 2)
-  stockQuantity   Decimal            @default(0) @db.Decimal(18, 2)
-  reorderLevel    Decimal            @default(0) @db.Decimal(18, 2)
-  isActive        Boolean            @default(true)
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
-  stockMovements      StockMovement[]
-  invoiceItems        SalesInvoiceItem[]
-  procurementItems    ProcurementItem[]
-  quoteItems          SalesQuoteItem[]
-  creditNoteItems     CreditNoteItem[]
-  priceListItems      PriceListItem[]
-  lots                Lot[]
-  serialNumbers       SerialNumber[]
-  variants            ProductVariant[]
-  landedCostItems     LandedCostItem[]
-  stockCountLines     StockCountLine[]
-  transferLines       StockTransferLine[]
-  rfqItems            RFQItem[]
-  vendorBillItems     VendorBillItem[]
-  purchaseReturnItems PurchaseReturnItem[]
+  id                     String                         @id @default(uuid())
+  code                   String                         @unique
+  barcode                String?                        @unique
+  name                   String
+  description            String?
+  categoryId             String?
+  category               ProductCategory?               @relation(fields: [categoryId], references: [id])
+  unitPrice              Decimal                        @db.Decimal(18, 2)
+  taxRate                Decimal                        @default(0.16) @db.Decimal(5, 2)
+  stockQuantity          Decimal                        @default(0) @db.Decimal(18, 2)
+  reorderLevel           Decimal                        @default(0) @db.Decimal(18, 2)
+  isActive               Boolean                        @default(true)
+  createdAt              DateTime                       @default(now())
+  updatedAt              DateTime                       @updatedAt
+  stockMovements         StockMovement[]
+  invoiceItems           SalesInvoiceItem[]
+  procurementItems       ProcurementItem[]
+  quoteItems             SalesQuoteItem[]
+  creditNoteItems        CreditNoteItem[]
+  priceListItems         PriceListItem[]
+  lots                   Lot[]
+  serialNumbers          SerialNumber[]
+  variants               ProductVariant[]
+  landedCostItems        LandedCostItem[]
+  stockCountLines        StockCountLine[]
+  transferLines          StockTransferLine[]
+  rfqItems               RFQItem[]
+  vendorBillItems        VendorBillItem[]
+  purchaseReturnItems    PurchaseReturnItem[]
   recurringTemplateItems RecurringInvoiceTemplateItem[]
   reorderRules           ReorderRule[]
-  bomProducts            BillOfMaterial[]   @relation("BOMProduct")
-  bomComponents          BOMLine[]          @relation("BOMComponent")
+  bomProducts            BillOfMaterial[]               @relation("BOMProduct")
+  bomComponents          BOMLine[]                      @relation("BOMComponent")
 
+  @@index([categoryId])
+  @@index([isActive])
   @@map("products")
 }
 
 model StockMovement {
-  id            String       @id @default(uuid())
-  productId     String
-  product       Product      @relation(fields: [productId], references: [id])
-  warehouseId   String
-  warehouse     Warehouse    @relation(fields: [warehouseId], references: [id])
-  movementType  MovementType
-  quantity      Decimal      @db.Decimal(18, 2)
-  unitCost      Decimal?     @db.Decimal(18, 2)
-  reference     String?
-  notes         String?
-  lotId         String?
-  lot           Lot?         @relation(fields: [lotId], references: [id])
-  createdAt     DateTime     @default(now())
+  id           String       @id @default(uuid())
+  productId    String
+  product      Product      @relation(fields: [productId], references: [id])
+  warehouseId  String
+  warehouse    Warehouse    @relation(fields: [warehouseId], references: [id])
+  movementType MovementType
+  quantity     Decimal      @db.Decimal(18, 2)
+  unitCost     Decimal?     @db.Decimal(18, 2)
+  reference    String?
+  notes        String?
+  lotId        String?
+  lot          Lot?         @relation(fields: [lotId], references: [id])
+  createdAt    DateTime     @default(now())
 
+  @@index([productId])
+  @@index([warehouseId])
+  @@index([lotId])
+  @@index([createdAt])
   @@map("stock_movements")
 }
 
@@ -363,15 +382,15 @@ enum PurchaseOrderStatus {
 }
 
 model Supplier {
-  id             String          @id @default(uuid())
-  name           String
-  email          String?
-  phone          String?
-  address        String?
-  taxPin         String?
-  isActive       Boolean         @default(true)
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  id              String                @id @default(uuid())
+  name            String
+  email           String?
+  phone           String?
+  address         String?
+  taxPin          String?
+  isActive        Boolean               @default(true)
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
   purchaseOrders  PurchaseOrder[]
   rfqs            RequestForQuotation[]
   vendorBills     VendorBill[]
@@ -382,25 +401,28 @@ model Supplier {
 }
 
 model PurchaseOrder {
-  id          String               @id @default(uuid())
-  orderNo     String               @unique
-  supplierId  String
-  supplier    Supplier             @relation(fields: [supplierId], references: [id])
-  rfqId       String?              @unique
-  rfq         RequestForQuotation? @relation(fields: [rfqId], references: [id])
-  orderDate   DateTime
-  status      PurchaseOrderStatus  @default(DRAFT)
-  subtotal    Decimal              @db.Decimal(18, 2)
-  taxAmount   Decimal              @db.Decimal(18, 2)
-  total       Decimal              @db.Decimal(18, 2)
-  notes       String?
-  createdAt   DateTime             @default(now())
-  updatedAt   DateTime             @updatedAt
+  id              String               @id @default(uuid())
+  orderNo         String               @unique
+  supplierId      String
+  supplier        Supplier             @relation(fields: [supplierId], references: [id])
+  rfqId           String?              @unique
+  rfq             RequestForQuotation? @relation(fields: [rfqId], references: [id])
+  orderDate       DateTime
+  status          PurchaseOrderStatus  @default(DRAFT)
+  subtotal        Decimal              @db.Decimal(18, 2)
+  taxAmount       Decimal              @db.Decimal(18, 2)
+  total           Decimal              @db.Decimal(18, 2)
+  notes           String?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
   items           ProcurementItem[]
   landedCosts     LandedCost[]
   vendorBills     VendorBill[]
   purchaseReturns PurchaseReturn[]
 
+  @@index([supplierId])
+  @@index([status])
+  @@index([orderDate])
   @@map("purchase_orders")
 }
 
@@ -417,6 +439,8 @@ model ProcurementItem {
   lineTotal       Decimal       @db.Decimal(18, 2)
   createdAt       DateTime      @default(now())
 
+  @@index([purchaseOrderId])
+  @@index([productId])
   @@map("procurement_items")
 }
 
@@ -432,18 +456,18 @@ enum EtimsStatus {
 }
 
 model EtimsInvoice {
-  id              String               @id @default(uuid())
-  invoiceId       String               @unique
-  invoice         SalesInvoice         @relation(fields: [invoiceId], references: [id])
-  status          EtimsStatus          @default(PENDING)
-  qrCode          String?
-  etimsInvoiceNo  String?
-  submittedAt     DateTime?
-  responseData    Json?
-  retryCount      Int                  @default(0)
-  createdAt       DateTime             @default(now())
-  updatedAt       DateTime             @updatedAt
-  submissionLogs  EtimsSubmissionLog[]
+  id             String               @id @default(uuid())
+  invoiceId      String               @unique
+  invoice        SalesInvoice         @relation(fields: [invoiceId], references: [id])
+  status         EtimsStatus          @default(PENDING)
+  qrCode         String?
+  etimsInvoiceNo String?
+  submittedAt    DateTime?
+  responseData   Json?
+  retryCount     Int                  @default(0)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  submissionLogs EtimsSubmissionLog[]
 
   @@map("etims_invoices")
 }
@@ -459,26 +483,28 @@ enum EmployeeStatus {
 }
 
 model Employee {
-  id            String         @id @default(uuid())
-  employeeNo    String         @unique
-  firstName     String
-  lastName      String
-  email         String         @unique
-  phone         String?
-  department    String?
-  position      String?
-  salary        Decimal        @db.Decimal(18, 2)
-  startDate     DateTime
-  status        EmployeeStatus @default(ACTIVE)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  payrollLines       PayrollLine[]
-  leaveRequests      LeaveRequest[]
-  attendanceRecords  AttendanceRecord[]
-  appraisals         Appraisal[]
-  allowances         Allowance[]
-  loanDeductions     LoanDeduction[]
+  id                String             @id @default(uuid())
+  employeeNo        String             @unique
+  firstName         String
+  lastName          String
+  email             String             @unique
+  phone             String?
+  department        String?
+  position          String?
+  salary            Decimal            @db.Decimal(18, 2)
+  startDate         DateTime
+  status            EmployeeStatus     @default(ACTIVE)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  payrollLines      PayrollLine[]
+  leaveRequests     LeaveRequest[]
+  attendanceRecords AttendanceRecord[]
+  appraisals        Appraisal[]
+  allowances        Allowance[]
+  loanDeductions    LoanDeduction[]
 
+  @@index([status])
+  @@index([department])
   @@map("employees")
 }
 
@@ -503,32 +529,32 @@ enum LeaveType {
 }
 
 model Payroll {
-  id          String        @id @default(uuid())
-  month       Int
-  year        Int
-  status      PayrollStatus @default(DRAFT)
-  totalGross  Decimal       @db.Decimal(18, 2)
-  totalPaye   Decimal       @db.Decimal(18, 2)
-  totalNhif   Decimal       @db.Decimal(18, 2)
-  totalNssf   Decimal       @db.Decimal(18, 2)
-  totalNet    Decimal       @db.Decimal(18, 2)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-  lines       PayrollLine[]
+  id         String        @id @default(uuid())
+  month      Int
+  year       Int
+  status     PayrollStatus @default(DRAFT)
+  totalGross Decimal       @db.Decimal(18, 2)
+  totalPaye  Decimal       @db.Decimal(18, 2)
+  totalNhif  Decimal       @db.Decimal(18, 2)
+  totalNssf  Decimal       @db.Decimal(18, 2)
+  totalNet   Decimal       @db.Decimal(18, 2)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  lines      PayrollLine[]
 
   @@unique([month, year])
   @@map("payrolls")
 }
 
 model PayrollLine {
-  id            String   @id @default(uuid())
-  payrollId     String
-  payroll       Payroll  @relation(fields: [payrollId], references: [id])
-  employeeId    String
-  employee      Employee @relation(fields: [employeeId], references: [id])
-  grossSalary   Decimal  @db.Decimal(18, 2)
-  payeAmount    Decimal  @db.Decimal(18, 2)
-  nhifAmount    Decimal  @db.Decimal(18, 2)
+  id                     String   @id @default(uuid())
+  payrollId              String
+  payroll                Payroll  @relation(fields: [payrollId], references: [id])
+  employeeId             String
+  employee               Employee @relation(fields: [employeeId], references: [id])
+  grossSalary            Decimal  @db.Decimal(18, 2)
+  payeAmount             Decimal  @db.Decimal(18, 2)
+  nhifAmount             Decimal  @db.Decimal(18, 2)
   nssfAmount             Decimal  @db.Decimal(18, 2)
   totalAllowances        Decimal  @default(0) @db.Decimal(18, 2)
   totalLoanDeductions    Decimal  @default(0) @db.Decimal(18, 2)
@@ -537,23 +563,27 @@ model PayrollLine {
   loanDeductionsSnapshot Json?
   createdAt              DateTime @default(now())
 
+  @@index([payrollId])
+  @@index([employeeId])
   @@map("payroll_lines")
 }
 
 model LeaveRequest {
-  id          String      @id @default(uuid())
-  employeeId  String
-  employee    Employee    @relation(fields: [employeeId], references: [id])
-  leaveType   LeaveType
-  startDate   DateTime
-  endDate     DateTime
-  days        Int
-  reason      String?
-  status      LeaveStatus @default(PENDING)
-  approvedBy  String?
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  id         String      @id @default(uuid())
+  employeeId String
+  employee   Employee    @relation(fields: [employeeId], references: [id])
+  leaveType  LeaveType
+  startDate  DateTime
+  endDate    DateTime
+  days       Int
+  reason     String?
+  status     LeaveStatus @default(PENDING)
+  approvedBy String?
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
 
+  @@index([employeeId])
+  @@index([status])
   @@map("leave_requests")
 }
 
@@ -573,9 +603,9 @@ model SystemSetting {
   defaultLanguage    String   @default("en-KE")
   emailNotifications Boolean  @default(true)
   autoApproveDrafts  Boolean  @default(false)
-  showLowStockAlerts  Boolean  @default(true)
-  lowStockThreshold   Int      @default(5)
-  posReceiptBranding  Boolean  @default(true)
+  showLowStockAlerts Boolean  @default(true)
+  lowStockThreshold  Int      @default(5)
+  posReceiptBranding Boolean  @default(true)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
@@ -587,30 +617,34 @@ model SystemSetting {
 // ============================================
 
 model AuditLog {
-  id         String   @id @default(uuid())
-  userId     String?
-  action     String
-  tableName  String
-  recordId   String?
-  oldValues  Json?
-  newValues  Json?
-  ipAddress  String?
-  createdAt  DateTime @default(now())
+  id        String   @id @default(uuid())
+  userId    String?
+  action    String
+  tableName String
+  recordId  String?
+  oldValues Json?
+  newValues Json?
+  ipAddress String?
+  createdAt DateTime @default(now())
 
+  @@index([tableName, recordId])
+  @@index([userId])
+  @@index([createdAt])
   @@map("audit_logs")
 }
 
 model EtimsSubmissionLog {
-  id            String       @id @default(uuid())
-  etimsId       String
-  etimsInvoice  EtimsInvoice @relation(fields: [etimsId], references: [id])
-  attempt       Int
-  requestData   Json
-  responseData  Json?
-  status        String
-  errorMessage  String?
-  createdAt     DateTime     @default(now())
+  id           String       @id @default(uuid())
+  etimsId      String
+  etimsInvoice EtimsInvoice @relation(fields: [etimsId], references: [id])
+  attempt      Int
+  requestData  Json
+  responseData Json?
+  status       String
+  errorMessage String?
+  createdAt    DateTime     @default(now())
 
+  @@index([etimsId])
   @@map("etims_submission_logs")
 }
 
@@ -629,18 +663,21 @@ enum NotificationType {
 }
 
 model Notification {
-  id         String           @id @default(uuid())
-  type       NotificationType
-  title      String
-  message    String
-  productId  String?
-  invoiceId  String?
-  invoice    SalesInvoice?    @relation(fields: [invoiceId], references: [id])
+  id             String           @id @default(uuid())
+  type           NotificationType
+  title          String
+  message        String
+  productId      String?
+  invoiceId      String?
+  invoice        SalesInvoice?    @relation(fields: [invoiceId], references: [id])
   recipientEmail String?
-  sentViaEmail  Boolean        @default(false)
-  isRead     Boolean          @default(false)
-  createdAt  DateTime         @default(now())
+  sentViaEmail   Boolean          @default(false)
+  isRead         Boolean          @default(false)
+  createdAt      DateTime         @default(now())
 
+  @@index([invoiceId])
+  @@index([isRead])
+  @@index([type])
   @@map("notifications")
 }
 
@@ -685,19 +722,21 @@ model BankStatement {
 }
 
 model BankStatementLine {
-  id                   String        @id @default(uuid())
+  id                   String         @id @default(uuid())
   statementId          String
-  statement            BankStatement @relation(fields: [statementId], references: [id])
+  statement            BankStatement  @relation(fields: [statementId], references: [id])
   transactionDate      DateTime
   description          String
   paymentMethod        PaymentMethod?
-  debit                Decimal       @default(0) @db.Decimal(18, 2)
-  credit               Decimal       @default(0) @db.Decimal(18, 2)
+  debit                Decimal        @default(0) @db.Decimal(18, 2)
+  credit               Decimal        @default(0) @db.Decimal(18, 2)
   matchedJournalLineId String?
-  matchedJournalLine   JournalLine?  @relation(fields: [matchedJournalLineId], references: [id])
-  isMatched            Boolean       @default(false)
-  createdAt            DateTime      @default(now())
+  matchedJournalLine   JournalLine?   @relation(fields: [matchedJournalLineId], references: [id])
+  isMatched            Boolean        @default(false)
+  createdAt            DateTime       @default(now())
 
+  @@index([statementId])
+  @@index([isMatched])
   @@map("bank_statement_lines")
 }
 
@@ -829,42 +868,44 @@ model CrmLead {
   updatedAt         DateTime          @updatedAt
   activities        CrmLeadActivity[]
 
+  @@index([stage])
   @@map("crm_leads")
 }
 
 model CrmLeadActivity {
   id          String           @id @default(uuid())
-  leadId       String
-  lead         CrmLead          @relation(fields: [leadId], references: [id])
-  type         LeadActivityType
-  summary      String
-  dueDate      DateTime?
-  completedAt  DateTime?
-  createdById  String?
-  createdAt    DateTime         @default(now())
+  leadId      String
+  lead        CrmLead          @relation(fields: [leadId], references: [id])
+  type        LeadActivityType
+  summary     String
+  dueDate     DateTime?
+  completedAt DateTime?
+  createdById String?
+  createdAt   DateTime         @default(now())
 
+  @@index([leadId])
   @@map("crm_lead_activities")
 }
 
 model ApprovalRequest {
-  id             String             @id @default(uuid())
-  entityType     ApprovalEntityType
-  entityId       String
-  status         ApprovalStatus     @default(PENDING)
-  assignedRole   Role?
-  amountSnapshot Decimal?           @db.Decimal(18, 2)
-  requestedById  String?
-  approvedById   String?
-  rejectedById   String?
-  comments       String?
+  id              String             @id @default(uuid())
+  entityType      ApprovalEntityType
+  entityId        String
+  status          ApprovalStatus     @default(PENDING)
+  assignedRole    Role?
+  amountSnapshot  Decimal?           @db.Decimal(18, 2)
+  requestedById   String?
+  approvedById    String?
+  rejectedById    String?
+  comments        String?
   rejectionReason String?
-  dueAt          DateTime?
-  escalationCount Int               @default(0)
+  dueAt           DateTime?
+  escalationCount Int                @default(0)
   lastEscalatedAt DateTime?
-  requestedAt    DateTime           @default(now())
-  approvedAt     DateTime?
-  rejectedAt     DateTime?
-  consumedAt     DateTime?
+  requestedAt     DateTime           @default(now())
+  approvedAt      DateTime?
+  rejectedAt      DateTime?
+  consumedAt      DateTime?
 
   @@index([entityType, entityId, status])
   @@index([status, dueAt])
@@ -906,6 +947,8 @@ model SalesQuote {
   updatedAt   DateTime         @updatedAt
   items       SalesQuoteItem[]
 
+  @@index([customerId])
+  @@index([status])
   @@map("sales_quotes")
 }
 
@@ -924,6 +967,8 @@ model SalesQuoteItem {
   lineTotal   Decimal    @db.Decimal(18, 2)
   createdAt   DateTime   @default(now())
 
+  @@index([quoteId])
+  @@index([productId])
   @@map("sales_quote_items")
 }
 
@@ -945,6 +990,8 @@ model CreditNote {
   updatedAt        DateTime         @updatedAt
   items            CreditNoteItem[]
 
+  @@index([customerId])
+  @@index([status])
   @@map("credit_notes")
 }
 
@@ -962,6 +1009,8 @@ model CreditNoteItem {
   lineTotal    Decimal    @db.Decimal(18, 2)
   createdAt    DateTime   @default(now())
 
+  @@index([creditNoteId])
+  @@index([productId])
   @@map("credit_note_items")
 }
 
@@ -992,6 +1041,7 @@ model PriceListItem {
   updatedAt   DateTime  @updatedAt
 
   @@unique([priceListId, productId, minQty])
+  @@index([productId])
   @@map("price_list_items")
 }
 
@@ -1042,6 +1092,8 @@ model Lot {
   updatedAt       DateTime        @updatedAt
   stockMovements  StockMovement[]
 
+  @@index([productId])
+  @@index([expiryDate])
   @@map("lots")
 }
 
@@ -1057,6 +1109,9 @@ model SerialNumber {
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
+  @@index([productId])
+  @@index([warehouseId])
+  @@index([status])
   @@map("serial_numbers")
 }
 
@@ -1073,6 +1128,7 @@ model LandedCost {
   updatedAt       DateTime         @updatedAt
   items           LandedCostItem[]
 
+  @@index([purchaseOrderId])
   @@map("landed_costs")
 }
 
@@ -1085,6 +1141,8 @@ model LandedCostItem {
   allocatedAmount Decimal    @db.Decimal(18, 2)
   createdAt       DateTime   @default(now())
 
+  @@index([landedCostId])
+  @@index([productId])
   @@map("landed_cost_items")
 }
 
@@ -1101,6 +1159,8 @@ model StockCount {
   updatedAt   DateTime         @updatedAt
   lines       StockCountLine[]
 
+  @@index([warehouseId])
+  @@index([status])
   @@map("stock_counts")
 }
 
@@ -1116,28 +1176,30 @@ model StockCountLine {
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
+  @@index([stockCountId])
+  @@index([productId])
   @@map("stock_count_lines")
 }
 
 model RecurringInvoiceTemplate {
-  id                   String                        @id @default(uuid())
+  id                   String                         @id @default(uuid())
   name                 String
   customerId           String
-  customer             Customer                      @relation(fields: [customerId], references: [id])
+  customer             Customer                       @relation(fields: [customerId], references: [id])
   branchId             String?
-  branch               Branch?                       @relation(fields: [branchId], references: [id])
-  frequency            RecurringFrequency            @default(MONTHLY)
+  branch               Branch?                        @relation(fields: [branchId], references: [id])
+  frequency            RecurringFrequency             @default(MONTHLY)
   startDate            DateTime
   nextRunDate          DateTime
   endDate              DateTime?
-  isActive             Boolean                       @default(true)
-  autoApprove          Boolean                       @default(false)
+  isActive             Boolean                        @default(true)
+  autoApprove          Boolean                        @default(false)
   defaultPaymentMethod PaymentMethod?
   notes                String?
   createdById          String?
   lastRunAt            DateTime?
-  createdAt            DateTime                      @default(now())
-  updatedAt            DateTime                      @updatedAt
+  createdAt            DateTime                       @default(now())
+  updatedAt            DateTime                       @updatedAt
   items                RecurringInvoiceTemplateItem[]
   runs                 RecurringInvoiceRun[]
 
@@ -1175,16 +1237,16 @@ model RecurringInvoiceRun {
 }
 
 model ProductVariant {
-  id        String   @id @default(uuid())
-  productId String
-  product   Product  @relation(fields: [productId], references: [id])
-  sku       String   @unique
+  id         String   @id @default(uuid())
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id])
+  sku        String   @unique
   attributes Json
-  price     Decimal? @db.Decimal(18, 2)
-  stockQty  Decimal  @default(0) @db.Decimal(18, 2)
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  price      Decimal? @db.Decimal(18, 2)
+  stockQty   Decimal  @default(0) @db.Decimal(18, 2)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@map("product_variants")
 }
@@ -1203,6 +1265,9 @@ model StockTransfer {
   updatedAt       DateTime            @updatedAt
   lines           StockTransferLine[]
 
+  @@index([fromWarehouseId])
+  @@index([toWarehouseId])
+  @@index([status])
   @@map("stock_transfers")
 }
 
@@ -1215,6 +1280,8 @@ model StockTransferLine {
   quantity        Decimal       @db.Decimal(18, 2)
   createdAt       DateTime      @default(now())
 
+  @@index([stockTransferId])
+  @@index([productId])
   @@map("stock_transfer_lines")
 }
 
@@ -1260,6 +1327,8 @@ model RequestForQuotation {
   items           RFQItem[]
   purchaseOrder   PurchaseOrder?
 
+  @@index([supplierId])
+  @@index([status])
   @@map("requests_for_quotation")
 }
 
@@ -1277,6 +1346,8 @@ model RFQItem {
   lineTotal     Decimal             @default(0) @db.Decimal(18, 2)
   createdAt     DateTime            @default(now())
 
+  @@index([rfqId])
+  @@index([productId])
   @@map("rfq_items")
 }
 
@@ -1299,6 +1370,9 @@ model VendorBill {
   updatedAt       DateTime         @updatedAt
   items           VendorBillItem[]
 
+  @@index([supplierId])
+  @@index([purchaseOrderId])
+  @@index([status])
   @@map("vendor_bills")
 }
 
@@ -1316,6 +1390,8 @@ model VendorBillItem {
   lineTotal    Decimal    @db.Decimal(18, 2)
   createdAt    DateTime   @default(now())
 
+  @@index([vendorBillId])
+  @@index([productId])
   @@map("vendor_bill_items")
 }
 
@@ -1334,6 +1410,8 @@ model PurchaseReturn {
   updatedAt       DateTime             @updatedAt
   items           PurchaseReturnItem[]
 
+  @@index([supplierId])
+  @@index([purchaseOrderId])
   @@map("purchase_returns")
 }
 
@@ -1348,6 +1426,8 @@ model PurchaseReturnItem {
   lineTotal        Decimal        @db.Decimal(18, 2)
   createdAt        DateTime       @default(now())
 
+  @@index([purchaseReturnId])
+  @@index([productId])
   @@map("purchase_return_items")
 }
 
@@ -1405,6 +1485,8 @@ model AttendanceRecord {
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
 
+  @@index([employeeId])
+  @@index([clockIn])
   @@map("attendance_records")
 }
 
@@ -1438,6 +1520,8 @@ model JobApplication {
   updatedAt     DateTime          @updatedAt
   interviews    Interview[]
 
+  @@index([jobPostingId])
+  @@index([status])
   @@map("job_applications")
 }
 
@@ -1454,6 +1538,7 @@ model Interview {
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
 
+  @@index([jobApplicationId])
   @@map("interviews")
 }
 
@@ -1472,6 +1557,8 @@ model Appraisal {
   updatedAt    DateTime        @updatedAt
   items        AppraisalItem[]
 
+  @@index([employeeId])
+  @@index([status])
   @@map("appraisals")
 }
 
@@ -1487,6 +1574,7 @@ model AppraisalItem {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
+  @@index([appraisalId])
   @@map("appraisal_items")
 }
 
@@ -1504,6 +1592,8 @@ model Allowance {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
+  @@index([employeeId])
+  @@index([isActive])
   @@map("allowances")
 }
 
@@ -1520,6 +1610,8 @@ model LoanDeduction {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
+  @@index([employeeId])
+  @@index([isActive])
   @@map("loan_deductions")
 }
 
@@ -1528,19 +1620,19 @@ model LoanDeduction {
 // ============================================
 
 model ReorderRule {
-  id              String   @id @default(uuid())
-  productId       String
-  product         Product  @relation(fields: [productId], references: [id])
+  id                  String    @id @default(uuid())
+  productId           String
+  product             Product   @relation(fields: [productId], references: [id])
   preferredSupplierId String?
   preferredSupplier   Supplier? @relation(fields: [preferredSupplierId], references: [id])
-  reorderPoint    Decimal  @db.Decimal(18, 2) // trigger when stock <= this
-  reorderQty      Decimal  @db.Decimal(18, 2) // suggested qty to order
-  maxStock        Decimal? @db.Decimal(18, 2) // optional max stock level
-  isAutomatic     Boolean  @default(false) // auto-create PO suggestion
-  isActive        Boolean  @default(true)
-  lastTriggeredAt DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  reorderPoint        Decimal   @db.Decimal(18, 2) // trigger when stock <= this
+  reorderQty          Decimal   @db.Decimal(18, 2) // suggested qty to order
+  maxStock            Decimal?  @db.Decimal(18, 2) // optional max stock level
+  isAutomatic         Boolean   @default(false) // auto-create PO suggestion
+  isActive            Boolean   @default(true)
+  lastTriggeredAt     DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   @@unique([productId])
   @@map("reorder_rules")
@@ -1574,18 +1666,19 @@ model Budget {
 }
 
 model BudgetLine {
-  id        String  @id @default(uuid())
+  id        String   @id @default(uuid())
   budgetId  String
-  budget    Budget  @relation(fields: [budgetId], references: [id])
+  budget    Budget   @relation(fields: [budgetId], references: [id])
   accountId String
-  account   Account @relation(fields: [accountId], references: [id])
-  month     Int     // 1-12
-  amount    Decimal @db.Decimal(18, 2)
+  account   Account  @relation(fields: [accountId], references: [id])
+  month     Int // 1-12
+  amount    Decimal  @db.Decimal(18, 2)
   notes     String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([budgetId, accountId, month])
+  @@index([accountId])
   @@map("budget_lines")
 }
 
@@ -1608,33 +1701,36 @@ enum WorkOrderStatus {
 }
 
 model BillOfMaterial {
-  id          String    @id @default(uuid())
+  id          String      @id @default(uuid())
   name        String
   productId   String
-  product     Product   @relation("BOMProduct", fields: [productId], references: [id])
-  quantity    Decimal   @default(1) @db.Decimal(18, 2) // output qty per run
-  status      BOMStatus @default(DRAFT)
+  product     Product     @relation("BOMProduct", fields: [productId], references: [id])
+  quantity    Decimal     @default(1) @db.Decimal(18, 2) // output qty per run
+  status      BOMStatus   @default(DRAFT)
   notes       String?
   createdById String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
   lines       BOMLine[]
   workOrders  WorkOrder[]
 
+  @@index([productId])
+  @@index([status])
   @@map("bills_of_material")
 }
 
 model BOMLine {
-  id          String          @id @default(uuid())
-  bomId       String
-  bom         BillOfMaterial  @relation(fields: [bomId], references: [id])
-  productId   String
-  product     Product         @relation("BOMComponent", fields: [productId], references: [id])
-  quantity    Decimal         @db.Decimal(18, 2) // qty per 1 unit of finished product
-  notes       String?
-  createdAt   DateTime        @default(now())
+  id        String         @id @default(uuid())
+  bomId     String
+  bom       BillOfMaterial @relation(fields: [bomId], references: [id])
+  productId String
+  product   Product        @relation("BOMComponent", fields: [productId], references: [id])
+  quantity  Decimal        @db.Decimal(18, 2) // qty per 1 unit of finished product
+  notes     String?
+  createdAt DateTime       @default(now())
 
   @@unique([bomId, productId])
+  @@index([productId])
   @@map("bom_lines")
 }
 
@@ -1654,6 +1750,8 @@ model WorkOrder {
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
+  @@index([bomId])
+  @@index([status])
   @@map("work_orders")
 }
 
@@ -1673,8 +1771,8 @@ model Plugin {
   version     String
   description String?
   author      String?
-  entryPoint  String       // module path or class name
-  config      Json?        // plugin-specific configuration
+  entryPoint  String // module path or class name
+  config      Json? // plugin-specific configuration
   status      PluginStatus @default(INACTIVE)
   installedAt DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
@@ -1698,4 +1796,3 @@ model FeatureFlag {
 
   @@map("feature_flags")
 }
-
