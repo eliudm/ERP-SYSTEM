@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { MailService } from './mail.service';
 import { PrismaModule } from './prisma.module';
@@ -29,10 +31,16 @@ import { AiInsightsModule } from './modules/ai-insights/ai-insights.module';
 
 @Module({
   controllers: [AppController],
-  providers: [MailService],
+  providers: [
+    MailService,
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+  ],
   exports: [MailService],
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    ThrottlerModule.forRoot({
+      throttlers: [{ ttl: 60_000, limit: 120 }],
+    }),
     CacheModule,
     PrismaModule,
     AuthModule,
