@@ -1,6 +1,52 @@
 import { apiClient } from './client';
 import type { TaxRate, TaxGroup } from '../types';
 
+export interface VatReturnReport {
+  period: { startDate: string; endDate: string };
+  outputTax: {
+    numberOfSupplies: number;
+    taxableSales: number;
+    vatCollected: number;
+  };
+  inputTax: {
+    numberOfPurchases: number;
+    taxablePurchases: number;
+    vatPaid: number;
+  };
+  vatPayable: number;
+  vatRefundable: number;
+  netVat: number;
+}
+
+export interface WhtReport {
+  period: { startDate: string; endDate: string };
+  paye: {
+    payrolls: number;
+    totalGross: number;
+    totalPaye: number;
+  };
+  statutory: { nhif: number; nssf: number };
+  totalWithholding: number;
+}
+
+export interface TaxSummaryMonth {
+  month: number;
+  name: string;
+  outputVat: number;
+  inputVat: number;
+  vatPayable: number;
+}
+
+export interface TaxSummaryReport {
+  year: number;
+  months: TaxSummaryMonth[];
+  annualTotals: {
+    outputVat: number;
+    inputVat: number;
+    vatPayable: number;
+  };
+}
+
 export const taxApi = {
   // Rates
   getRates: async (type?: string, activeOnly = false): Promise<TaxRate[]> => {
@@ -39,5 +85,19 @@ export const taxApi = {
   },
   deleteGroup: async (id: string): Promise<void> => {
     await apiClient.delete(`/tax/groups/${id}`);
+  },
+
+  // Reports
+  getVatReturn: async (startDate: string, endDate: string): Promise<VatReturnReport> => {
+    const res = await apiClient.get('/tax/reports/vat-return', { params: { startDate, endDate } });
+    return res.data;
+  },
+  getWhtReport: async (startDate: string, endDate: string): Promise<WhtReport> => {
+    const res = await apiClient.get('/tax/reports/wht', { params: { startDate, endDate } });
+    return res.data;
+  },
+  getTaxSummary: async (year: number): Promise<TaxSummaryReport> => {
+    const res = await apiClient.get('/tax/reports/summary', { params: { year } });
+    return res.data;
   },
 };
