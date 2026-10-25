@@ -44,6 +44,21 @@ const navigationItems = [
     label: 'Tax Rates',
     description: 'Tax rates and groups configuration',
   },
+  {
+    key: 'branches',
+    label: 'Branches',
+    description: 'Business locations and performance',
+  },
+  {
+    key: 'plugins',
+    label: 'Plugins',
+    description: 'Installed integrations and extensions',
+  },
+  {
+    key: 'audit-log',
+    label: 'Audit Log',
+    description: 'History of changes across the system',
+  },
 ];
 
 const _editableKeys = [

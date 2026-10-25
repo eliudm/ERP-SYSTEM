@@ -50,6 +50,19 @@ import { POSOrdersPage } from './pages/pos/POSOrdersPage';
 import { POSProductsPage } from './pages/pos/POSProductsPage';
 import { POSReportingPage } from './pages/pos/POSReportingPage';
 import { POSConfigurationPage } from './pages/pos/POSConfigurationPage';
+// Phase 3: previously-backend-only modules
+import AnalyticsPage from './pages/analytics/AnalyticsPage';
+import AiInsightsPage from './pages/ai-insights/AiInsightsPage';
+import AuditLogPage from './pages/audit/AuditLogPage';
+import BranchesPage from './pages/branches/BranchesPage';
+import PluginsPage from './pages/plugins/PluginsPage';
+import BudgetsPage from './pages/budget/BudgetsPage';
+import TaxReportsPage from './pages/tax/TaxReportsPage';
+import CrmPage from './pages/crm/CrmPage';
+import ApprovalsPage from './pages/workflow/ApprovalsPage';
+import NotificationsPage from './pages/notifications/NotificationsPage';
+import BomsPage from './pages/mrp/BomsPage';
+import WorkOrdersPage from './pages/mrp/WorkOrdersPage';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -116,9 +129,27 @@ const App: React.FC = () => {
             <Route path="companies" element={<CompaniesSettingsPage />} />
             <Route path="localization" element={<LocalizationSettingsPage />} />
             <Route path="tax" element={<TaxRatesPage />} />
+            <Route path="branches" element={<BranchesPage />} />
+            <Route path="plugins" element={<PluginsPage />} />
+            <Route path="audit-log" element={<AuditLogPage />} />
           </Route>
           <Route path="contacts" element={<ContactsPage />} />
           <Route path="etims/config" element={<EtimsConfigPage />} />
+          {/* Analytics & Insights */}
+          <Route path="analytics" element={<AnalyticsPage />} />
+          <Route path="ai-insights" element={<AiInsightsPage />} />
+          {/* CRM */}
+          <Route path="crm/leads" element={<CrmPage />} />
+          {/* Manufacturing (MRP) */}
+          <Route path="mrp/bom" element={<BomsPage />} />
+          <Route path="mrp/work-orders" element={<WorkOrdersPage />} />
+          {/* Approvals (Workflow) */}
+          <Route path="workflow/approvals" element={<ApprovalsPage />} />
+          {/* Notifications */}
+          <Route path="notifications" element={<NotificationsPage />} />
+          {/* Accounting additions */}
+          <Route path="accounting/budgets" element={<BudgetsPage />} />
+          <Route path="accounting/tax-reports" element={<TaxReportsPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>

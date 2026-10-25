@@ -11,7 +11,9 @@ import {
   LogoutOutlined, UserOutlined,
   MenuFoldOutlined, MenuUnfoldOutlined,
   BellOutlined, CheckOutlined, AppstoreOutlined,
-  ContactsOutlined,
+  ContactsOutlined, LineChartOutlined, BulbOutlined,
+  FundProjectionScreenOutlined, ApartmentOutlined,
+  CheckSquareOutlined, NotificationOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -68,6 +70,8 @@ const menuItems = [
       { key: '/accounting/trial-balance', label: 'Trial Balance', posAllowed: false },
       { key: '/accounting/pnl', label: 'Profit & Loss', posAllowed: false },
       { key: '/accounting/bank-accounts', label: 'Bank Accounts', posAllowed: false },
+      { key: '/accounting/budgets', label: 'Budgets', posAllowed: false },
+      { key: '/accounting/tax-reports', label: 'Tax Reports', posAllowed: false },
     ],
   },
   {
@@ -125,6 +129,46 @@ const menuItems = [
     key: '/contacts',
     icon: <ContactsOutlined />,
     label: 'Contacts',
+    posAllowed: false,
+  },
+  {
+    key: '/crm/leads',
+    icon: <FundProjectionScreenOutlined />,
+    label: 'CRM',
+    posAllowed: false,
+  },
+  {
+    key: 'mrp',
+    icon: <ApartmentOutlined />,
+    label: 'Manufacturing',
+    posAllowed: false,
+    children: [
+      { key: '/mrp/bom', label: 'Bills of Materials', posAllowed: false },
+      { key: '/mrp/work-orders', label: 'Work Orders', posAllowed: false },
+    ],
+  },
+  {
+    key: '/analytics',
+    icon: <LineChartOutlined />,
+    label: 'Analytics',
+    posAllowed: false,
+  },
+  {
+    key: '/ai-insights',
+    icon: <BulbOutlined />,
+    label: 'AI Insights',
+    posAllowed: false,
+  },
+  {
+    key: '/workflow/approvals',
+    icon: <CheckSquareOutlined />,
+    label: 'Approvals',
+    posAllowed: false,
+  },
+  {
+    key: '/notifications',
+    icon: <NotificationOutlined />,
+    label: 'Notifications',
     posAllowed: false,
   },
   {
