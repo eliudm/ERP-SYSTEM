@@ -70,7 +70,8 @@ const isValidKenyaPhone = (value: string) =>
 
 export default function PosScreen() {
   const queryClient = useQueryClient();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
+  const dockExpandedMaxHeight = Math.min(560, height * 0.72);
   const { user } = useSession();
 
   const numColumns = width < 420 ? 2 : width < 700 ? 3 : width < 1000 ? 4 : 5;
@@ -110,6 +111,7 @@ export default function PosScreen() {
   const [cartExpanded, setCartExpanded] = useState(false);
   const [selectedLineId, setSelectedLineId] = useState<string | null>(null);
   const [numpadBuffer, setNumpadBuffer] = useState('');
+  const [numpadMode, setNumpadMode] = useState<'qty' | 'price'>('qty');
 
   const [chargeVisible, setChargeVisible] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<string>('CASH');
@@ -225,10 +227,20 @@ export default function PosScreen() {
     if (selectedLineId === productId) setSelectedLineId(null);
   };
 
+  const updatePrice = (productId: string, unitPrice: number) => {
+    setCart((prev) =>
+      prev.map((l) => (l.productId === productId ? { ...l, unitPrice } : l)),
+    );
+  };
+
   const applyNumpadBuffer = (productId: string, buffer: string) => {
     const value = parseFloat(buffer);
-    if (isNaN(value) || value <= 0) return;
-    updateQty(productId, value);
+    if (isNaN(value)) return;
+    if (numpadMode === 'qty') {
+      if (value > 0) updateQty(productId, value);
+    } else if (value >= 0) {
+      updatePrice(productId, value);
+    }
   };
 
   const handleNumpadKey = (key: string) => {
@@ -236,7 +248,7 @@ export default function PosScreen() {
       selectedLineId ||
       (cart.length > 0 ? cart[cart.length - 1].productId : null);
     if (!targetId) return;
-    if (key === '+/-') return; // quantities are never negative here
+    if (key === '+/-') return; // neither qty nor price are ever negative here
     if (key === '.' && numpadBuffer.includes('.')) return;
     const nb = numpadBuffer + key;
     setNumpadBuffer(nb);
@@ -254,8 +266,9 @@ export default function PosScreen() {
   };
 
   const selectLine = (productId: string) => {
-    setSelectedLineId(productId);
+    setSelectedLineId((current) => (current === productId ? null : productId));
     setNumpadBuffer('');
+    setNumpadMode('qty');
   };
 
   const resetChargeModal = () => {
@@ -595,7 +608,10 @@ export default function PosScreen() {
       {/* ── Cart dock: slim summary bar, expands on tap ── */}
       {cart.length > 0 && (
         <View
-          style={[styles.cartDock, cartExpanded && styles.cartDockExpanded]}
+          style={[
+            styles.cartDock,
+            cartExpanded && { maxHeight: dockExpandedMaxHeight },
+          ]}
         >
           <Pressable
             style={styles.cartSummaryBar}
@@ -623,63 +639,96 @@ export default function PosScreen() {
 
           {cartExpanded && (
             <>
-              <ScrollView style={styles.cartList}>
-                {cart.map((line) => (
-                  <Pressable
-                    key={line.productId}
-                    style={[
-                      styles.cartLine,
-                      selectedLineId === line.productId &&
-                        styles.cartLineSelected,
-                    ]}
-                    onPress={() => selectLine(line.productId)}
-                  >
-                    <View style={styles.cartLineInfo}>
-                      <Text style={styles.cartLineName} numberOfLines={1}>
-                        {line.name}
-                      </Text>
-                      <Text style={styles.cartLinePrice}>
-                        {formatCurrency(line.unitPrice)} x {line.quantity}
-                      </Text>
-                    </View>
-                    <View style={styles.cartLineControls}>
-                      <IconButton
-                        icon="minus"
-                        size={16}
-                        mode="outlined"
-                        onPress={() => incrementLine(line.productId, -1)}
-                      />
-                      <Text style={styles.qtyText}>{line.quantity}</Text>
-                      <IconButton
-                        icon="plus"
-                        size={16}
-                        mode="outlined"
-                        onPress={() => incrementLine(line.productId, 1)}
-                      />
-                      <IconButton
-                        icon="trash-can-outline"
-                        size={16}
-                        iconColor={brand.gradientStart}
-                        onPress={() => removeLine(line.productId)}
-                      />
-                    </View>
-                  </Pressable>
-                ))}
-              </ScrollView>
+              <ScrollView
+                style={styles.cartScroll}
+                nestedScrollEnabled
+                keyboardShouldPersistTaps="handled"
+              >
+                {cart.map((line) => {
+                  const isSelected = selectedLineId === line.productId;
+                  return (
+                    <View key={line.productId}>
+                      <Pressable
+                        style={[
+                          styles.cartLine,
+                          isSelected && styles.cartLineSelected,
+                        ]}
+                        onPress={() => selectLine(line.productId)}
+                      >
+                        <View style={styles.cartLineInfo}>
+                          <Text style={styles.cartLineName} numberOfLines={1}>
+                            {line.name}
+                          </Text>
+                          <Text style={styles.cartLinePrice}>
+                            {formatCurrency(line.unitPrice)} x {line.quantity}
+                            {'  '}
+                            <Text style={styles.cartLineTotal}>
+                              = {formatCurrency(line.unitPrice * line.quantity)}
+                            </Text>
+                          </Text>
+                        </View>
+                        <View style={styles.cartLineControls}>
+                          <IconButton
+                            icon="minus"
+                            size={16}
+                            mode="outlined"
+                            onPress={() => incrementLine(line.productId, -1)}
+                          />
+                          <Text style={styles.qtyText}>{line.quantity}</Text>
+                          <IconButton
+                            icon="plus"
+                            size={16}
+                            mode="outlined"
+                            onPress={() => incrementLine(line.productId, 1)}
+                          />
+                          <IconButton
+                            icon="trash-can-outline"
+                            size={16}
+                            iconColor={brand.gradientStart}
+                            onPress={() => removeLine(line.productId)}
+                          />
+                        </View>
+                      </Pressable>
 
-              {selectedLineId && (
-                <View style={styles.numpadSection}>
-                  <Text style={styles.numpadHint}>
-                    Qty for{' '}
-                    {cart.find((l) => l.productId === selectedLineId)?.name}
-                    {numpadBuffer ? `: ${numpadBuffer}` : ''}
-                  </Text>
-                  <Numpad
-                    onKeyPress={handleNumpadKey}
-                    onBackspace={handleNumpadBackspace}
-                  />
-                </View>
-              )}
+                      {isSelected && (
+                        <View style={styles.numpadSection}>
+                          <SegmentedButtons
+                            value={numpadMode}
+                            onValueChange={(value) => {
+                              setNumpadMode(value);
+                              setNumpadBuffer('');
+                            }}
+                            density="small"
+                            style={styles.numpadModeButtons}
+                            buttons={[
+                              {
+                                value: 'qty',
+                                label: `Qty: ${line.quantity}`,
+                                icon: 'pound',
+                              },
+                              {
+                                value: 'price',
+                                label: `Price: ${formatCurrency(line.unitPrice)}`,
+                                icon: 'cash-edit',
+                              },
+                            ]}
+                          />
+                          <Text style={styles.numpadHint}>
+                            {numpadMode === 'qty' ? 'Quantity' : 'Unit price'}
+                            {numpadBuffer
+                              ? `: ${numpadBuffer}`
+                              : ' — enter a value'}
+                          </Text>
+                          <Numpad
+                            onKeyPress={handleNumpadKey}
+                            onBackspace={handleNumpadBackspace}
+                          />
+                        </View>
+                      )}
+                    </View>
+                  );
+                })}
+              </ScrollView>
 
               <Divider style={styles.divider} />
 
@@ -1204,9 +1253,6 @@ const styles = StyleSheet.create({
     paddingTop: 4,
     paddingBottom: 12,
   },
-  cartDockExpanded: {
-    maxHeight: 460,
-  },
   cartSummaryBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1247,8 +1293,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: brand.textDark,
   },
-  cartList: {
-    maxHeight: 110,
+  cartScroll: {
+    flex: 1,
   },
   cartLine: {
     flexDirection: 'row',
@@ -1274,6 +1320,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: brand.textMuted,
   },
+  cartLineTotal: {
+    fontWeight: '700',
+    color: brand.textDark,
+  },
   cartLineControls: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1288,6 +1338,12 @@ const styles = StyleSheet.create({
   numpadSection: {
     paddingVertical: 8,
     paddingHorizontal: 4,
+    backgroundColor: '#f8f5ef',
+    borderRadius: 12,
+    marginBottom: 6,
+  },
+  numpadModeButtons: {
+    marginBottom: 8,
   },
   numpadHint: {
     fontSize: 12,
