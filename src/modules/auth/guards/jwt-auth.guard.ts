@@ -49,13 +49,21 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
       method === 'GET' &&
       (path === '/api/v1/mobile/pos-data' ||
         path === '/api/v1/mobile/sync-status');
+    // A cashier needs the compliant receipt for every sale they ring up —
+    // RolesGuard already permits SALES_USER on these two routes, this guard
+    // just hadn't been updated to match, so a posOnly cashier only ever saw
+    // a provisional QR fallback.
+    const isOwnEtimsReceiptRead =
+      method === 'GET' &&
+      /^\/api\/v1\/etims\/invoice\/[^/]+\/(qr|status)$/.test(path);
 
     if (
       isSalesRoute ||
       isPosInventoryRead ||
       isOwnProfileRoute ||
       isSystemSettingsRead ||
-      isMobilePosRead
+      isMobilePosRead ||
+      isOwnEtimsReceiptRead
     ) {
       return user as TUser;
     }
