@@ -23,6 +23,7 @@ import {
   SegmentedButtons,
 } from 'react-native-paper';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { mobileApi, PosProduct } from '../../api/mobile.api';
 import { customersApi, Customer } from '../../api/customers.api';
 import { salesApi } from '../../api/sales.api';
@@ -32,6 +33,7 @@ import { settingsApi } from '../../api/settings.api';
 import { useSession } from '../../providers/SessionProvider';
 import { Numpad } from '../../components/Numpad';
 import { Receipt, ReceiptData } from '../../components/Receipt';
+import { useRegister } from '../../hooks/useRegister';
 import { brand } from '../../theme';
 
 interface CartLine {
@@ -86,6 +88,20 @@ export default function PosScreen() {
   const { data: settings } = useQuery({
     queryKey: ['system-settings'],
     queryFn: () => settingsApi.getSystemSettings(),
+  });
+
+  const register = useRegister();
+  const [registerModal, setRegisterModal] = useState<'open' | 'close' | null>(
+    null,
+  );
+  const [openingFloatInput, setOpeningFloatInput] = useState('');
+  const [cashCountedInput, setCashCountedInput] = useState('');
+
+  const today = new Date().toISOString().split('T')[0];
+  const { data: dailySummary, isLoading: dailySummaryLoading } = useQuery({
+    queryKey: ['daily-summary', today],
+    queryFn: () => salesApi.getDailySummary(today),
+    enabled: registerModal === 'close',
   });
 
   const [search, setSearch] = useState('');
@@ -445,6 +461,38 @@ export default function PosScreen() {
         style={styles.searchbar}
         inputStyle={styles.searchbarInput}
       />
+
+      {!register.isLoading && (
+        <Pressable
+          style={[
+            styles.registerBanner,
+            register.isOpen
+              ? styles.registerBannerOpen
+              : styles.registerBannerClosed,
+          ]}
+          onPress={() => {
+            setOpeningFloatInput('');
+            setCashCountedInput('');
+            setRegisterModal(register.isOpen ? 'close' : 'open');
+          }}
+        >
+          <MaterialCommunityIcons
+            name={register.isOpen ? 'cash-register' : 'lock-outline'}
+            size={16}
+            color={register.isOpen ? brand.gradientEnd : '#ad7a14'}
+          />
+          <Text
+            style={[
+              styles.registerBannerText,
+              { color: register.isOpen ? brand.gradientEnd : '#ad7a14' },
+            ]}
+          >
+            {register.isOpen
+              ? `Register open since ${new Date(register.openedAt!).toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' })} · Tap to close`
+              : 'Register closed · Tap to open'}
+          </Text>
+        </Pressable>
+      )}
 
       {categories.length > 0 && (
         <ScrollView
@@ -807,6 +855,148 @@ export default function PosScreen() {
         </Modal>
       </Portal>
 
+      <Portal>
+        <Modal
+          visible={registerModal !== null}
+          onDismiss={() => setRegisterModal(null)}
+          contentContainerStyle={styles.modalContainer}
+        >
+          {registerModal === 'open' ? (
+            <>
+              <Text style={styles.modalTitle}>Open Register</Text>
+              <Text style={styles.registerHint}>
+                Enter the starting cash float to begin a new shift.
+              </Text>
+              <TextInput
+                mode="outlined"
+                label="Opening float (KES)"
+                keyboardType="numeric"
+                value={openingFloatInput}
+                onChangeText={setOpeningFloatInput}
+                style={styles.customerInput}
+              />
+              <View style={styles.modalActions}>
+                <Button
+                  mode="outlined"
+                  onPress={() => setRegisterModal(null)}
+                  style={styles.modalActionButton}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  mode="contained"
+                  onPress={() => {
+                    void register
+                      .openRegister(Number(openingFloatInput) || 0)
+                      .then(() => setRegisterModal(null));
+                  }}
+                  style={styles.modalActionButton}
+                >
+                  Open Register
+                </Button>
+              </View>
+            </>
+          ) : (
+            <ScrollView>
+              <Text style={styles.modalTitle}>Close Register</Text>
+              <Text style={styles.registerHint}>
+                Today&apos;s sales, for reconciliation against the till.
+              </Text>
+              {dailySummaryLoading ? (
+                <ActivityIndicator
+                  size="small"
+                  color={brand.gradientEnd}
+                  style={{ marginVertical: 12 }}
+                />
+              ) : (
+                <>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.totalsLabel}>Orders</Text>
+                    <Text style={styles.totalsValue}>
+                      {dailySummary?.totalOrders ?? 0}
+                    </Text>
+                  </View>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.totalsLabel}>Total revenue</Text>
+                    <Text style={styles.totalsValue}>
+                      {formatCurrency(dailySummary?.totalRevenue ?? 0)}
+                    </Text>
+                  </View>
+                  <Divider style={styles.divider} />
+                  {(dailySummary?.byPaymentMethod ?? []).map((row) => (
+                    <View key={row.method} style={styles.summaryRow}>
+                      <Text style={styles.totalsLabel}>
+                        {PAYMENT_METHOD_LABELS[row.method] ?? row.method} (
+                        {row.orders})
+                      </Text>
+                      <Text style={styles.totalsValue}>
+                        {formatCurrency(row.amount)}
+                      </Text>
+                    </View>
+                  ))}
+                </>
+              )}
+
+              <TextInput
+                mode="outlined"
+                label="Cash counted (KES)"
+                keyboardType="numeric"
+                value={cashCountedInput}
+                onChangeText={setCashCountedInput}
+                style={[styles.customerInput, { marginTop: 12 }]}
+              />
+              {cashCountedInput.trim().length > 0 &&
+                (() => {
+                  const expectedCash =
+                    dailySummary?.byPaymentMethod.find(
+                      (r) => r.method === 'CASH',
+                    )?.amount ?? 0;
+                  const variance = Number(cashCountedInput) - expectedCash;
+                  return (
+                    <Text
+                      style={[
+                        styles.varianceText,
+                        {
+                          color: variance === 0 ? brand.gradientEnd : '#d4380d',
+                        },
+                      ]}
+                    >
+                      Expected cash {formatCurrency(expectedCash)} · Variance{' '}
+                      {variance >= 0 ? '+' : ''}
+                      {formatCurrency(variance)}
+                    </Text>
+                  );
+                })()}
+
+              <View style={styles.modalActions}>
+                <Button
+                  mode="outlined"
+                  onPress={() => setRegisterModal(null)}
+                  style={styles.modalActionButton}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  mode="contained"
+                  onPress={() => {
+                    void register.closeRegister().then(() => {
+                      setRegisterModal(null);
+                      setSnackbar({
+                        visible: true,
+                        message: 'Register closed',
+                      });
+                    });
+                  }}
+                  style={styles.modalActionButton}
+                >
+                  Close Register
+                </Button>
+              </View>
+            </ScrollView>
+          )}
+        </Modal>
+      </Portal>
+
       <Snackbar
         visible={snackbar.visible}
         onDismiss={() => setSnackbar((s) => ({ ...s, visible: false }))}
@@ -851,6 +1041,41 @@ const styles = StyleSheet.create({
   searchbarInput: {
     fontSize: 14,
     minHeight: 0,
+  },
+  registerBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+  },
+  registerBannerOpen: {
+    backgroundColor: '#d6f3ee',
+  },
+  registerBannerClosed: {
+    backgroundColor: '#fbf1de',
+  },
+  registerBannerText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  registerHint: {
+    fontSize: 12.5,
+    color: brand.textMuted,
+    marginBottom: 12,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 4,
+  },
+  varianceText: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    marginTop: 8,
   },
   chipsRow: {
     flexGrow: 0,
