@@ -42,12 +42,20 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     const isOwnProfileRoute = path === '/api/v1/auth/profile';
     const isSystemSettingsRead =
       method === 'GET' && path === '/api/v1/settings/system';
+    // The mobile app's own POS data/sync endpoints — equivalent to the
+    // inventory reads already allowed above, just shaped for the mobile
+    // client instead of the web one.
+    const isMobilePosRead =
+      method === 'GET' &&
+      (path === '/api/v1/mobile/pos-data' ||
+        path === '/api/v1/mobile/sync-status');
 
     if (
       isSalesRoute ||
       isPosInventoryRead ||
       isOwnProfileRoute ||
-      isSystemSettingsRead
+      isSystemSettingsRead ||
+      isMobilePosRead
     ) {
       return user as TUser;
     }
