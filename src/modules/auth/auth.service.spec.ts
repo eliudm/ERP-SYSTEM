@@ -329,6 +329,59 @@ describe('AuthService', () => {
     });
   });
 
+  describe('setPin', () => {
+    it('should hash and store the pin', async () => {
+      (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-pin');
+      prisma.user.update.mockResolvedValue(user);
+
+      const result = await service.setPin(user.id, '1234');
+
+      expect(bcrypt.hash).toHaveBeenCalledWith('1234', 12);
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: user.id },
+        data: { pin: 'hashed-pin' },
+      });
+      expect(result).toEqual({ message: 'PIN set' });
+    });
+  });
+
+  describe('verifyPin', () => {
+    it('should resolve valid:true when the pin matches', async () => {
+      prisma.user.findUnique.mockResolvedValue({ ...user, pin: 'hashed-pin' });
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+
+      const result = await service.verifyPin(user.id, '1234');
+
+      expect(bcrypt.compare).toHaveBeenCalledWith('1234', 'hashed-pin');
+      expect(result).toEqual({ valid: true });
+    });
+
+    it('should throw UnauthorizedException when the pin does not match', async () => {
+      prisma.user.findUnique.mockResolvedValue({ ...user, pin: 'hashed-pin' });
+      (bcrypt.compare as jest.Mock).mockResolvedValue(false);
+
+      await expect(service.verifyPin(user.id, '0000')).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it('should throw UnauthorizedException when no pin has been set', async () => {
+      prisma.user.findUnique.mockResolvedValue({ ...user, pin: null });
+
+      await expect(service.verifyPin(user.id, '1234')).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it('should throw NotFoundException if user not found', async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+
+      await expect(service.verifyPin('missing', '1234')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
   describe('refreshTokens', () => {
     const stored = {
       id: 'rt-1',

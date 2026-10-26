@@ -15,6 +15,8 @@ const mockAuthService = () => ({
   resetPassword: jest.fn(),
   deactivateUser: jest.fn(),
   updateUserAccess: jest.fn(),
+  setPin: jest.fn(),
+  verifyPin: jest.fn(),
 });
 
 describe('AuthController', () => {
@@ -98,6 +100,32 @@ describe('AuthController', () => {
       const result = await controller.getProfile('user-1');
 
       expect(authService.getProfile).toHaveBeenCalledWith('user-1');
+      expect(result).toBe(expected);
+    });
+  });
+
+  describe('setPin', () => {
+    it('should delegate to authService.setPin with the user id and pin', async () => {
+      const dto = { pin: '1234' };
+      const expected = { message: 'PIN set' };
+      authService.setPin.mockResolvedValue(expected);
+
+      const result = await controller.setPin('user-1', dto);
+
+      expect(authService.setPin).toHaveBeenCalledWith('user-1', '1234');
+      expect(result).toBe(expected);
+    });
+  });
+
+  describe('verifyPin', () => {
+    it('should delegate to authService.verifyPin with the user id and pin', async () => {
+      const dto = { pin: '1234' };
+      const expected = { valid: true };
+      authService.verifyPin.mockResolvedValue(expected);
+
+      const result = await controller.verifyPin('user-1', dto);
+
+      expect(authService.verifyPin).toHaveBeenCalledWith('user-1', '1234');
       expect(result).toBe(expected);
     });
   });

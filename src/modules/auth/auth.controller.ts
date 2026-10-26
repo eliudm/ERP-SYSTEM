@@ -19,6 +19,8 @@ import {
   UpdateUserDto,
   ResetPasswordDto,
   RefreshTokenDto,
+  SetPinDto,
+  VerifyPinDto,
 } from './dto';
 import { GetUser } from './decorators/get-user.decorator';
 import { Roles } from './decorators/roles.decorator';
@@ -63,6 +65,28 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   getProfile(@GetUser('id') userId: string) {
     return this.authService.getProfile(userId);
+  }
+
+  @ApiOperation({
+    summary: 'Set or change the current user\'s quick-unlock PIN',
+  })
+  @ApiBearerAuth()
+  @Post('set-pin')
+  @UseGuards(JwtAuthGuard)
+  setPin(@GetUser('id') userId: string, @Body() dto: SetPinDto) {
+    return this.authService.setPin(userId, dto.pin);
+  }
+
+  @ApiOperation({
+    summary:
+      'Verify the current user\'s PIN, e.g. to unlock a locked POS session',
+  })
+  @ApiBearerAuth()
+  @Post('verify-pin')
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  verifyPin(@GetUser('id') userId: string, @Body() dto: VerifyPinDto) {
+    return this.authService.verifyPin(userId, dto.pin);
   }
 
   @ApiOperation({ summary: 'List all users (admin only)' })

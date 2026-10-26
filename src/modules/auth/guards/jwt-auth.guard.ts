@@ -39,7 +39,10 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
       (path === '/api/v1/inventory/products' ||
         path === '/api/v1/inventory/warehouses' ||
         path === '/api/v1/inventory/categories');
-    const isOwnProfileRoute = path === '/api/v1/auth/profile';
+    const isOwnProfileRoute =
+      path === '/api/v1/auth/profile' ||
+      path === '/api/v1/auth/set-pin' ||
+      path === '/api/v1/auth/verify-pin';
     const isSystemSettingsRead =
       method === 'GET' && path === '/api/v1/settings/system';
     // The mobile app's own POS data/sync endpoints — equivalent to the

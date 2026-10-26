@@ -95,6 +95,7 @@ model User {
   tenant        Tenant         @relation(fields: [tenantId], references: [id])
   email         String         @unique
   password      String
+  pin           String?
   firstName     String
   lastName      String
   role          Role           @default(SALES_USER)

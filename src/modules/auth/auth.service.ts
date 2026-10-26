@@ -344,6 +344,32 @@ export class AuthService {
     return { message: 'Password reset successfully' };
   }
 
+  // ─── SET PIN (self-service, for quick register unlock) ───
+  async setPin(userId: string, pin: string) {
+    const hashed = await bcrypt.hash(pin, 12);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { pin: hashed },
+    });
+    return { message: 'PIN set' };
+  }
+
+  // ─── VERIFY PIN (re-authenticates an already-signed-in,
+  // already-locked session — does not issue new tokens) ────
+  async verifyPin(userId: string, pin: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+    if (!user.pin) {
+      throw new UnauthorizedException('No PIN has been set for this account');
+    }
+
+    const match = await bcrypt.compare(pin, user.pin);
+    if (!match) {
+      throw new UnauthorizedException('Incorrect PIN');
+    }
+    return { valid: true };
+  }
+
   // ─── SIGN JWT TOKEN ──────────────────────────────────────
   private async signToken(
     userId: string,
