@@ -31,7 +31,7 @@ import { etimsApi, EtimsQrResult } from '../../api/etims.api';
 import { inventoryApi } from '../../api/inventory.api';
 import { settingsApi } from '../../api/settings.api';
 import { useSession } from '../../providers/SessionProvider';
-import { Numpad } from '../../components/Numpad';
+import { Numpad, NumpadMode } from '../../components/Numpad';
 import { Receipt, ReceiptData } from '../../components/Receipt';
 import { useRegister } from '../../hooks/useRegister';
 import { brand } from '../../theme';
@@ -39,6 +39,7 @@ import { brand } from '../../theme';
 interface CartLine {
   productId: string;
   name: string;
+  basePrice: number;
   unitPrice: number;
   taxRate: number;
   quantity: number;
@@ -111,7 +112,7 @@ export default function PosScreen() {
   const [cartExpanded, setCartExpanded] = useState(false);
   const [selectedLineId, setSelectedLineId] = useState<string | null>(null);
   const [numpadBuffer, setNumpadBuffer] = useState('');
-  const [numpadMode, setNumpadMode] = useState<'qty' | 'price'>('qty');
+  const [numpadMode, setNumpadMode] = useState<NumpadMode>('qty');
 
   const [chargeVisible, setChargeVisible] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<string>('CASH');
@@ -193,6 +194,7 @@ export default function PosScreen() {
         {
           productId: product.id,
           name: product.name,
+          basePrice: product.unitPrice,
           unitPrice: product.unitPrice,
           taxRate: product.taxRate,
           quantity: 1,
@@ -202,6 +204,7 @@ export default function PosScreen() {
     setCartExpanded(true);
     setSelectedLineId(product.id);
     setNumpadBuffer('');
+    setNumpadMode('qty');
   };
 
   const updateQty = (productId: string, qty: number) => {
@@ -233,11 +236,24 @@ export default function PosScreen() {
     );
   };
 
+  const updateDiscountPercent = (productId: string, percent: number) => {
+    const clamped = Math.min(100, Math.max(0, percent));
+    setCart((prev) =>
+      prev.map((l) =>
+        l.productId === productId
+          ? { ...l, unitPrice: l.basePrice * (1 - clamped / 100) }
+          : l,
+      ),
+    );
+  };
+
   const applyNumpadBuffer = (productId: string, buffer: string) => {
     const value = parseFloat(buffer);
     if (isNaN(value)) return;
     if (numpadMode === 'qty') {
       if (value > 0) updateQty(productId, value);
+    } else if (numpadMode === 'discount') {
+      if (value >= 0) updateDiscountPercent(productId, value);
     } else if (value >= 0) {
       updatePrice(productId, value);
     }
@@ -646,6 +662,11 @@ export default function PosScreen() {
               >
                 {cart.map((line) => {
                   const isSelected = selectedLineId === line.productId;
+                  const discountPercent =
+                    line.basePrice > 0
+                      ? Math.round((1 - line.unitPrice / line.basePrice) * 100)
+                      : 0;
+                  const hasDiscount = discountPercent > 0;
                   return (
                     <View key={line.productId}>
                       <Pressable
@@ -660,7 +681,17 @@ export default function PosScreen() {
                             {line.name}
                           </Text>
                           <Text style={styles.cartLinePrice}>
+                            {hasDiscount && (
+                              <Text style={styles.cartLineStrike}>
+                                {formatCurrency(line.basePrice)}{' '}
+                              </Text>
+                            )}
                             {formatCurrency(line.unitPrice)} x {line.quantity}
+                            {hasDiscount && (
+                              <Text style={styles.cartLineDiscountTag}>
+                                {'  '}-{discountPercent}%
+                              </Text>
+                            )}
                             {'  '}
                             <Text style={styles.cartLineTotal}>
                               = {formatCurrency(line.unitPrice * line.quantity)}
@@ -692,34 +723,21 @@ export default function PosScreen() {
 
                       {isSelected && (
                         <View style={styles.numpadSection}>
-                          <SegmentedButtons
-                            value={numpadMode}
-                            onValueChange={(value) => {
-                              setNumpadMode(value);
-                              setNumpadBuffer('');
-                            }}
-                            density="small"
-                            style={styles.numpadModeButtons}
-                            buttons={[
-                              {
-                                value: 'qty',
-                                label: `Qty: ${line.quantity}`,
-                                icon: 'pound',
-                              },
-                              {
-                                value: 'price',
-                                label: `Price: ${formatCurrency(line.unitPrice)}`,
-                                icon: 'cash-edit',
-                              },
-                            ]}
-                          />
                           <Text style={styles.numpadHint}>
-                            {numpadMode === 'qty' ? 'Quantity' : 'Unit price'}
-                            {numpadBuffer
-                              ? `: ${numpadBuffer}`
-                              : ' — enter a value'}
+                            {numpadMode === 'qty' &&
+                              `Quantity: ${line.quantity}`}
+                            {numpadMode === 'discount' &&
+                              `Discount: ${discountPercent}%`}
+                            {numpadMode === 'price' &&
+                              `Unit price: ${formatCurrency(line.unitPrice)}`}
+                            {numpadBuffer ? ` → ${numpadBuffer}` : ''}
                           </Text>
                           <Numpad
+                            mode={numpadMode}
+                            onModeChange={(m) => {
+                              setNumpadMode(m);
+                              setNumpadBuffer('');
+                            }}
                             onKeyPress={handleNumpadKey}
                             onBackspace={handleNumpadBackspace}
                           />
@@ -1324,6 +1342,14 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: brand.textDark,
   },
+  cartLineStrike: {
+    textDecorationLine: 'line-through',
+    color: brand.textMuted,
+  },
+  cartLineDiscountTag: {
+    color: '#ad7a14',
+    fontWeight: '700',
+  },
   cartLineControls: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1341,9 +1367,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8f5ef',
     borderRadius: 12,
     marginBottom: 6,
-  },
-  numpadModeButtons: {
-    marginBottom: 8,
   },
   numpadHint: {
     fontSize: 12,
