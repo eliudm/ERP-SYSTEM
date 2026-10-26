@@ -1,8 +1,26 @@
-import { Tabs } from 'expo-router';
+import React, { useEffect } from 'react';
+import { Tabs, usePathname, router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { brand } from '../../theme';
+import { useSession } from '../../providers/SessionProvider';
+
+// Routes a POS-only account's token is actually allowed to call
+// server-side (see src/modules/auth/guards/jwt-auth.guard.ts on the
+// backend) — mirrors frontend/src/components/layout/AppLayout.tsx's
+// `posAllowed` menu filtering on the web app.
+const POS_ONLY_ALLOWED_PATHS = ['/pos', '/profile'];
 
 export default function AppTabsLayout() {
+  const { user } = useSession();
+  const isPosOnly = user?.posOnly === true;
+  const pathname = usePathname();
+
+  useEffect(() => {
+    if (isPosOnly && !POS_ONLY_ALLOWED_PATHS.includes(pathname)) {
+      router.replace('/pos');
+    }
+  }, [isPosOnly, pathname]);
+
   return (
     <Tabs
       screenOptions={{
@@ -15,6 +33,7 @@ export default function AppTabsLayout() {
         name="index"
         options={{
           title: 'Dashboard',
+          href: isPosOnly ? null : undefined,
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons
               name="view-dashboard"
@@ -41,6 +60,7 @@ export default function AppTabsLayout() {
         name="sales"
         options={{
           title: 'Sales',
+          href: isPosOnly ? null : undefined,
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons
               name="receipt"
@@ -54,6 +74,7 @@ export default function AppTabsLayout() {
         name="notifications"
         options={{
           title: 'Alerts',
+          href: isPosOnly ? null : undefined,
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons
               name="bell"
