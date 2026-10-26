@@ -5,12 +5,11 @@ import {
   FlatList,
   ScrollView,
   Pressable,
+  useWindowDimensions,
 } from 'react-native';
 import {
   Text,
-  Card,
   ActivityIndicator,
-  Badge,
   Searchbar,
   Chip,
   Button,
@@ -41,8 +40,21 @@ const formatCurrency = (value: number) =>
 
 const WALK_IN_CUSTOMER_NAME = 'Walk-in Customer';
 
+const TILE_COLORS = ['#1db8a0', '#6f67ff', '#f08c2f', '#2f80ed', '#e05297'];
+const colorForProduct = (id: string) => {
+  let hash = 0;
+  for (let i = 0; i < id.length; i += 1)
+    hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
+  return TILE_COLORS[hash % TILE_COLORS.length];
+};
+
 export default function PosScreen() {
   const queryClient = useQueryClient();
+  const { width } = useWindowDimensions();
+
+  // Responsive grid: phone portrait → 2, phone landscape/small tablet → 3,
+  // tablet/web → 4-5+. Keeps tiles a sane ~150-180px regardless of viewport.
+  const numColumns = width < 420 ? 2 : width < 700 ? 3 : width < 1000 ? 4 : 5;
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['pos-data'],
@@ -52,6 +64,7 @@ export default function PosScreen() {
   const [search, setSearch] = useState('');
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [cart, setCart] = useState<CartLine[]>([]);
+  const [cartExpanded, setCartExpanded] = useState(false);
 
   const [chargeVisible, setChargeVisible] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<string | undefined>(
@@ -77,6 +90,12 @@ export default function PosScreen() {
   const categories = data?.categories ?? [];
   const paymentMethods = data?.paymentMethods ?? [];
 
+  const cartQuantities = useMemo(() => {
+    const map = new Map<string, number>();
+    cart.forEach((l) => map.set(l.productId, l.quantity));
+    return map;
+  }, [cart]);
+
   const filteredProducts = useMemo(() => {
     const q = search.trim().toLowerCase();
     return products.filter((p) => {
@@ -90,6 +109,10 @@ export default function PosScreen() {
     });
   }, [products, search, categoryId]);
 
+  const itemCount = useMemo(
+    () => cart.reduce((sum, l) => sum + l.quantity, 0),
+    [cart],
+  );
   const subtotal = useMemo(
     () => cart.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0),
     [cart],
@@ -123,6 +146,7 @@ export default function PosScreen() {
         },
       ];
     });
+    setCartExpanded(true);
   };
 
   const incrementLine = (productId: string, delta: number) => {
@@ -200,6 +224,7 @@ export default function PosScreen() {
     },
     onSuccess: (invoice) => {
       setCart([]);
+      setCartExpanded(false);
       setChargeVisible(false);
       setSnackbar({
         visible: true,
@@ -253,6 +278,7 @@ export default function PosScreen() {
         value={search}
         onChangeText={setSearch}
         style={styles.searchbar}
+        inputStyle={styles.searchbarInput}
       />
 
       {categories.length > 0 && (
@@ -267,6 +293,11 @@ export default function PosScreen() {
             onPress={() => setCategoryId(null)}
             style={styles.chip}
             mode={categoryId === null ? 'flat' : 'outlined'}
+            selectedColor={categoryId === null ? '#ffffff' : undefined}
+            textStyle={
+              categoryId === null ? styles.chipTextSelected : undefined
+            }
+            compact
           >
             All
           </Chip>
@@ -277,6 +308,10 @@ export default function PosScreen() {
               onPress={() => setCategoryId(cat.id)}
               style={styles.chip}
               mode={categoryId === cat.id ? 'flat' : 'outlined'}
+              textStyle={
+                categoryId === cat.id ? styles.chipTextSelected : undefined
+              }
+              compact
             >
               {cat.name}
             </Chip>
@@ -287,111 +322,161 @@ export default function PosScreen() {
       <FlatList
         data={filteredProducts}
         keyExtractor={(item) => item.id}
-        numColumns={2}
+        numColumns={numColumns}
+        key={numColumns}
+        style={styles.grid}
         columnWrapperStyle={styles.gridRow}
-        contentContainerStyle={styles.gridContent}
+        contentContainerStyle={[
+          styles.gridContent,
+          { paddingBottom: cartExpanded && cart.length > 0 ? 260 : 96 },
+        ]}
         ListEmptyComponent={
-          <View style={styles.center}>
+          <View style={styles.emptyState}>
             <Text style={styles.errorText}>No products match your search.</Text>
           </View>
         }
-        renderItem={({ item }) => (
-          <Pressable
-            style={styles.productCardWrap}
-            onPress={() => addToCart(item)}
-          >
-            <Card style={styles.productCard} mode="contained">
-              <Card.Content>
-                <Text style={styles.productName} numberOfLines={2}>
-                  {item.name}
+        renderItem={({ item }) => {
+          const qty = cartQuantities.get(item.id) ?? 0;
+          const outOfStock = item.stockQuantity <= 0;
+          return (
+            <Pressable
+              style={styles.productTile}
+              onPress={() => addToCart(item)}
+            >
+              <View
+                style={[
+                  styles.productAvatar,
+                  { backgroundColor: colorForProduct(item.id) },
+                ]}
+              >
+                <Text style={styles.productAvatarLetter}>
+                  {item.name.charAt(0).toUpperCase()}
                 </Text>
-                <Text style={styles.productCode}>{item.code}</Text>
-                <View style={styles.productFooter}>
-                  <Text style={styles.productPrice}>
-                    {formatCurrency(item.unitPrice)}
-                  </Text>
-                  {item.stockQuantity <= 5 && (
-                    <Badge style={styles.lowStockBadge}>
-                      {item.stockQuantity}
-                    </Badge>
-                  )}
-                </View>
-              </Card.Content>
-            </Card>
-          </Pressable>
-        )}
+                {qty > 0 && (
+                  <View style={styles.qtyBadge}>
+                    <Text style={styles.qtyBadgeText}>{qty}</Text>
+                  </View>
+                )}
+                {outOfStock && (
+                  <View style={styles.stockRibbon}>
+                    <Text style={styles.stockRibbonText}>Out of stock</Text>
+                  </View>
+                )}
+                {!outOfStock && item.stockQuantity <= 5 && (
+                  <View style={styles.lowStockDot} />
+                )}
+              </View>
+              <Text style={styles.productName} numberOfLines={2}>
+                {item.name}
+              </Text>
+              <Text style={styles.productCode} numberOfLines={1}>
+                {item.code}
+              </Text>
+              <Text style={styles.productPrice}>
+                {formatCurrency(item.unitPrice)}
+              </Text>
+            </Pressable>
+          );
+        }}
       />
 
-      <Card style={styles.cartCard} mode="contained">
-        <Card.Content style={styles.cartContent}>
-          <Text style={styles.heading}>Cart ({cart.length})</Text>
-          {cart.length === 0 ? (
-            <Text style={styles.emptyCartText}>
-              Tap a product to add it to the cart.
-            </Text>
-          ) : (
-            <ScrollView style={styles.cartList}>
-              {cart.map((line) => (
-                <View key={line.productId} style={styles.cartLine}>
-                  <View style={styles.cartLineInfo}>
-                    <Text style={styles.cartLineName} numberOfLines={1}>
-                      {line.name}
-                    </Text>
-                    <Text style={styles.cartLinePrice}>
-                      {formatCurrency(line.unitPrice)} x {line.quantity}
-                    </Text>
+      {/* ── Cart dock: slim summary bar, expands on tap ── */}
+      {cart.length > 0 && (
+        <View
+          style={[styles.cartDock, cartExpanded && styles.cartDockExpanded]}
+        >
+          <Pressable
+            style={styles.cartSummaryBar}
+            onPress={() => setCartExpanded((e) => !e)}
+          >
+            <View style={styles.cartSummaryLeft}>
+              <View style={styles.cartCountBadge}>
+                <Text style={styles.cartCountBadgeText}>{itemCount}</Text>
+              </View>
+              <Text style={styles.cartSummaryLabel}>
+                {cartExpanded ? 'Hide cart' : 'View cart'}
+              </Text>
+            </View>
+            <View style={styles.cartSummaryRight}>
+              <Text style={styles.cartSummaryTotal}>
+                {formatCurrency(total)}
+              </Text>
+              <IconButton
+                icon={cartExpanded ? 'chevron-down' : 'chevron-up'}
+                size={20}
+                onPress={() => setCartExpanded((e) => !e)}
+              />
+            </View>
+          </Pressable>
+
+          {cartExpanded && (
+            <>
+              <ScrollView style={styles.cartList}>
+                {cart.map((line) => (
+                  <View key={line.productId} style={styles.cartLine}>
+                    <View style={styles.cartLineInfo}>
+                      <Text style={styles.cartLineName} numberOfLines={1}>
+                        {line.name}
+                      </Text>
+                      <Text style={styles.cartLinePrice}>
+                        {formatCurrency(line.unitPrice)} x {line.quantity}
+                      </Text>
+                    </View>
+                    <View style={styles.cartLineControls}>
+                      <IconButton
+                        icon="minus"
+                        size={16}
+                        mode="outlined"
+                        onPress={() => incrementLine(line.productId, -1)}
+                      />
+                      <Text style={styles.qtyText}>{line.quantity}</Text>
+                      <IconButton
+                        icon="plus"
+                        size={16}
+                        mode="outlined"
+                        onPress={() => incrementLine(line.productId, 1)}
+                      />
+                      <IconButton
+                        icon="trash-can-outline"
+                        size={16}
+                        iconColor={brand.gradientStart}
+                        onPress={() => removeLine(line.productId)}
+                      />
+                    </View>
                   </View>
-                  <View style={styles.cartLineControls}>
-                    <IconButton
-                      icon="minus"
-                      size={16}
-                      mode="outlined"
-                      onPress={() => incrementLine(line.productId, -1)}
-                    />
-                    <Text style={styles.qtyText}>{line.quantity}</Text>
-                    <IconButton
-                      icon="plus"
-                      size={16}
-                      mode="outlined"
-                      onPress={() => incrementLine(line.productId, 1)}
-                    />
-                    <IconButton
-                      icon="trash-can-outline"
-                      size={16}
-                      iconColor={brand.gradientStart}
-                      onPress={() => removeLine(line.productId)}
-                    />
-                  </View>
-                </View>
-              ))}
-            </ScrollView>
+                ))}
+              </ScrollView>
+
+              <Divider style={styles.divider} />
+
+              <View style={styles.totalsRow}>
+                <Text style={styles.totalsLabel}>Subtotal</Text>
+                <Text style={styles.totalsValue}>
+                  {formatCurrency(subtotal)}
+                </Text>
+              </View>
+              <View style={styles.totalsRow}>
+                <Text style={styles.totalsLabel}>Tax</Text>
+                <Text style={styles.totalsValue}>
+                  {formatCurrency(taxTotal)}
+                </Text>
+              </View>
+            </>
           )}
-
-          <Divider style={styles.divider} />
-
-          <View style={styles.totalsRow}>
-            <Text style={styles.totalsLabel}>Subtotal</Text>
-            <Text style={styles.totalsValue}>{formatCurrency(subtotal)}</Text>
-          </View>
-          <View style={styles.totalsRow}>
-            <Text style={styles.totalsLabel}>Tax</Text>
-            <Text style={styles.totalsValue}>{formatCurrency(taxTotal)}</Text>
-          </View>
-          <View style={styles.totalsRow}>
-            <Text style={styles.totalsLabelBold}>Total</Text>
-            <Text style={styles.totalsValueBold}>{formatCurrency(total)}</Text>
-          </View>
 
           <Button
             mode="contained"
             style={styles.chargeButton}
+            contentStyle={styles.chargeButtonContent}
             disabled={cart.length === 0}
             onPress={openChargeModal}
           >
-            Charge
+            {cartExpanded
+              ? `Charge ${formatCurrency(total)}`
+              : `Charge · ${formatCurrency(total)}`}
           </Button>
-        </Card.Content>
-      </Card>
+        </View>
+      )}
 
       <Portal>
         <Modal
@@ -399,79 +484,81 @@ export default function PosScreen() {
           onDismiss={closeChargeModal}
           contentContainerStyle={styles.modalContainer}
         >
-          <Text style={styles.modalTitle}>Checkout</Text>
-          <Text style={styles.modalTotal}>{formatCurrency(total)}</Text>
+          <ScrollView keyboardShouldPersistTaps="handled">
+            <Text style={styles.modalTitle}>Checkout</Text>
+            <Text style={styles.modalTotal}>{formatCurrency(total)}</Text>
 
-          <Text style={styles.modalSectionLabel}>Customer</Text>
-          <TextInput
-            mode="outlined"
-            placeholder="Search customer, or leave blank for Walk-in Customer"
-            value={customerQuery}
-            onChangeText={runCustomerSearch}
-            dense
-            style={styles.customerInput}
-          />
-          {searchingCustomers && (
-            <ActivityIndicator size="small" style={{ marginVertical: 4 }} />
-          )}
-          {!searchingCustomers && customerQuery.trim().length > 0 && (
-            <ScrollView style={styles.customerResults}>
-              {customerResults.length === 0 ? (
-                <Text style={styles.noCustomerText}>
-                  No matches. Will create a new customer? Clear search to use
-                  Walk-in Customer, or try another name.
-                </Text>
-              ) : (
-                customerResults.map((c) => (
-                  <Pressable
-                    key={c.id}
-                    style={[
-                      styles.customerRow,
-                      selectedCustomer?.id === c.id &&
-                        styles.customerRowSelected,
-                    ]}
-                    onPress={() => setSelectedCustomer(c)}
-                  >
-                    <Text style={styles.customerRowText}>{c.name}</Text>
-                  </Pressable>
-                ))
-              )}
-            </ScrollView>
-          )}
-          <Text style={styles.selectedCustomerHint}>
-            {selectedCustomer
-              ? `Selected: ${selectedCustomer.name}`
-              : `Will use: ${WALK_IN_CUSTOMER_NAME}`}
-          </Text>
-
-          <Text style={styles.modalSectionLabel}>Payment method</Text>
-          <RadioButton.Group
-            onValueChange={(value) => setPaymentMethod(value)}
-            value={paymentMethod ?? ''}
-          >
-            {paymentMethods.map((method) => (
-              <RadioButton.Item key={method} label={method} value={method} />
-            ))}
-          </RadioButton.Group>
-
-          <View style={styles.modalActions}>
-            <Button
+            <Text style={styles.modalSectionLabel}>Customer</Text>
+            <TextInput
               mode="outlined"
-              onPress={closeChargeModal}
-              style={styles.modalActionButton}
+              placeholder="Search customer, or leave blank for Walk-in Customer"
+              value={customerQuery}
+              onChangeText={runCustomerSearch}
+              dense
+              style={styles.customerInput}
+            />
+            {searchingCustomers && (
+              <ActivityIndicator size="small" style={{ marginVertical: 4 }} />
+            )}
+            {!searchingCustomers && customerQuery.trim().length > 0 && (
+              <ScrollView style={styles.customerResults}>
+                {customerResults.length === 0 ? (
+                  <Text style={styles.noCustomerText}>
+                    No matches. Clear search to use Walk-in Customer, or try
+                    another name.
+                  </Text>
+                ) : (
+                  customerResults.map((c) => (
+                    <Pressable
+                      key={c.id}
+                      style={[
+                        styles.customerRow,
+                        selectedCustomer?.id === c.id &&
+                          styles.customerRowSelected,
+                      ]}
+                      onPress={() => setSelectedCustomer(c)}
+                    >
+                      <Text style={styles.customerRowText}>{c.name}</Text>
+                    </Pressable>
+                  ))
+                )}
+              </ScrollView>
+            )}
+            <Text style={styles.selectedCustomerHint}>
+              {selectedCustomer
+                ? `Selected: ${selectedCustomer.name}`
+                : `Will use: ${WALK_IN_CUSTOMER_NAME}`}
+            </Text>
+
+            <Text style={styles.modalSectionLabel}>Payment method</Text>
+            <RadioButton.Group
+              onValueChange={(value) => setPaymentMethod(value)}
+              value={paymentMethod ?? ''}
             >
-              Cancel
-            </Button>
-            <Button
-              mode="contained"
-              onPress={() => chargeMutation.mutate()}
-              loading={chargeMutation.isPending}
-              disabled={chargeMutation.isPending}
-              style={styles.modalActionButton}
-            >
-              Confirm sale
-            </Button>
-          </View>
+              {paymentMethods.map((method) => (
+                <RadioButton.Item key={method} label={method} value={method} />
+              ))}
+            </RadioButton.Group>
+
+            <View style={styles.modalActions}>
+              <Button
+                mode="outlined"
+                onPress={closeChargeModal}
+                style={styles.modalActionButton}
+              >
+                Cancel
+              </Button>
+              <Button
+                mode="contained"
+                onPress={() => chargeMutation.mutate()}
+                loading={chargeMutation.isPending}
+                disabled={chargeMutation.isPending}
+                style={styles.modalActionButton}
+              >
+                Confirm sale
+              </Button>
+            </View>
+          </ScrollView>
         </Modal>
       </Portal>
 
@@ -487,6 +574,8 @@ export default function PosScreen() {
   );
 }
 
+const TILE_MIN_WIDTH = 140;
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -499,6 +588,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8f5ef',
     padding: 16,
   },
+  emptyState: {
+    paddingTop: 48,
+    alignItems: 'center',
+  },
   errorText: {
     color: brand.textMuted,
     textAlign: 'center',
@@ -510,81 +603,182 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     backgroundColor: '#ffffff',
   },
+  searchbarInput: {
+    fontSize: 14,
+    minHeight: 0,
+  },
   chipsRow: {
-    maxHeight: 44,
+    flexGrow: 0,
+    maxHeight: 40,
   },
   chipsContent: {
     paddingHorizontal: 16,
     gap: 8,
-    paddingBottom: 8,
+    paddingBottom: 10,
+    alignItems: 'center',
   },
   chip: {
-    marginRight: 8,
+    marginRight: 0,
+  },
+  chipTextSelected: {
+    color: '#ffffff',
+  },
+  grid: {
+    flex: 1,
   },
   gridContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 8,
+    paddingHorizontal: 12,
+    paddingTop: 4,
   },
   gridRow: {
-    gap: 12,
+    gap: 10,
+    paddingHorizontal: 4,
   },
-  productCardWrap: {
+  productTile: {
     flex: 1,
-    marginBottom: 12,
-  },
-  productCard: {
-    borderRadius: 16,
+    minWidth: TILE_MIN_WIDTH,
     backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 10,
+  },
+  productAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  productAvatarLetter: {
+    color: '#ffffff',
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  qtyBadge: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    paddingHorizontal: 4,
+    backgroundColor: brand.textDark,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#ffffff',
+  },
+  qtyBadgeText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  lowStockDot: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#ad7a14',
+    borderWidth: 2,
+    borderColor: '#ffffff',
+  },
+  stockRibbon: {
+    position: 'absolute',
+    bottom: -8,
+    left: -12,
+    right: -12,
+    backgroundColor: '#d4380d',
+    borderRadius: 6,
+    paddingVertical: 2,
+    alignItems: 'center',
+  },
+  stockRibbonText: {
+    color: '#ffffff',
+    fontSize: 9,
+    fontWeight: '700',
   },
   productName: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     color: brand.textDark,
-    marginBottom: 4,
+    marginBottom: 2,
+    minHeight: 32,
   },
   productCode: {
-    fontSize: 11,
+    fontSize: 10.5,
     color: brand.textMuted,
-    marginBottom: 8,
-  },
-  productFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    marginBottom: 6,
   },
   productPrice: {
-    fontSize: 14,
+    fontSize: 13.5,
     fontWeight: '700',
     color: brand.gradientEnd,
   },
-  lowStockBadge: {
-    backgroundColor: '#d4380d',
-  },
-  cartCard: {
-    borderRadius: 20,
+  cartDock: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: '#ffffff',
-    marginHorizontal: 16,
-    marginBottom: 12,
-    maxHeight: '48%',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    shadowColor: '#15101f',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 12,
+    paddingHorizontal: 16,
+    paddingTop: 4,
+    paddingBottom: 12,
   },
-  cartContent: {
-    gap: 4,
+  cartDockExpanded: {
+    maxHeight: 340,
   },
-  heading: {
-    fontSize: 13,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-    color: brand.textMuted,
-    marginBottom: 4,
-  },
-  emptyCartText: {
-    color: brand.textMuted,
-    fontSize: 13,
+  cartSummaryBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingVertical: 8,
   },
+  cartSummaryLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  cartCountBadge: {
+    minWidth: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: brand.gradientEnd,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+  },
+  cartCountBadgeText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  cartSummaryLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: brand.textDark,
+  },
+  cartSummaryRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  cartSummaryTotal: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: brand.textDark,
+  },
   cartList: {
-    maxHeight: 160,
+    maxHeight: 130,
   },
   cartLine: {
     flexDirection: 'row',
@@ -617,7 +811,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   divider: {
-    marginVertical: 8,
+    marginVertical: 6,
   },
   totalsRow: {
     flexDirection: 'row',
@@ -632,19 +826,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: brand.textDark,
   },
-  totalsLabelBold: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: brand.textDark,
-  },
-  totalsValueBold: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: brand.gradientEnd,
-  },
   chargeButton: {
     marginTop: 10,
     borderRadius: 12,
+  },
+  chargeButtonContent: {
+    paddingVertical: 4,
   },
   modalContainer: {
     backgroundColor: '#ffffff',
