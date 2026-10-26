@@ -5,9 +5,9 @@ import React, {
   useState,
   useCallback,
 } from 'react';
-import * as SecureStore from 'expo-secure-store';
 import { authApi, AuthUser } from '../api/auth.api';
 import { TOKEN_KEY } from '../api/client';
+import { storage } from '../utils/storage';
 
 interface SessionContextValue {
   user: AuthUser | null;
@@ -32,8 +32,8 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({
     (async () => {
       try {
         const [token, storedUser] = await Promise.all([
-          SecureStore.getItemAsync(TOKEN_KEY),
-          SecureStore.getItemAsync(USER_KEY),
+          storage.getItem(TOKEN_KEY),
+          storage.getItem(USER_KEY),
         ]);
         if (token && storedUser) {
           setUser(JSON.parse(storedUser) as AuthUser);
@@ -50,16 +50,16 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({
       password,
     );
     await Promise.all([
-      SecureStore.setItemAsync(TOKEN_KEY, access_token),
-      SecureStore.setItemAsync(USER_KEY, JSON.stringify(authUser)),
+      storage.setItem(TOKEN_KEY, access_token),
+      storage.setItem(USER_KEY, JSON.stringify(authUser)),
     ]);
     setUser(authUser);
   }, []);
 
   const signOut = useCallback(async () => {
     await Promise.all([
-      SecureStore.deleteItemAsync(TOKEN_KEY),
-      SecureStore.deleteItemAsync(USER_KEY),
+      storage.deleteItem(TOKEN_KEY),
+      storage.deleteItem(USER_KEY),
     ]);
     setUser(null);
   }, []);
