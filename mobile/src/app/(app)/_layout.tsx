@@ -97,6 +97,17 @@ export default function AppTabsLayout() {
           ),
         }}
       />
+      {/* Admin-only screens: reachable from Profile's "Admin Tools" list,
+          not shown as tabs — a 7-tab bar is too cramped on a phone, and
+          these are lower-frequency than the five above. */}
+      <Tabs.Screen
+        name="stock"
+        options={{ href: null, headerShown: true, title: 'Stock' }}
+      />
+      <Tabs.Screen
+        name="etims"
+        options={{ href: null, headerShown: true, title: 'eTIMS' }}
+      />
     </Tabs>
   );
 }

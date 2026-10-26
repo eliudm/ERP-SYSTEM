@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
+import { View, StyleSheet, ScrollView, Pressable } from 'react-native';
 import {
   Text,
   Card,
@@ -11,7 +11,9 @@ import {
   Portal,
   Divider,
 } from 'react-native-paper';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
+import { router } from 'expo-router';
 import { authApi } from '../../api/auth.api';
 import { mobileApi } from '../../api/mobile.api';
 import { useSession } from '../../providers/SessionProvider';
@@ -56,8 +58,41 @@ const SyncRow: React.FC<SyncRowProps> = ({ label, value }) => (
   </View>
 );
 
+interface AdminToolRowProps {
+  icon: string;
+  label: string;
+  description: string;
+  onPress: () => void;
+}
+
+const AdminToolRow: React.FC<AdminToolRowProps> = ({
+  icon,
+  label,
+  description,
+  onPress,
+}) => (
+  <Pressable style={styles.toolRow} onPress={onPress}>
+    <View style={styles.toolIcon}>
+      <MaterialCommunityIcons
+        name={icon as never}
+        size={20}
+        color={brand.gradientEnd}
+      />
+    </View>
+    <View style={styles.toolInfo}>
+      <Text style={styles.toolLabel}>{label}</Text>
+      <Text style={styles.toolDescription}>{description}</Text>
+    </View>
+    <MaterialCommunityIcons
+      name="chevron-right"
+      size={20}
+      color={brand.textMuted}
+    />
+  </Pressable>
+);
+
 export default function ProfileScreen() {
-  const { signOut } = useSession();
+  const { signOut, user } = useSession();
   const [signOutDialogVisible, setSignOutDialogVisible] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
 
@@ -154,6 +189,35 @@ export default function ProfileScreen() {
           )}
         </Card.Content>
       </Card>
+
+      {(user?.role === 'ADMIN' ||
+        user?.role === 'INVENTORY_MANAGER' ||
+        user?.role === 'ACCOUNTANT') && (
+        <>
+          <Text style={styles.heading}>Admin Tools</Text>
+          <Card style={styles.toolsCard} mode="contained">
+            <Card.Content style={styles.toolsContent}>
+              {(user?.role === 'ADMIN' ||
+                user?.role === 'INVENTORY_MANAGER') && (
+                <AdminToolRow
+                  icon="package-variant"
+                  label="Stock"
+                  description="Receive stock and view movement history"
+                  onPress={() => router.push('/stock')}
+                />
+              )}
+              {(user?.role === 'ADMIN' || user?.role === 'ACCOUNTANT') && (
+                <AdminToolRow
+                  icon="file-certificate-outline"
+                  label="eTIMS"
+                  description="KRA submission status and retries"
+                  onPress={() => router.push('/etims')}
+                />
+              )}
+            </Card.Content>
+          </Card>
+        </>
+      )}
 
       <Button
         mode="outlined"
@@ -281,6 +345,39 @@ const styles = StyleSheet.create({
   },
   divider: {
     backgroundColor: '#f0eef7',
+  },
+  toolsCard: {
+    borderRadius: 16,
+    backgroundColor: '#ffffff',
+  },
+  toolsContent: {
+    paddingVertical: 4,
+  },
+  toolRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 10,
+  },
+  toolIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#d6f3ee',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  toolInfo: {
+    flex: 1,
+  },
+  toolLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: brand.textDark,
+  },
+  toolDescription: {
+    fontSize: 11.5,
+    color: brand.textMuted,
   },
   signOutButton: {
     marginTop: 24,
