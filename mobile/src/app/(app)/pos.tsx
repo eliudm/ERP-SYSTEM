@@ -16,11 +16,9 @@ import {
   IconButton,
   Portal,
   Modal,
-  RadioButton,
   TextInput,
   Snackbar,
   Divider,
-  SegmentedButtons,
 } from 'react-native-paper';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -33,7 +31,11 @@ import { settingsApi } from '../../api/settings.api';
 import { useSession } from '../../providers/SessionProvider';
 import { Numpad, NumpadMode } from '../../components/Numpad';
 import { Receipt, ReceiptData } from '../../components/Receipt';
+import { CategoryGrid } from '../../components/pos/CategoryGrid';
+import { PaymentScreen } from '../../components/pos/PaymentScreen';
+import { OrdersList } from '../../components/pos/OrdersList';
 import { useRegister } from '../../hooks/useRegister';
+import { useHeldOrders, HeldOrder } from '../../hooks/useHeldOrders';
 import { brand } from '../../theme';
 
 interface CartLine {
@@ -93,6 +95,14 @@ export default function PosScreen() {
   });
 
   const register = useRegister();
+  const heldOrders = useHeldOrders();
+  const [ordersVisible, setOrdersVisible] = useState(false);
+
+  const { data: recentInvoices = [] } = useQuery({
+    queryKey: ['recent-invoices'],
+    queryFn: () => mobileApi.getRecentInvoices(50),
+    enabled: ordersVisible,
+  });
   const [registerModal, setRegisterModal] = useState<'open' | 'close' | null>(
     null,
   );
@@ -228,6 +238,28 @@ export default function PosScreen() {
   const removeLine = (productId: string) => {
     setCart((prev) => prev.filter((l) => l.productId !== productId));
     if (selectedLineId === productId) setSelectedLineId(null);
+  };
+
+  const parkCurrentOrder = async () => {
+    if (cart.length === 0) return;
+    await heldOrders.parkOrder(
+      cart,
+      selectedCustomer
+        ? { id: selectedCustomer.id, name: selectedCustomer.name }
+        : undefined,
+    );
+    setCart([]);
+    setCartExpanded(false);
+    setSelectedLineId(null);
+    setSelectedCustomer(null);
+    setSnackbar({ visible: true, message: 'Order parked' });
+  };
+
+  const loadHeldOrder = (order: HeldOrder) => {
+    setCart(order.lines);
+    setOrdersVisible(false);
+    setCartExpanded(true);
+    void heldOrders.removeOrder(order.id);
   };
 
   const updatePrice = (productId: string, unitPrice: number) => {
@@ -483,13 +515,28 @@ export default function PosScreen() {
 
   return (
     <View style={styles.container}>
-      <Searchbar
-        placeholder="Search name, code, or barcode"
-        value={search}
-        onChangeText={setSearch}
-        style={styles.searchbar}
-        inputStyle={styles.searchbarInput}
-      />
+      <View style={styles.topBar}>
+        <Searchbar
+          placeholder="Search name, code, or barcode"
+          value={search}
+          onChangeText={setSearch}
+          style={styles.searchbarFlex}
+          inputStyle={styles.searchbarInput}
+        />
+        <IconButton
+          icon="archive-plus-outline"
+          mode="outlined"
+          size={20}
+          disabled={cart.length === 0}
+          onPress={() => void parkCurrentOrder()}
+        />
+        <IconButton
+          icon="notebook-outline"
+          mode="outlined"
+          size={20}
+          onPress={() => setOrdersVisible(true)}
+        />
+      </View>
 
       {!register.isLoading && (
         <Pressable
@@ -571,6 +618,16 @@ export default function PosScreen() {
           styles.gridContent,
           { paddingBottom: cartExpanded && cart.length > 0 ? 340 : 96 },
         ]}
+        ListHeaderComponent={
+          !search.trim() && categories.length > 0
+            ? () => (
+                <CategoryGrid
+                  categories={categories}
+                  onSelect={setCategoryId}
+                />
+              )
+            : undefined
+        }
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <Text style={styles.errorText}>No products match your search.</Text>
@@ -629,29 +686,32 @@ export default function PosScreen() {
             cartExpanded && { maxHeight: dockExpandedMaxHeight },
           ]}
         >
-          <Pressable
-            style={styles.cartSummaryBar}
-            onPress={() => setCartExpanded((e) => !e)}
-          >
-            <View style={styles.cartSummaryLeft}>
+          <View style={styles.cartSummaryBar}>
+            <Pressable
+              style={styles.cartToggleButton}
+              onPress={() => setCartExpanded((e) => !e)}
+            >
               <View style={styles.cartCountBadge}>
                 <Text style={styles.cartCountBadgeText}>{itemCount}</Text>
               </View>
               <Text style={styles.cartSummaryLabel}>
-                {cartExpanded ? 'Hide cart' : 'View cart'}
+                Cart · {formatCurrency(total)}
               </Text>
-            </View>
-            <View style={styles.cartSummaryRight}>
-              <Text style={styles.cartSummaryTotal}>
-                {formatCurrency(total)}
-              </Text>
-              <IconButton
-                icon={cartExpanded ? 'chevron-down' : 'chevron-up'}
-                size={20}
-                onPress={() => setCartExpanded((e) => !e)}
+              <MaterialCommunityIcons
+                name={cartExpanded ? 'chevron-down' : 'chevron-up'}
+                size={18}
+                color={brand.textMuted}
               />
-            </View>
-          </Pressable>
+            </Pressable>
+            <Button
+              mode="contained"
+              style={styles.payShortcutButton}
+              contentStyle={styles.payShortcutButtonContent}
+              onPress={openChargeModal}
+            >
+              Pay {formatCurrency(total)}
+            </Button>
+          </View>
 
           {cartExpanded && (
             <>
@@ -784,122 +844,52 @@ export default function PosScreen() {
           visible={chargeVisible}
           onDismiss={closeChargeModal}
           dismissable={!chargeMutation.isPending}
-          contentContainerStyle={styles.modalContainer}
+          contentContainerStyle={styles.paymentModalContainer}
         >
-          <ScrollView keyboardShouldPersistTaps="handled">
-            <Text style={styles.modalTitle}>Checkout</Text>
-            <Text style={styles.modalTotal}>{formatCurrency(total)}</Text>
+          <PaymentScreen
+            total={total}
+            paymentMethods={paymentMethods}
+            paymentMethod={paymentMethod}
+            onSelectPaymentMethod={setPaymentMethod}
+            mpesaPhone={mpesaPhone}
+            onMpesaPhoneChange={setMpesaPhone}
+            customerQuery={customerQuery}
+            onCustomerQueryChange={(v) => void runCustomerSearch(v)}
+            customerResults={customerResults}
+            selectedCustomer={selectedCustomer}
+            onSelectCustomer={selectCustomer}
+            searchingCustomers={searchingCustomers}
+            warehouses={warehouses}
+            warehouseId={activeWarehouseId}
+            onSelectWarehouse={setWarehouseId}
+            checkoutStage={checkoutStage}
+            isSubmitting={chargeMutation.isPending}
+            onBack={closeChargeModal}
+            onConfirm={() => chargeMutation.mutate()}
+          />
+        </Modal>
+      </Portal>
 
-            <Text style={styles.modalSectionLabel}>Customer</Text>
-            <TextInput
-              mode="outlined"
-              placeholder="Search customer, or leave blank for Walk-in Customer"
-              value={customerQuery}
-              onChangeText={runCustomerSearch}
-              dense
-              style={styles.customerInput}
+      <Portal>
+        <Modal
+          visible={ordersVisible}
+          onDismiss={() => setOrdersVisible(false)}
+          contentContainerStyle={styles.ordersModalContainer}
+        >
+          <View style={styles.ordersHeader}>
+            <IconButton
+              icon="chevron-left"
+              onPress={() => setOrdersVisible(false)}
             />
-            {searchingCustomers && (
-              <ActivityIndicator size="small" style={{ marginVertical: 4 }} />
-            )}
-            {!searchingCustomers && customerQuery.trim().length > 0 && (
-              <ScrollView style={styles.customerResults}>
-                {customerResults.length === 0 ? (
-                  <Text style={styles.noCustomerText}>
-                    No matches. Clear search to use Walk-in Customer, or try
-                    another name.
-                  </Text>
-                ) : (
-                  customerResults.map((c) => (
-                    <Pressable
-                      key={c.id}
-                      style={[
-                        styles.customerRow,
-                        selectedCustomer?.id === c.id &&
-                          styles.customerRowSelected,
-                      ]}
-                      onPress={() => selectCustomer(c)}
-                    >
-                      <Text style={styles.customerRowText}>{c.name}</Text>
-                    </Pressable>
-                  ))
-                )}
-              </ScrollView>
-            )}
-            <Text style={styles.selectedCustomerHint}>
-              {selectedCustomer
-                ? `Selected: ${selectedCustomer.name}`
-                : `Will use: ${WALK_IN_CUSTOMER_NAME}`}
-            </Text>
-
-            {warehouses.length > 1 && (
-              <>
-                <Text style={styles.modalSectionLabel}>Warehouse</Text>
-                <SegmentedButtons
-                  value={activeWarehouseId ?? ''}
-                  onValueChange={setWarehouseId}
-                  buttons={warehouses.map((w) => ({
-                    value: w.id,
-                    label: w.name,
-                  }))}
-                  style={styles.warehouseButtons}
-                />
-              </>
-            )}
-
-            <Text style={styles.modalSectionLabel}>Payment method</Text>
-            <RadioButton.Group
-              onValueChange={setPaymentMethod}
-              value={paymentMethod}
-            >
-              {paymentMethods.map((method) => (
-                <RadioButton.Item
-                  key={method}
-                  label={PAYMENT_METHOD_LABELS[method] ?? method}
-                  value={method}
-                />
-              ))}
-            </RadioButton.Group>
-
-            {paymentMethod === 'MOBILE_MONEY' && (
-              <TextInput
-                mode="outlined"
-                label="M-Pesa phone number"
-                placeholder="2547XXXXXXXX"
-                keyboardType="phone-pad"
-                value={mpesaPhone}
-                onChangeText={setMpesaPhone}
-                style={styles.customerInput}
-              />
-            )}
-
-            {checkoutStage && (
-              <View style={styles.checkoutStageRow}>
-                <ActivityIndicator size="small" color={brand.gradientEnd} />
-                <Text style={styles.checkoutStageText}>{checkoutStage}</Text>
-              </View>
-            )}
-
-            <View style={styles.modalActions}>
-              <Button
-                mode="outlined"
-                onPress={closeChargeModal}
-                disabled={chargeMutation.isPending}
-                style={styles.modalActionButton}
-              >
-                Cancel
-              </Button>
-              <Button
-                mode="contained"
-                onPress={() => chargeMutation.mutate()}
-                loading={chargeMutation.isPending}
-                disabled={chargeMutation.isPending}
-                style={styles.modalActionButton}
-              >
-                Confirm sale
-              </Button>
-            </View>
-          </ScrollView>
+            <Text style={styles.ordersTitle}>Orders</Text>
+          </View>
+          <OrdersList
+            heldOrders={heldOrders.orders}
+            recentInvoices={recentInvoices}
+            isLoading={heldOrders.isLoading}
+            onLoadOrder={loadHeldOrder}
+            onDeleteOrder={(id) => void heldOrders.removeOrder(id)}
+          />
         </Modal>
       </Portal>
 
@@ -1098,10 +1088,17 @@ const styles = StyleSheet.create({
     color: brand.textMuted,
     textAlign: 'center',
   },
-  searchbar: {
-    marginHorizontal: 16,
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
     marginTop: 12,
     marginBottom: 8,
+    gap: 2,
+  },
+  searchbarFlex: {
+    flex: 1,
+    marginHorizontal: 6,
     borderRadius: 14,
     backgroundColor: '#ffffff',
   },
@@ -1274,13 +1271,15 @@ const styles = StyleSheet.create({
   cartSummaryBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 8,
     paddingVertical: 8,
   },
-  cartSummaryLeft: {
+  cartToggleButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
   },
   cartCountBadge: {
     minWidth: 24,
@@ -1301,15 +1300,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: brand.textDark,
   },
-  cartSummaryRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
+  payShortcutButton: {
+    flex: 1,
+    borderRadius: 12,
   },
-  cartSummaryTotal: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: brand.textDark,
+  payShortcutButtonContent: {
+    paddingVertical: 4,
   },
   cartScroll: {
     flex: 1,
@@ -1411,6 +1407,34 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     overflow: 'hidden',
     maxHeight: '90%',
+  },
+  paymentModalContainer: {
+    backgroundColor: '#ffffff',
+    marginHorizontal: 16,
+    marginVertical: 40,
+    borderRadius: 20,
+    overflow: 'hidden',
+    maxHeight: '90%',
+  },
+  ordersModalContainer: {
+    backgroundColor: '#f8f5ef',
+    marginHorizontal: 16,
+    marginVertical: 40,
+    borderRadius: 20,
+    overflow: 'hidden',
+    maxHeight: '90%',
+  },
+  ordersHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0eef7',
+  },
+  ordersTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: brand.textDark,
   },
   modalTitle: {
     fontSize: 18,
