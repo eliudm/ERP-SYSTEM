@@ -20,11 +20,18 @@ import {
   TextInput,
   Snackbar,
   Divider,
+  SegmentedButtons,
 } from 'react-native-paper';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { mobileApi, PosProduct } from '../../api/mobile.api';
 import { customersApi, Customer } from '../../api/customers.api';
 import { salesApi } from '../../api/sales.api';
+import { etimsApi, EtimsQrResult } from '../../api/etims.api';
+import { inventoryApi } from '../../api/inventory.api';
+import { settingsApi } from '../../api/settings.api';
+import { useSession } from '../../providers/SessionProvider';
+import { Numpad } from '../../components/Numpad';
+import { Receipt, ReceiptData } from '../../components/Receipt';
 import { brand } from '../../theme';
 
 interface CartLine {
@@ -39,6 +46,13 @@ const formatCurrency = (value: number) =>
   `KES ${value.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const WALK_IN_CUSTOMER_NAME = 'Walk-in Customer';
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  CASH: 'Cash',
+  CARD: 'Card',
+  MOBILE_MONEY: 'M-Pesa',
+  BANK_TRANSFER: 'Bank Transfer',
+  CREDIT: 'Credit',
+};
 
 const TILE_COLORS = ['#1db8a0', '#6f67ff', '#f08c2f', '#2f80ed', '#e05297'];
 const colorForProduct = (id: string) => {
@@ -48,12 +62,15 @@ const colorForProduct = (id: string) => {
   return TILE_COLORS[hash % TILE_COLORS.length];
 };
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const isValidKenyaPhone = (value: string) =>
+  /^(254|0)\d{9}$/.test(value.trim());
+
 export default function PosScreen() {
   const queryClient = useQueryClient();
   const { width } = useWindowDimensions();
+  const { user } = useSession();
 
-  // Responsive grid: phone portrait → 2, phone landscape/small tablet → 3,
-  // tablet/web → 4-5+. Keeps tiles a sane ~150-180px regardless of viewport.
   const numColumns = width < 420 ? 2 : width < 700 ? 3 : width < 1000 ? 4 : 5;
 
   const { data, isLoading, isError, error, refetch } = useQuery({
@@ -61,21 +78,38 @@ export default function PosScreen() {
     queryFn: () => mobileApi.getPosData(),
   });
 
+  const { data: warehouses = [] } = useQuery({
+    queryKey: ['warehouses'],
+    queryFn: () => inventoryApi.getWarehouses(),
+  });
+
+  const { data: settings } = useQuery({
+    queryKey: ['system-settings'],
+    queryFn: () => settingsApi.getSystemSettings(),
+  });
+
   const [search, setSearch] = useState('');
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [cartExpanded, setCartExpanded] = useState(false);
+  const [selectedLineId, setSelectedLineId] = useState<string | null>(null);
+  const [numpadBuffer, setNumpadBuffer] = useState('');
 
   const [chargeVisible, setChargeVisible] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<string | undefined>(
-    undefined,
-  );
+  const [paymentMethod, setPaymentMethod] = useState<string>('CASH');
+  const [warehouseId, setWarehouseId] = useState<string | undefined>(undefined);
   const [customerQuery, setCustomerQuery] = useState('');
   const [customerResults, setCustomerResults] = useState<Customer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
     null,
   );
   const [searchingCustomers, setSearchingCustomers] = useState(false);
+  const [mpesaPhone, setMpesaPhone] = useState('');
+  const [checkoutStage, setCheckoutStage] = useState<string | null>(null);
+
+  const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
+  const [receiptQr, setReceiptQr] = useState<EtimsQrResult | null>(null);
+  const [receiptQrLoading, setReceiptQrLoading] = useState(false);
 
   const [snackbar, setSnackbar] = useState<{
     visible: boolean;
@@ -89,6 +123,7 @@ export default function PosScreen() {
   const products = data?.products ?? [];
   const categories = data?.categories ?? [];
   const paymentMethods = data?.paymentMethods ?? [];
+  const activeWarehouseId = warehouseId ?? warehouses[0]?.id;
 
   const cartQuantities = useMemo(() => {
     const map = new Map<string, number>();
@@ -147,29 +182,73 @@ export default function PosScreen() {
       ];
     });
     setCartExpanded(true);
+    setSelectedLineId(product.id);
+    setNumpadBuffer('');
+  };
+
+  const updateQty = (productId: string, qty: number) => {
+    if (qty <= 0) {
+      removeLine(productId);
+      return;
+    }
+    setCart((prev) =>
+      prev.map((l) =>
+        l.productId === productId ? { ...l, quantity: qty } : l,
+      ),
+    );
   };
 
   const incrementLine = (productId: string, delta: number) => {
-    setCart((prev) =>
-      prev
-        .map((l) =>
-          l.productId === productId
-            ? { ...l, quantity: l.quantity + delta }
-            : l,
-        )
-        .filter((l) => l.quantity > 0),
-    );
+    const line = cart.find((l) => l.productId === productId);
+    if (!line) return;
+    updateQty(productId, line.quantity + delta);
   };
 
   const removeLine = (productId: string) => {
     setCart((prev) => prev.filter((l) => l.productId !== productId));
+    if (selectedLineId === productId) setSelectedLineId(null);
+  };
+
+  const applyNumpadBuffer = (productId: string, buffer: string) => {
+    const value = parseFloat(buffer);
+    if (isNaN(value) || value <= 0) return;
+    updateQty(productId, value);
+  };
+
+  const handleNumpadKey = (key: string) => {
+    const targetId =
+      selectedLineId ||
+      (cart.length > 0 ? cart[cart.length - 1].productId : null);
+    if (!targetId) return;
+    if (key === '+/-') return; // quantities are never negative here
+    if (key === '.' && numpadBuffer.includes('.')) return;
+    const nb = numpadBuffer + key;
+    setNumpadBuffer(nb);
+    applyNumpadBuffer(targetId, nb);
+  };
+
+  const handleNumpadBackspace = () => {
+    const targetId =
+      selectedLineId ||
+      (cart.length > 0 ? cart[cart.length - 1].productId : null);
+    if (!targetId) return;
+    const nb = numpadBuffer.slice(0, -1);
+    setNumpadBuffer(nb);
+    if (nb) applyNumpadBuffer(targetId, nb);
+  };
+
+  const selectLine = (productId: string) => {
+    setSelectedLineId(productId);
+    setNumpadBuffer('');
   };
 
   const resetChargeModal = () => {
-    setPaymentMethod(undefined);
+    setPaymentMethod('CASH');
     setCustomerQuery('');
     setCustomerResults([]);
     setSelectedCustomer(null);
+    setMpesaPhone('');
+    setCheckoutStage(null);
   };
 
   const openChargeModal = () => {
@@ -178,6 +257,7 @@ export default function PosScreen() {
   };
 
   const closeChargeModal = () => {
+    if (chargeMutation.isPending) return;
     setChargeVisible(false);
   };
 
@@ -200,6 +280,11 @@ export default function PosScreen() {
     }
   };
 
+  const selectCustomer = (customer: Customer) => {
+    setSelectedCustomer(customer);
+    setMpesaPhone(customer.phone ?? '');
+  };
+
   const resolveWalkInCustomer = async (): Promise<Customer> => {
     const matches = await customersApi.getCustomers(WALK_IN_CUSTOMER_NAME);
     const existing = matches.find((c) => c.name === WALK_IN_CUSTOMER_NAME);
@@ -207,13 +292,45 @@ export default function PosScreen() {
     return customersApi.createCustomer({ name: WALK_IN_CUSTOMER_NAME });
   };
 
+  const waitForMpesaSettlement = async (invoiceId: string) => {
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      await sleep(3000);
+      const status = await salesApi.getMpesaStatus(invoiceId);
+      if (status.invoice.status === 'PAID') return;
+      if (status.mpesa?.status === 'FAILED') {
+        throw new Error(status.mpesa.resultDesc || 'M-Pesa payment failed');
+      }
+    }
+    throw new Error(
+      'M-Pesa confirmation is still pending. Check payment status shortly.',
+    );
+  };
+
+  const fetchEtimsQrWithRetry = async (
+    invoiceId: string,
+  ): Promise<EtimsQrResult | null> => {
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      try {
+        return await etimsApi.getQRCode(invoiceId);
+      } catch {
+        if (attempt < 5) await sleep(1000);
+      }
+    }
+    return null;
+  };
+
   const chargeMutation = useMutation({
     mutationFn: async () => {
+      if (paymentMethod === 'MOBILE_MONEY' && !isValidKenyaPhone(mpesaPhone)) {
+        throw new Error('Enter a valid M-Pesa number, e.g. 2547XXXXXXXX');
+      }
+
       const customer = selectedCustomer ?? (await resolveWalkInCustomer());
-      return salesApi.createInvoice({
+
+      setCheckoutStage('Creating invoice…');
+      const invoice = await salesApi.createInvoice({
         customerId: customer.id,
         invoiceDate: new Date().toISOString(),
-        paymentMethod,
         items: cart.map((line) => ({
           productId: line.productId,
           quantity: line.quantity,
@@ -221,20 +338,63 @@ export default function PosScreen() {
           taxRate: line.taxRate,
         })),
       });
+
+      setCheckoutStage('Approving and updating stock…');
+      await salesApi.approveInvoice(invoice.id, {
+        warehouseId: activeWarehouseId,
+        paymentMethod,
+      });
+
+      if (paymentMethod === 'MOBILE_MONEY') {
+        setCheckoutStage('Sending M-Pesa prompt…');
+        await salesApi.initiateMpesaStkPush(invoice.id, {
+          phoneNumber: mpesaPhone.trim(),
+          accountReference: invoice.invoiceNo,
+          description: `POS payment for ${invoice.invoiceNo}`,
+        });
+        setCheckoutStage('Waiting for M-Pesa confirmation…');
+        await waitForMpesaSettlement(invoice.id);
+      }
+
+      return {
+        invoice,
+        receipt: {
+          invoiceNo: invoice.invoiceNo,
+          createdAt: new Date().toISOString(),
+          customerName: customer.name,
+          servedBy: user?.email ?? 'Staff',
+          subtotal,
+          taxTotal,
+          total,
+          paymentMethod,
+          items: cart.map((l) => ({
+            name: l.name,
+            quantity: l.quantity,
+            unitPrice: l.unitPrice,
+          })),
+        } satisfies ReceiptData,
+      };
     },
-    onSuccess: (invoice) => {
+    onSuccess: ({ invoice, receipt }) => {
+      setChargeVisible(false);
       setCart([]);
       setCartExpanded(false);
-      setChargeVisible(false);
-      setSnackbar({
-        visible: true,
-        message: `Sale completed: invoice ${invoice.invoiceNo}`,
-      });
+      setSelectedLineId(null);
+      setCheckoutStage(null);
+      setReceiptData(receipt);
+      setReceiptQr(null);
+      setReceiptQrLoading(true);
       void queryClient.invalidateQueries({ queryKey: ['mobile-dashboard'] });
       void queryClient.invalidateQueries({ queryKey: ['pos-data'] });
+      void fetchEtimsQrWithRetry(invoice.id).then((qr) => {
+        setReceiptQr(qr);
+        setReceiptQrLoading(false);
+      });
     },
     onError: (err: any) => {
+      setCheckoutStage(null);
       const message =
+        err?.message ??
         err?.response?.data?.message ??
         'Failed to complete sale. Please try again.';
       setSnackbar({
@@ -244,6 +404,11 @@ export default function PosScreen() {
       });
     },
   });
+
+  const closeReceipt = () => {
+    setReceiptData(null);
+    setReceiptQr(null);
+  };
 
   if (isLoading) {
     return (
@@ -293,7 +458,6 @@ export default function PosScreen() {
             onPress={() => setCategoryId(null)}
             style={styles.chip}
             mode={categoryId === null ? 'flat' : 'outlined'}
-            selectedColor={categoryId === null ? '#ffffff' : undefined}
             textStyle={
               categoryId === null ? styles.chipTextSelected : undefined
             }
@@ -328,7 +492,7 @@ export default function PosScreen() {
         columnWrapperStyle={styles.gridRow}
         contentContainerStyle={[
           styles.gridContent,
-          { paddingBottom: cartExpanded && cart.length > 0 ? 260 : 96 },
+          { paddingBottom: cartExpanded && cart.length > 0 ? 340 : 96 },
         ]}
         ListEmptyComponent={
           <View style={styles.emptyState}>
@@ -413,7 +577,15 @@ export default function PosScreen() {
             <>
               <ScrollView style={styles.cartList}>
                 {cart.map((line) => (
-                  <View key={line.productId} style={styles.cartLine}>
+                  <Pressable
+                    key={line.productId}
+                    style={[
+                      styles.cartLine,
+                      selectedLineId === line.productId &&
+                        styles.cartLineSelected,
+                    ]}
+                    onPress={() => selectLine(line.productId)}
+                  >
                     <View style={styles.cartLineInfo}>
                       <Text style={styles.cartLineName} numberOfLines={1}>
                         {line.name}
@@ -443,9 +615,23 @@ export default function PosScreen() {
                         onPress={() => removeLine(line.productId)}
                       />
                     </View>
-                  </View>
+                  </Pressable>
                 ))}
               </ScrollView>
+
+              {selectedLineId && (
+                <View style={styles.numpadSection}>
+                  <Text style={styles.numpadHint}>
+                    Qty for{' '}
+                    {cart.find((l) => l.productId === selectedLineId)?.name}
+                    {numpadBuffer ? `: ${numpadBuffer}` : ''}
+                  </Text>
+                  <Numpad
+                    onKeyPress={handleNumpadKey}
+                    onBackspace={handleNumpadBackspace}
+                  />
+                </View>
+              )}
 
               <Divider style={styles.divider} />
 
@@ -482,6 +668,7 @@ export default function PosScreen() {
         <Modal
           visible={chargeVisible}
           onDismiss={closeChargeModal}
+          dismissable={!chargeMutation.isPending}
           contentContainerStyle={styles.modalContainer}
         >
           <ScrollView keyboardShouldPersistTaps="handled">
@@ -516,7 +703,7 @@ export default function PosScreen() {
                         selectedCustomer?.id === c.id &&
                           styles.customerRowSelected,
                       ]}
-                      onPress={() => setSelectedCustomer(c)}
+                      onPress={() => selectCustomer(c)}
                     >
                       <Text style={styles.customerRowText}>{c.name}</Text>
                     </Pressable>
@@ -530,20 +717,59 @@ export default function PosScreen() {
                 : `Will use: ${WALK_IN_CUSTOMER_NAME}`}
             </Text>
 
+            {warehouses.length > 1 && (
+              <>
+                <Text style={styles.modalSectionLabel}>Warehouse</Text>
+                <SegmentedButtons
+                  value={activeWarehouseId ?? ''}
+                  onValueChange={setWarehouseId}
+                  buttons={warehouses.map((w) => ({
+                    value: w.id,
+                    label: w.name,
+                  }))}
+                  style={styles.warehouseButtons}
+                />
+              </>
+            )}
+
             <Text style={styles.modalSectionLabel}>Payment method</Text>
             <RadioButton.Group
-              onValueChange={(value) => setPaymentMethod(value)}
-              value={paymentMethod ?? ''}
+              onValueChange={setPaymentMethod}
+              value={paymentMethod}
             >
               {paymentMethods.map((method) => (
-                <RadioButton.Item key={method} label={method} value={method} />
+                <RadioButton.Item
+                  key={method}
+                  label={PAYMENT_METHOD_LABELS[method] ?? method}
+                  value={method}
+                />
               ))}
             </RadioButton.Group>
+
+            {paymentMethod === 'MOBILE_MONEY' && (
+              <TextInput
+                mode="outlined"
+                label="M-Pesa phone number"
+                placeholder="2547XXXXXXXX"
+                keyboardType="phone-pad"
+                value={mpesaPhone}
+                onChangeText={setMpesaPhone}
+                style={styles.customerInput}
+              />
+            )}
+
+            {checkoutStage && (
+              <View style={styles.checkoutStageRow}>
+                <ActivityIndicator size="small" color={brand.gradientEnd} />
+                <Text style={styles.checkoutStageText}>{checkoutStage}</Text>
+              </View>
+            )}
 
             <View style={styles.modalActions}>
               <Button
                 mode="outlined"
                 onPress={closeChargeModal}
+                disabled={chargeMutation.isPending}
                 style={styles.modalActionButton}
               >
                 Cancel
@@ -562,10 +788,29 @@ export default function PosScreen() {
         </Modal>
       </Portal>
 
+      <Portal>
+        <Modal
+          visible={!!receiptData}
+          onDismiss={closeReceipt}
+          dismissable={false}
+          contentContainerStyle={styles.receiptModalContainer}
+        >
+          {receiptData && (
+            <Receipt
+              receipt={receiptData}
+              settings={settings}
+              qr={receiptQr}
+              qrLoading={receiptQrLoading}
+              onDone={closeReceipt}
+            />
+          )}
+        </Modal>
+      </Portal>
+
       <Snackbar
         visible={snackbar.visible}
         onDismiss={() => setSnackbar((s) => ({ ...s, visible: false }))}
-        duration={4000}
+        duration={5000}
         style={snackbar.isError ? styles.snackbarError : undefined}
       >
         {snackbar.message}
@@ -735,7 +980,7 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   cartDockExpanded: {
-    maxHeight: 340,
+    maxHeight: 460,
   },
   cartSummaryBar: {
     flexDirection: 'row',
@@ -778,13 +1023,18 @@ const styles = StyleSheet.create({
     color: brand.textDark,
   },
   cartList: {
-    maxHeight: 130,
+    maxHeight: 110,
   },
   cartLine: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: 6,
+    paddingHorizontal: 6,
+    borderRadius: 10,
+  },
+  cartLineSelected: {
+    backgroundColor: '#d6f3ee',
   },
   cartLineInfo: {
     flex: 1,
@@ -809,6 +1059,16 @@ const styles = StyleSheet.create({
     color: brand.textDark,
     minWidth: 20,
     textAlign: 'center',
+  },
+  numpadSection: {
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  numpadHint: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: brand.textMuted,
+    marginBottom: 6,
   },
   divider: {
     marginVertical: 6,
@@ -840,6 +1100,14 @@ const styles = StyleSheet.create({
     padding: 20,
     maxHeight: '85%',
   },
+  receiptModalContainer: {
+    backgroundColor: '#ffffff',
+    marginHorizontal: 16,
+    marginVertical: 40,
+    borderRadius: 20,
+    overflow: 'hidden',
+    maxHeight: '90%',
+  },
   modalTitle: {
     fontSize: 18,
     fontWeight: '700',
@@ -859,6 +1127,9 @@ const styles = StyleSheet.create({
     color: brand.textMuted,
     marginTop: 12,
     marginBottom: 6,
+  },
+  warehouseButtons: {
+    marginBottom: 4,
   },
   customerInput: {
     backgroundColor: '#ffffff',
@@ -888,6 +1159,16 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: brand.textMuted,
     marginTop: 6,
+  },
+  checkoutStageRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 14,
+  },
+  checkoutStageText: {
+    fontSize: 12.5,
+    color: brand.textMuted,
   },
   modalActions: {
     flexDirection: 'row',
