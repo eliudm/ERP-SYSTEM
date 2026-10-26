@@ -33,4 +33,14 @@ export const authApi = {
     const res = await apiClient.get('/auth/profile');
     return res.data;
   },
+
+  setPin: async (pin: string): Promise<{ message: string }> => {
+    const res = await apiClient.post('/auth/set-pin', { pin });
+    return res.data;
+  },
+
+  verifyPin: async (pin: string): Promise<{ valid: boolean }> => {
+    const res = await apiClient.post('/auth/verify-pin', { pin });
+    return res.data;
+  },
 };

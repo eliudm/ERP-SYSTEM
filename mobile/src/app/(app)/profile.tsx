@@ -10,6 +10,8 @@ import {
   Dialog,
   Portal,
   Divider,
+  TextInput,
+  HelperText,
 } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
@@ -92,9 +94,42 @@ const AdminToolRow: React.FC<AdminToolRowProps> = ({
 );
 
 export default function ProfileScreen() {
-  const { signOut, user } = useSession();
+  const { signOut, user, hasPin, setPin } = useSession();
   const [signOutDialogVisible, setSignOutDialogVisible] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [pinDialogVisible, setPinDialogVisible] = useState(false);
+  const [pinValue, setPinValue] = useState('');
+  const [pinConfirm, setPinConfirm] = useState('');
+  const [pinError, setPinError] = useState<string | null>(null);
+  const [savingPin, setSavingPin] = useState(false);
+
+  const openPinDialog = () => {
+    setPinValue('');
+    setPinConfirm('');
+    setPinError(null);
+    setPinDialogVisible(true);
+  };
+
+  const handleSavePin = async () => {
+    if (!/^\d{4,6}$/.test(pinValue)) {
+      setPinError('PIN must be 4-6 digits');
+      return;
+    }
+    if (pinValue !== pinConfirm) {
+      setPinError('PINs do not match');
+      return;
+    }
+    setSavingPin(true);
+    setPinError(null);
+    try {
+      await setPin(pinValue);
+      setPinDialogVisible(false);
+    } catch (err: any) {
+      setPinError(err?.response?.data?.message ?? 'Failed to set PIN');
+    } finally {
+      setSavingPin(false);
+    }
+  };
 
   const { data: profile, isLoading: isProfileLoading } = useQuery({
     queryKey: ['profile'],
@@ -190,6 +225,22 @@ export default function ProfileScreen() {
         </Card.Content>
       </Card>
 
+      <Text style={styles.heading}>Security</Text>
+      <Card style={styles.toolsCard} mode="contained">
+        <Card.Content style={styles.toolsContent}>
+          <AdminToolRow
+            icon="dialpad"
+            label={hasPin ? 'Change PIN' : 'Set up a PIN'}
+            description={
+              hasPin
+                ? 'Quick-unlock PIN is enabled for this device'
+                : 'Unlock the register quickly without a full sign-in'
+            }
+            onPress={openPinDialog}
+          />
+        </Card.Content>
+      </Card>
+
       {(user?.role === 'ADMIN' ||
         user?.role === 'INVENTORY_MANAGER' ||
         user?.role === 'ACCOUNTANT') && (
@@ -254,6 +305,57 @@ export default function ProfileScreen() {
               textColor="#d4380d"
             >
               Sign Out
+            </Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
+
+      <Portal>
+        <Dialog
+          visible={pinDialogVisible}
+          onDismiss={() => setPinDialogVisible(false)}
+        >
+          <Dialog.Title>{hasPin ? 'Change PIN' : 'Set up a PIN'}</Dialog.Title>
+          <Dialog.Content>
+            <TextInput
+              mode="outlined"
+              label="New PIN"
+              keyboardType="number-pad"
+              secureTextEntry
+              maxLength={6}
+              value={pinValue}
+              onChangeText={(v) => setPinValue(v.replace(/\D/g, ''))}
+              style={styles.pinInput}
+            />
+            <TextInput
+              mode="outlined"
+              label="Confirm PIN"
+              keyboardType="number-pad"
+              secureTextEntry
+              maxLength={6}
+              value={pinConfirm}
+              onChangeText={(v) => setPinConfirm(v.replace(/\D/g, ''))}
+              style={styles.pinInput}
+            />
+            <HelperText type="error" visible={!!pinError}>
+              {pinError}
+            </HelperText>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button
+              onPress={() => setPinDialogVisible(false)}
+              disabled={savingPin}
+            >
+              Cancel
+            </Button>
+            <Button
+              onPress={() => {
+                void handleSavePin();
+              }}
+              loading={savingPin}
+              disabled={savingPin}
+            >
+              Save
             </Button>
           </Dialog.Actions>
         </Dialog>
@@ -378,6 +480,9 @@ const styles = StyleSheet.create({
   toolDescription: {
     fontSize: 11.5,
     color: brand.textMuted,
+  },
+  pinInput: {
+    marginBottom: 8,
   },
   signOutButton: {
     marginTop: 24,
