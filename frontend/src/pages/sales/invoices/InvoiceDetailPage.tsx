@@ -130,8 +130,10 @@ export const InvoiceDetailPage: React.FC = () => {
       companyLogo: settings?.companyLogo ?? null,
       companyAddress: settings?.companyAddress ?? null,
       companyPin: settings?.companyPin ?? null,
+      companyPhone: settings?.companyPhone ?? null,
       companySlogan: settings?.receiptSlogan ?? null,
-    });
+      paymentInstructions: settings?.paymentInstructions ?? null,
+    }, settings?.invoiceTemplate);
     openReceiptPrintWindow(html);
   };
 

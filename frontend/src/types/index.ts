@@ -192,13 +192,18 @@ export interface DashboardStats {
 }
 
 // ─── SETTINGS ────────────────────────────────────────────
+export type InvoiceTemplate = 'modern' | 'classic' | 'minimal';
+
 export interface SystemSettings {
   key: string;
   companyName: string;
   companyLogo?: string | null;
   companyPin?: string | null;
   companyAddress?: string | null;
+  companyPhone?: string | null;
+  paymentInstructions?: string | null;
   receiptSlogan?: string | null;
+  invoiceTemplate: InvoiceTemplate;
   defaultCurrency: string;
   timezone: string;
   defaultLanguage: string;

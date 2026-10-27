@@ -1,8 +1,15 @@
 import React from 'react';
-import { Card, Col, Image, Input, Row, Space, Typography, Upload, Button, Alert } from 'antd';
-import { BankOutlined, EnvironmentOutlined, IdcardOutlined, UploadOutlined, DeleteOutlined } from '@ant-design/icons';
+import { Card, Col, Image, Input, Row, Space, Typography, Upload, Button, Alert, Radio } from 'antd';
+import { BankOutlined, EnvironmentOutlined, IdcardOutlined, UploadOutlined, DeleteOutlined, PhoneOutlined } from '@ant-design/icons';
 import { useOutletContext } from 'react-router-dom';
 import type { SettingsOutletContext } from './SettingsPage';
+import type { InvoiceTemplate } from '../../types';
+
+const TEMPLATE_OPTIONS: { value: InvoiceTemplate; label: string; description: string }[] = [
+  { value: 'modern', label: 'Modern', description: 'Blue accent bar, highlighted total box' },
+  { value: 'classic', label: 'Classic', description: 'Traditional black & white letterhead' },
+  { value: 'minimal', label: 'Minimal', description: 'Clean lines, lots of whitespace' },
+];
 
 const { Title, Text } = Typography;
 
@@ -84,6 +91,31 @@ export const CompaniesSettingsPage: React.FC = () => {
                   rows={3}
                   style={{ marginTop: 8 }}
                 />
+              </div>
+
+              <div>
+                <Text type="secondary">Phone Number</Text>
+                <Input
+                  value={draft.companyPhone || ''}
+                  onChange={(event) => updateDraft({ companyPhone: event.target.value })}
+                  placeholder="0721 861 504"
+                  size="large"
+                  style={{ marginTop: 8 }}
+                />
+              </div>
+
+              <div>
+                <Text type="secondary">Payment Instructions</Text>
+                <Input.TextArea
+                  value={draft.paymentInstructions || ''}
+                  onChange={(event) => updateDraft({ paymentInstructions: event.target.value })}
+                  placeholder="e.g. Lipa na M-Pesa Paybill: 522533, A/C: 8011113, or bank account details"
+                  rows={2}
+                  style={{ marginTop: 8 }}
+                />
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  Shown at the bottom of printed invoices so customers know how to pay.
+                </Text>
               </div>
 
               <div>
@@ -209,6 +241,14 @@ export const CompaniesSettingsPage: React.FC = () => {
                 </div>
               </Space>
 
+              <Space align="start">
+                <PhoneOutlined style={{ fontSize: 18, color: '#2f80ed', marginTop: 4 }} />
+                <div>
+                  <Text strong>{draft.companyPhone || 'No phone number set'}</Text>
+                  <div><Text type="secondary">Printed on invoices</Text></div>
+                </div>
+              </Space>
+
               <Card size="small" style={{ borderRadius: 16, background: '#faf7ff' }}>
                 <Text type="secondary">Receipt slogan preview</Text>
                 <div style={{ marginTop: 8 }}>
@@ -219,6 +259,40 @@ export const CompaniesSettingsPage: React.FC = () => {
           </Card>
         </Col>
       </Row>
+
+      <Card bordered={false} style={{ borderRadius: 22 }}>
+        <Space direction="vertical" style={{ width: '100%' }} size="middle">
+          <div>
+            <Title level={5} style={{ margin: 0 }}>Invoice Document Design</Title>
+            <Text type="secondary">Choose how printed sales invoices (Sales &gt; Invoices &gt; Print) are laid out.</Text>
+          </div>
+          <Radio.Group
+            value={draft.invoiceTemplate}
+            onChange={(event) => updateDraft({ invoiceTemplate: event.target.value })}
+            style={{ width: '100%' }}
+          >
+            <Row gutter={[12, 12]}>
+              {TEMPLATE_OPTIONS.map((option) => (
+                <Col xs={24} sm={8} key={option.value}>
+                  <Radio.Button
+                    value={option.value}
+                    style={{
+                      width: '100%',
+                      height: 'auto',
+                      padding: '12px 14px',
+                      borderRadius: 14,
+                      display: 'block',
+                    }}
+                  >
+                    <Text strong style={{ display: 'block' }}>{option.label}</Text>
+                    <Text type="secondary" style={{ fontSize: 12 }}>{option.description}</Text>
+                  </Radio.Button>
+                </Col>
+              ))}
+            </Row>
+          </Radio.Group>
+        </Space>
+      </Card>
     </Space>
   );
 };
