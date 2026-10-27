@@ -265,6 +265,14 @@ export default function ProfileScreen() {
                   onPress={() => router.push('/etims')}
                 />
               )}
+              {(user?.role === 'ADMIN' || user?.role === 'ACCOUNTANT') && (
+                <AdminToolRow
+                  icon="chart-line"
+                  label="Business Reports"
+                  description="Profit & loss, sales trend, top products and customers"
+                  onPress={() => router.push('/analytics')}
+                />
+              )}
             </Card.Content>
           </Card>
         </>

@@ -108,6 +108,10 @@ export default function AppTabsLayout() {
         name="etims"
         options={{ href: null, headerShown: true, title: 'eTIMS' }}
       />
+      <Tabs.Screen
+        name="analytics"
+        options={{ href: null, headerShown: true, title: 'Business Reports' }}
+      />
     </Tabs>
   );
 }
