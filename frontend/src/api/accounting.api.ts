@@ -56,4 +56,50 @@ export const accountingApi = {
     });
     return res.data;
   },
+
+  getBalanceSheet: async (asOf?: string) => {
+    const res = await apiClient.get('/accounting/reports/balance-sheet', {
+      params: { asOf },
+    });
+    return res.data;
+  },
+
+  getCashFlow: async (startDate: string, endDate: string) => {
+    const res = await apiClient.get('/accounting/reports/cash-flow', {
+      params: { startDate, endDate },
+    });
+    return res.data;
+  },
+
+  getAgedReceivables: async () => {
+    const res = await apiClient.get('/accounting/reports/aged-receivables');
+    return res.data;
+  },
+
+  getAgedPayables: async () => {
+    const res = await apiClient.get('/accounting/reports/aged-payables');
+    return res.data;
+  },
+
+  getGeneralLedger: async (
+    accountId: string,
+    startDate: string,
+    endDate: string,
+  ) => {
+    const res = await apiClient.get('/accounting/reports/general-ledger', {
+      params: { accountId, startDate, endDate },
+    });
+    return res.data;
+  },
+
+  getPaymentModesReport: async (
+    startDate: string,
+    endDate: string,
+    paymentMethod?: string,
+  ) => {
+    const res = await apiClient.get('/accounting/reports/payment-modes', {
+      params: { startDate, endDate, paymentMethod },
+    });
+    return res.data;
+  },
 };

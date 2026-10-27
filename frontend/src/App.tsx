@@ -14,6 +14,12 @@ import { AccountsPage } from './pages/accounting/accounts/AccountsPage';
 import { JournalEntriesPage } from './pages/accounting/journals/JournalEntriesPage';
 import { TrialBalancePage } from './pages/accounting/reports/TrialBalancePage';
 import { ProfitLossPage } from './pages/accounting/reports/ProfitLossPage';
+import { BalanceSheetPage } from './pages/accounting/reports/BalanceSheetPage';
+import { CashFlowPage } from './pages/accounting/reports/CashFlowPage';
+import { AgedReceivablesPage } from './pages/accounting/reports/AgedReceivablesPage';
+import { AgedPayablesPage } from './pages/accounting/reports/AgedPayablesPage';
+import { GeneralLedgerPage } from './pages/accounting/reports/GeneralLedgerPage';
+import { PaymentModesPage } from './pages/accounting/reports/PaymentModesPage';
 import { ProductsPage } from './pages/inventory/ProductsPage';
 import { WarehousesPage } from './pages/inventory/WarehousesPage';
 import { StockMovementsPage } from './pages/inventory/StockMovementsPage';
@@ -152,6 +158,12 @@ const App: React.FC = () => {
           {/* Accounting additions */}
           <Route path="accounting/budgets" element={<BudgetsPage />} />
           <Route path="accounting/tax-reports" element={<TaxReportsPage />} />
+          <Route path="accounting/balance-sheet" element={<BalanceSheetPage />} />
+          <Route path="accounting/cash-flow" element={<CashFlowPage />} />
+          <Route path="accounting/aged-receivables" element={<AgedReceivablesPage />} />
+          <Route path="accounting/aged-payables" element={<AgedPayablesPage />} />
+          <Route path="accounting/general-ledger" element={<GeneralLedgerPage />} />
+          <Route path="accounting/payment-modes" element={<PaymentModesPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
