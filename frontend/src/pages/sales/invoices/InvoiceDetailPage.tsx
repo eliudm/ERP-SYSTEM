@@ -10,7 +10,9 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
 import { salesApi } from '../../../api/sales.api';
-import { buildReceiptHtml, openReceiptPrintWindow } from '../../../utils/receiptHtml';
+import { settingsApi } from '../../../api/settings.api';
+import { openReceiptPrintWindow } from '../../../utils/receiptHtml';
+import { buildInvoiceDocumentHtml } from '../../../utils/invoiceDocumentHtml';
 import { formatCurrency, formatDate, getStatusColor } from '../../../utils/format';
 import { useAuthStore } from '../../../store/auth.store';
 import type { InvoiceItem, PaymentMethod } from '../../../types';
@@ -40,6 +42,11 @@ export const InvoiceDetailPage: React.FC = () => {
     queryKey: ['invoice', id],
     queryFn: () => salesApi.getInvoice(id!),
     enabled: !!id,
+  });
+
+  const { data: settings } = useQuery({
+    queryKey: ['system-settings'],
+    queryFn: () => settingsApi.getSystemSettings(),
   });
 
   const invalidate = () => {
@@ -99,21 +106,31 @@ export const InvoiceDetailPage: React.FC = () => {
 
   const handlePrint = () => {
     if (!invoice) return;
-    const html = buildReceiptHtml({
+    const html = buildInvoiceDocumentHtml({
       invoiceNo: invoice.invoiceNo,
       invoiceDate: invoice.invoiceDate,
+      dueDate: invoice.dueDate ?? null,
+      status: invoice.status,
       customerName: invoice.customer?.name ?? 'Walk-in Customer',
+      customerAddress: invoice.customer?.address ?? null,
+      customerPin: invoice.customer?.taxPin ?? null,
       paymentMethod: invoice.paymentMethod,
       subtotal: Number(invoice.subtotal),
       taxAmount: Number(invoice.taxAmount),
       total: Number(invoice.total),
       items: invoice.items.map((item) => ({
-        name: item.product?.name ?? '',
+        name: item.product?.name ?? item.description ?? '',
         quantity: Number(item.quantity),
+        unitPrice: Number(item.unitPrice),
+        taxRate: Number(item.taxRate),
         amount: Number(item.lineTotal),
       })),
-      qrCode: invoice.etimsInvoice?.qrCode ?? null,
-      reprint: true,
+      notes: invoice.notes ?? null,
+      companyName: settings?.companyName || 'Nexora ERP',
+      companyLogo: settings?.companyLogo ?? null,
+      companyAddress: settings?.companyAddress ?? null,
+      companyPin: settings?.companyPin ?? null,
+      companySlogan: settings?.receiptSlogan ?? null,
     });
     openReceiptPrintWindow(html);
   };
