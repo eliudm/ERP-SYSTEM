@@ -37,7 +37,7 @@ import { OrderDetail, RefundState } from '../../components/pos/OrderDetail';
 import { useRegister } from '../../hooks/useRegister';
 import { useHeldOrders, HeldOrder } from '../../hooks/useHeldOrders';
 import { buildReceiptHtml } from '../../utils/receiptHtml';
-import { printReceiptHtml } from '../../utils/printReceipt';
+import { printReceiptHtml, saveReceiptPdf } from '../../utils/printReceipt';
 import { brand } from '../../theme';
 
 interface CartLine {
@@ -135,6 +135,7 @@ export default function PosScreen() {
   const [refundApproved, setRefundApproved] = useState<boolean | null>(null);
   const [refundError, setRefundError] = useState<string | null>(null);
   const [printing, setPrinting] = useState(false);
+  const [savingPdf, setSavingPdf] = useState(false);
   const [openingFloatInput, setOpeningFloatInput] = useState('');
   const [cashCountedInput, setCashCountedInput] = useState('');
 
@@ -577,29 +578,52 @@ export default function PosScreen() {
     }
   };
 
+  const buildInvoiceDetailReceiptHtml = () => {
+    if (!selectedInvoice) return null;
+    return buildReceiptHtml({
+      invoiceNo: selectedInvoice.invoiceNo,
+      createdAt: selectedInvoice.invoiceDate,
+      customerName: selectedInvoice.customer?.name ?? WALK_IN_CUSTOMER_NAME,
+      paymentMethod: selectedInvoice.paymentMethod,
+      subtotal: Number(selectedInvoice.subtotal),
+      taxTotal: Number(selectedInvoice.taxAmount),
+      total: Number(selectedInvoice.total),
+      items: selectedInvoice.items.map((item) => ({
+        name: item.product.name,
+        quantity: Number(item.quantity),
+        unitPrice: Number(item.unitPrice),
+      })),
+      businessName: settings?.companyName,
+      businessAddress: settings?.companyAddress,
+      businessPin: settings?.companyPin,
+      qrCode: selectedInvoice.etimsInvoice?.qrCode ?? null,
+      reprint: true,
+    });
+  };
+
+  const buildCurrentReceiptHtml = () => {
+    if (!receiptData) return null;
+    return buildReceiptHtml({
+      invoiceNo: receiptData.invoiceNo,
+      createdAt: receiptData.createdAt,
+      customerName: receiptData.customerName,
+      paymentMethod: receiptData.paymentMethod,
+      subtotal: receiptData.subtotal,
+      taxTotal: receiptData.taxTotal,
+      total: receiptData.total,
+      items: receiptData.items,
+      businessName: settings?.companyName,
+      businessAddress: settings?.companyAddress,
+      businessPin: settings?.companyPin,
+      qrCode: receiptQr?.qrCode ?? null,
+    });
+  };
+
   const printInvoiceDetail = async () => {
-    if (!selectedInvoice) return;
+    const html = buildInvoiceDetailReceiptHtml();
+    if (!html) return;
     setPrinting(true);
     try {
-      const html = buildReceiptHtml({
-        invoiceNo: selectedInvoice.invoiceNo,
-        createdAt: selectedInvoice.invoiceDate,
-        customerName: selectedInvoice.customer?.name ?? WALK_IN_CUSTOMER_NAME,
-        paymentMethod: selectedInvoice.paymentMethod,
-        subtotal: Number(selectedInvoice.subtotal),
-        taxTotal: Number(selectedInvoice.taxAmount),
-        total: Number(selectedInvoice.total),
-        items: selectedInvoice.items.map((item) => ({
-          name: item.product.name,
-          quantity: Number(item.quantity),
-          unitPrice: Number(item.unitPrice),
-        })),
-        businessName: settings?.companyName,
-        businessAddress: settings?.companyAddress,
-        businessPin: settings?.companyPin,
-        qrCode: selectedInvoice.etimsInvoice?.qrCode ?? null,
-        reprint: true,
-      });
       await printReceiptHtml(html);
     } catch {
       setSnackbar({
@@ -612,24 +636,28 @@ export default function PosScreen() {
     }
   };
 
+  const savePdfInvoiceDetail = async () => {
+    const html = buildInvoiceDetailReceiptHtml();
+    if (!html) return;
+    setSavingPdf(true);
+    try {
+      await saveReceiptPdf(html);
+    } catch {
+      setSnackbar({
+        visible: true,
+        message: 'Could not generate the PDF receipt.',
+        isError: true,
+      });
+    } finally {
+      setSavingPdf(false);
+    }
+  };
+
   const printCurrentReceipt = async () => {
-    if (!receiptData) return;
+    const html = buildCurrentReceiptHtml();
+    if (!html) return;
     setPrinting(true);
     try {
-      const html = buildReceiptHtml({
-        invoiceNo: receiptData.invoiceNo,
-        createdAt: receiptData.createdAt,
-        customerName: receiptData.customerName,
-        paymentMethod: receiptData.paymentMethod,
-        subtotal: receiptData.subtotal,
-        taxTotal: receiptData.taxTotal,
-        total: receiptData.total,
-        items: receiptData.items,
-        businessName: settings?.companyName,
-        businessAddress: settings?.companyAddress,
-        businessPin: settings?.companyPin,
-        qrCode: receiptQr?.qrCode ?? null,
-      });
       await printReceiptHtml(html);
     } catch {
       setSnackbar({
@@ -639,6 +667,23 @@ export default function PosScreen() {
       });
     } finally {
       setPrinting(false);
+    }
+  };
+
+  const saveCurrentReceiptPdf = async () => {
+    const html = buildCurrentReceiptHtml();
+    if (!html) return;
+    setSavingPdf(true);
+    try {
+      await saveReceiptPdf(html);
+    } catch {
+      setSnackbar({
+        visible: true,
+        message: 'Could not generate the PDF receipt.',
+        isError: true,
+      });
+    } finally {
+      setSavingPdf(false);
     }
   };
 
@@ -742,6 +787,8 @@ export default function PosScreen() {
           onBack={closeOrderDetail}
           onPrint={() => void printInvoiceDetail()}
           printing={printing}
+          onSavePdf={() => void savePdfInvoiceDetail()}
+          savingPdf={savingPdf}
           refundState={refundState}
           refundApproved={refundApproved}
           refundError={refundError}
@@ -766,6 +813,8 @@ export default function PosScreen() {
             onDone={closeReceipt}
             onPrint={() => void printCurrentReceipt()}
             printing={printing}
+            onSavePdf={() => void saveCurrentReceiptPdf()}
+            savingPdf={savingPdf}
           />
         )}
       </View>

@@ -34,6 +34,8 @@ interface ReceiptProps {
   onDone: () => void;
   onPrint?: () => void;
   printing?: boolean;
+  onSavePdf?: () => void;
+  savingPdf?: boolean;
 }
 
 export const Receipt: React.FC<ReceiptProps> = ({
@@ -44,6 +46,8 @@ export const Receipt: React.FC<ReceiptProps> = ({
   onDone,
   onPrint,
   printing,
+  onSavePdf,
+  savingPdf,
 }) => {
   const businessName = settings?.companyName || 'Nexora ERP';
   const showBranding = settings?.posReceiptBranding ?? true;
@@ -138,29 +142,44 @@ export const Receipt: React.FC<ReceiptProps> = ({
         </View>
       </ScrollView>
 
-      <View style={styles.footerButtons}>
-        {onPrint && (
-          <Button
-            mode="outlined"
-            icon="printer-outline"
-            onPress={onPrint}
-            loading={printing}
-            disabled={printing}
-            style={styles.printButton}
-            contentStyle={styles.doneButtonContent}
-          >
-            Print
-          </Button>
-        )}
-        <Button
-          mode="contained"
-          onPress={onDone}
-          style={styles.doneButton}
-          contentStyle={styles.doneButtonContent}
-        >
-          New Sale
-        </Button>
-      </View>
+      {(onPrint || onSavePdf) && (
+        <View style={styles.footerButtons}>
+          {onPrint && (
+            <Button
+              mode="outlined"
+              icon="printer-outline"
+              onPress={onPrint}
+              loading={printing}
+              disabled={printing || savingPdf}
+              style={styles.printButton}
+              contentStyle={styles.doneButtonContent}
+            >
+              Print
+            </Button>
+          )}
+          {onSavePdf && (
+            <Button
+              mode="outlined"
+              icon="file-pdf-box"
+              onPress={onSavePdf}
+              loading={savingPdf}
+              disabled={printing || savingPdf}
+              style={styles.printButton}
+              contentStyle={styles.doneButtonContent}
+            >
+              Save PDF
+            </Button>
+          )}
+        </View>
+      )}
+      <Button
+        mode="contained"
+        onPress={onDone}
+        style={styles.doneButton}
+        contentStyle={styles.doneButtonContent}
+      >
+        New Sale
+      </Button>
     </View>
   );
 };
@@ -288,14 +307,15 @@ const styles = StyleSheet.create({
   footerButtons: {
     flexDirection: 'row',
     gap: 10,
-    marginVertical: 12,
+    marginTop: 12,
   },
   printButton: {
     flex: 1,
     borderRadius: 12,
   },
   doneButton: {
-    flex: 1,
+    marginTop: 10,
+    marginBottom: 12,
     borderRadius: 12,
   },
   doneButtonContent: {

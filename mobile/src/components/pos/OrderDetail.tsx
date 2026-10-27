@@ -41,6 +41,8 @@ interface OrderDetailProps {
   onBack: () => void;
   onPrint: () => void;
   printing: boolean;
+  onSavePdf: () => void;
+  savingPdf: boolean;
   refundState: RefundState;
   refundApproved: boolean | null;
   refundError: string | null;
@@ -59,6 +61,8 @@ export const OrderDetail: React.FC<OrderDetailProps> = ({
   onBack,
   onPrint,
   printing,
+  onSavePdf,
+  savingPdf,
   refundState,
   refundApproved,
   refundError,
@@ -85,6 +89,8 @@ export const OrderDetail: React.FC<OrderDetailProps> = ({
           currentUserRole={currentUserRole}
           onPrint={onPrint}
           printing={printing}
+          onSavePdf={onSavePdf}
+          savingPdf={savingPdf}
           refundState={refundState}
           refundApproved={refundApproved}
           refundError={refundError}
@@ -106,6 +112,8 @@ const OrderDetailBody: React.FC<
   currentUserRole,
   onPrint,
   printing,
+  onSavePdf,
+  savingPdf,
   refundState,
   refundApproved,
   refundError,
@@ -282,21 +290,33 @@ const OrderDetailBody: React.FC<
 
       {refundState !== 'confirming' && refundState !== 'submitting' && (
         <View style={styles.footer}>
-          <Button
-            mode="outlined"
-            icon="printer-outline"
-            style={styles.footerButton}
-            onPress={onPrint}
-            loading={printing}
-            disabled={printing}
-          >
-            Reprint
-          </Button>
+          <View style={styles.footerRow}>
+            <Button
+              mode="outlined"
+              icon="printer-outline"
+              style={styles.footerButton}
+              onPress={onPrint}
+              loading={printing}
+              disabled={printing || savingPdf}
+            >
+              Reprint
+            </Button>
+            <Button
+              mode="outlined"
+              icon="file-pdf-box"
+              style={styles.footerButton}
+              onPress={onSavePdf}
+              loading={savingPdf}
+              disabled={printing || savingPdf}
+            >
+              Save PDF
+            </Button>
+          </View>
           {canRefund && refundState === 'idle' && (
             <Button
               mode="contained"
               icon="cash-refund"
-              style={[styles.footerButton, styles.refundButton]}
+              style={styles.refundButton}
               onPress={onRequestRefund}
             >
               Refund
@@ -477,18 +497,22 @@ const styles = StyleSheet.create({
     backgroundColor: '#d4380d',
   },
   footer: {
-    flexDirection: 'row',
     gap: 10,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderTopWidth: 1,
     borderTopColor: '#f0eef7',
   },
+  footerRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
   footerButton: {
     flex: 1,
     borderRadius: 12,
   },
   refundButton: {
+    borderRadius: 12,
     backgroundColor: '#d4380d',
   },
 });
