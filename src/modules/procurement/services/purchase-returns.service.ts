@@ -3,15 +3,51 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
+import {
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  IsArray,
+  ValidateNested,
+  IsNumber,
+  Min,
+} from 'class-validator';
+import { Type } from 'class-transformer';
 import { PrismaService } from '../../../prisma.service';
 import { getCurrentTenantId } from '../../../tenant-context';
 import { PostingEngineService } from '../../accounting/services/posting-engine.service';
 
+export class PurchaseReturnItemInputDto {
+  @IsString()
+  @IsNotEmpty()
+  productId!: string;
+
+  @IsNumber()
+  @Min(0.01)
+  quantity!: number;
+
+  @IsNumber()
+  @Min(0)
+  unitCost!: number;
+}
+
 export class CreatePurchaseReturnDto {
-  supplierId: string;
+  @IsString()
+  @IsNotEmpty()
+  supplierId!: string;
+
+  @IsOptional()
+  @IsString()
   purchaseOrderId?: string;
+
+  @IsOptional()
+  @IsString()
   reason?: string;
-  items: { productId: string; quantity: number; unitCost: number }[];
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PurchaseReturnItemInputDto)
+  items!: PurchaseReturnItemInputDto[];
 }
 
 @Injectable()

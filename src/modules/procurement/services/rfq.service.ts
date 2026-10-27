@@ -3,45 +3,120 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
+import {
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  IsDateString,
+  IsArray,
+  ValidateNested,
+  IsNumber,
+  IsBoolean,
+  Min,
+} from 'class-validator';
+import { Type } from 'class-transformer';
 import { PrismaService } from '../../../prisma.service';
 import { getCurrentTenantId } from '../../../tenant-context';
 import { PostingEngineService } from '../../accounting/services/posting-engine.service';
 import { PurchaseOrderStatus } from '@prisma/client';
 import { computeLineTax } from '../../../common/utils/tax.util';
 
+export class RFQItemInputDto {
+  @IsString()
+  @IsNotEmpty()
+  productId!: string;
+
+  @IsNumber()
+  @Min(0.01)
+  quantity!: number;
+
+  @IsNumber()
+  @Min(0)
+  unitPrice!: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  taxRate?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  isTaxInclusive?: boolean; // defaults to true
+}
+
 export class CreateRFQDto {
-  supplierId: string;
+  @IsString()
+  @IsNotEmpty()
+  supplierId!: string;
+
+  @IsOptional()
+  @IsDateString()
   requestDate?: string;
+
+  @IsOptional()
+  @IsString()
   vendorReference?: string;
+
+  @IsOptional()
+  @IsString()
   paymentTerms?: string;
+
+  @IsOptional()
+  @IsDateString()
   orderDeadline?: string;
+
+  @IsOptional()
+  @IsDateString()
   expectedArrival?: string;
+
+  @IsOptional()
+  @IsString()
   deliverTo?: string;
+
+  @IsOptional()
+  @IsString()
   notes?: string;
-  items: {
-    productId: string;
-    quantity: number;
-    unitPrice: number;
-    taxRate?: number;
-    isTaxInclusive?: boolean; // defaults to true
-  }[];
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => RFQItemInputDto)
+  items!: RFQItemInputDto[];
 }
 
 export class UpdateRFQDto {
+  @IsOptional()
+  @IsString()
   supplierId?: string;
+
+  @IsOptional()
+  @IsString()
   vendorReference?: string;
+
+  @IsOptional()
+  @IsString()
   paymentTerms?: string;
+
+  @IsOptional()
+  @IsDateString()
   orderDeadline?: string;
+
+  @IsOptional()
+  @IsDateString()
   expectedArrival?: string;
+
+  @IsOptional()
+  @IsString()
   deliverTo?: string;
+
+  @IsOptional()
+  @IsString()
   notes?: string;
-  items?: {
-    productId: string;
-    quantity: number;
-    unitPrice: number;
-    taxRate?: number;
-    isTaxInclusive?: boolean; // defaults to true
-  }[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => RFQItemInputDto)
+  items?: RFQItemInputDto[];
 }
 
 @Injectable()

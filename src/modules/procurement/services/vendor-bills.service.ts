@@ -3,24 +3,72 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
+import {
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  IsDateString,
+  IsArray,
+  ValidateNested,
+  IsNumber,
+  IsBoolean,
+  Min,
+} from 'class-validator';
+import { Type } from 'class-transformer';
 import { PrismaService } from '../../../prisma.service';
 import { PostingEngineService } from '../../accounting/services/posting-engine.service';
 import { computeLineTax } from '../../../common/utils/tax.util';
 
+export class VendorBillItemInputDto {
+  @IsString()
+  @IsNotEmpty()
+  productId!: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsNumber()
+  @Min(0.01)
+  quantity!: number;
+
+  @IsNumber()
+  @Min(0)
+  unitCost!: number;
+
+  @IsNumber()
+  @Min(0)
+  taxRate!: number;
+
+  @IsOptional()
+  @IsBoolean()
+  isTaxInclusive?: boolean; // defaults to true
+}
+
 export class CreateVendorBillDto {
-  supplierId: string;
+  @IsString()
+  @IsNotEmpty()
+  supplierId!: string;
+
+  @IsOptional()
+  @IsString()
   purchaseOrderId?: string;
-  billDate: string;
+
+  @IsDateString()
+  billDate!: string;
+
+  @IsOptional()
+  @IsDateString()
   dueDate?: string;
+
+  @IsOptional()
+  @IsString()
   notes?: string;
-  items: {
-    productId: string;
-    description?: string;
-    quantity: number;
-    unitCost: number;
-    taxRate: number;
-    isTaxInclusive?: boolean; // defaults to true
-  }[];
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => VendorBillItemInputDto)
+  items!: VendorBillItemInputDto[];
 }
 
 @Injectable()
@@ -43,11 +91,11 @@ export class VendorBillsService {
 
     const items = dto.items.map((i) => {
       const isTaxInclusive = i.isTaxInclusive ?? true;
-      const { taxAmount: tax, net, gross } = computeLineTax(
-        i.quantity * i.unitCost,
-        i.taxRate,
-        isTaxInclusive,
-      );
+      const {
+        taxAmount: tax,
+        net,
+        gross,
+      } = computeLineTax(i.quantity * i.unitCost, i.taxRate, isTaxInclusive);
       return {
         ...i,
         taxAmount: tax,
