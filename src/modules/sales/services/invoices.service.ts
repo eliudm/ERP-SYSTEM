@@ -465,6 +465,7 @@ export class InvoicesService {
         customer: true,
         items: { include: { product: true } },
         etimsInvoice: true,
+        creditNotes: true,
       },
     });
 
