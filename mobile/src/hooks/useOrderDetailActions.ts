@@ -5,7 +5,7 @@ import { creditNotesApi } from '../api/credit-notes.api';
 import { customersApi } from '../api/customers.api';
 import { settingsApi } from '../api/settings.api';
 import { useSession } from '../providers/SessionProvider';
-import { buildReceiptHtml } from '../utils/receiptHtml';
+import { buildInvoiceDocumentHtml } from '../utils/invoiceDocumentHtml';
 import { printReceiptHtml, saveReceiptPdf } from '../utils/printReceipt';
 import type { RefundState } from '../components/pos/OrderDetail';
 
@@ -51,32 +51,41 @@ export const useOrderDetailActions = (
     setRefundError(null);
   }, [invoiceId]);
 
+  // The "particulars" screen prints the full A4 invoice document (matching
+  // the web app's Sales > Invoice detail page), not the till receipt — that
+  // one only happens at the point of sale itself (see pos.tsx).
   const buildHtml = () => {
     if (!invoice) return null;
-    return buildReceiptHtml(
+    return buildInvoiceDocumentHtml(
       {
         invoiceNo: invoice.invoiceNo,
-        createdAt: invoice.invoiceDate,
+        invoiceDate: invoice.invoiceDate,
+        dueDate: invoice.dueDate,
+        status: invoice.status,
         customerName: invoice.customer?.name ?? WALK_IN_CUSTOMER_NAME,
+        customerAddress: invoice.customer?.address ?? null,
+        customerPin: invoice.customer?.taxPin ?? null,
         paymentMethod: invoice.paymentMethod,
         subtotal: Number(invoice.subtotal),
-        taxTotal: Number(invoice.taxAmount),
+        taxAmount: Number(invoice.taxAmount),
         total: Number(invoice.total),
         items: invoice.items.map((item) => ({
           name: item.product.name,
           quantity: Number(item.quantity),
           unitPrice: Number(item.unitPrice),
+          taxRate: Number(item.taxRate),
+          amount: Number(item.lineTotal),
         })),
-        businessName: settings?.companyName,
-        businessLogo: settings?.companyLogo,
-        businessAddress: settings?.companyAddress,
-        businessPin: settings?.companyPin,
-        businessSlogan: settings?.receiptSlogan,
-        showBranding: settings?.posReceiptBranding,
-        qrCode: invoice.etimsInvoice?.qrCode ?? null,
-        reprint: true,
+        notes: invoice.notes,
+        companyName: settings?.companyName || 'Nexora ERP',
+        companyLogo: settings?.companyLogo,
+        companyAddress: settings?.companyAddress,
+        companyPin: settings?.companyPin,
+        companyPhone: settings?.companyPhone,
+        companySlogan: settings?.receiptSlogan,
+        paymentInstructions: settings?.paymentInstructions,
       },
-      settings?.receiptTemplate,
+      settings?.invoiceTemplate,
     );
   };
 
@@ -100,7 +109,7 @@ export const useOrderDetailActions = (
     try {
       await saveReceiptPdf(html);
     } catch {
-      onError('Could not generate the PDF receipt.');
+      onError('Could not generate the PDF.');
     } finally {
       setSavingPdf(false);
     }

@@ -23,7 +23,6 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { mobileApi, PosProduct } from '../../api/mobile.api';
 import { customersApi, Customer } from '../../api/customers.api';
 import { salesApi } from '../../api/sales.api';
-import { creditNotesApi } from '../../api/credit-notes.api';
 import { etimsApi, EtimsQrResult } from '../../api/etims.api';
 import { inventoryApi } from '../../api/inventory.api';
 import { settingsApi } from '../../api/settings.api';
@@ -33,9 +32,10 @@ import { Receipt, ReceiptData } from '../../components/Receipt';
 import { CategoryGrid } from '../../components/pos/CategoryGrid';
 import { PaymentScreen } from '../../components/pos/PaymentScreen';
 import { OrdersList } from '../../components/pos/OrdersList';
-import { OrderDetail, RefundState } from '../../components/pos/OrderDetail';
+import { OrderDetail } from '../../components/pos/OrderDetail';
 import { useRegister } from '../../hooks/useRegister';
 import { useHeldOrders, HeldOrder } from '../../hooks/useHeldOrders';
+import { useOrderDetailActions } from '../../hooks/useOrderDetailActions';
 import { buildReceiptHtml } from '../../utils/receiptHtml';
 import { printReceiptHtml, saveReceiptPdf } from '../../utils/printReceipt';
 import { brand } from '../../theme';
@@ -124,16 +124,9 @@ export default function PosScreen() {
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(
     null,
   );
-  const { data: selectedInvoice, isLoading: selectedInvoiceLoading } = useQuery(
-    {
-      queryKey: ['invoice', selectedInvoiceId],
-      queryFn: () => salesApi.getInvoice(selectedInvoiceId!),
-      enabled: screen === 'orderDetail' && !!selectedInvoiceId,
-    },
-  );
-  const [refundState, setRefundState] = useState<RefundState>('idle');
-  const [refundApproved, setRefundApproved] = useState<boolean | null>(null);
-  const [refundError, setRefundError] = useState<string | null>(null);
+  // Receipt (post-sale) print/save state — the order-detail screen below
+  // has its own, from useOrderDetailActions, since it prints a different
+  // document (the full invoice, not the till receipt).
   const [printing, setPrinting] = useState(false);
   const [savingPdf, setSavingPdf] = useState(false);
   const [openingFloatInput, setOpeningFloatInput] = useState('');
@@ -178,6 +171,10 @@ export default function PosScreen() {
     visible: false,
     message: '',
   });
+
+  const orderDetail = useOrderDetailActions(selectedInvoiceId, (message) =>
+    setSnackbar({ visible: true, message, isError: true }),
+  );
 
   const products = data?.products ?? [];
   const categories = data?.categories ?? [];
@@ -521,90 +518,12 @@ export default function PosScreen() {
 
   const openOrderDetail = (invoiceId: string) => {
     setSelectedInvoiceId(invoiceId);
-    setRefundState('idle');
-    setRefundApproved(null);
-    setRefundError(null);
     setScreen('orderDetail');
   };
 
   const closeOrderDetail = () => {
     setScreen('orders');
     setSelectedInvoiceId(null);
-  };
-
-  const requestRefund = () => {
-    setRefundError(null);
-    setRefundState('confirming');
-  };
-
-  const cancelRefund = () => {
-    setRefundState('idle');
-  };
-
-  const confirmRefund = async () => {
-    if (!selectedInvoice) return;
-    setRefundState('submitting');
-    setRefundError(null);
-    try {
-      const creditNote = await creditNotesApi.create({
-        customerId:
-          selectedInvoice.customer?.id ?? (await resolveWalkInCustomer()).id,
-        invoiceId: selectedInvoice.id,
-        reason: 'POS refund',
-        items: selectedInvoice.items.map((item) => ({
-          productId: item.productId,
-          description: item.description ?? undefined,
-          quantity: Number(item.quantity),
-          unitPrice: Number(item.unitPrice),
-          taxRate: Number(item.taxRate),
-        })),
-      });
-
-      const canApprove = user?.role === 'ADMIN' || user?.role === 'ACCOUNTANT';
-      if (canApprove) {
-        await creditNotesApi.approve(creditNote.id);
-      }
-      setRefundApproved(canApprove);
-      setRefundState('done');
-      void queryClient.invalidateQueries({
-        queryKey: ['invoice', selectedInvoice.id],
-      });
-      void queryClient.invalidateQueries({ queryKey: ['recent-invoices'] });
-    } catch (err: any) {
-      setRefundState('confirming');
-      const message =
-        err?.response?.data?.message ?? 'Failed to submit refund.';
-      setRefundError(Array.isArray(message) ? message.join(', ') : message);
-    }
-  };
-
-  const buildInvoiceDetailReceiptHtml = () => {
-    if (!selectedInvoice) return null;
-    return buildReceiptHtml(
-      {
-        invoiceNo: selectedInvoice.invoiceNo,
-        createdAt: selectedInvoice.invoiceDate,
-        customerName: selectedInvoice.customer?.name ?? WALK_IN_CUSTOMER_NAME,
-        paymentMethod: selectedInvoice.paymentMethod,
-        subtotal: Number(selectedInvoice.subtotal),
-        taxTotal: Number(selectedInvoice.taxAmount),
-        total: Number(selectedInvoice.total),
-        items: selectedInvoice.items.map((item) => ({
-          name: item.product.name,
-          quantity: Number(item.quantity),
-          unitPrice: Number(item.unitPrice),
-        })),
-        businessName: settings?.companyName,
-        businessLogo: settings?.companyLogo,
-        businessAddress: settings?.companyAddress,
-        businessPin: settings?.companyPin,
-        businessSlogan: settings?.receiptSlogan,
-        showBranding: settings?.posReceiptBranding,
-        qrCode: selectedInvoice.etimsInvoice?.qrCode ?? null,
-        reprint: true,
-      },
-      settings?.receiptTemplate,
-    );
   };
 
   const buildCurrentReceiptHtml = () => {
@@ -629,40 +548,6 @@ export default function PosScreen() {
       },
       settings?.receiptTemplate,
     );
-  };
-
-  const printInvoiceDetail = async () => {
-    const html = buildInvoiceDetailReceiptHtml();
-    if (!html) return;
-    setPrinting(true);
-    try {
-      await printReceiptHtml(html);
-    } catch {
-      setSnackbar({
-        visible: true,
-        message: 'Could not open print dialog.',
-        isError: true,
-      });
-    } finally {
-      setPrinting(false);
-    }
-  };
-
-  const savePdfInvoiceDetail = async () => {
-    const html = buildInvoiceDetailReceiptHtml();
-    if (!html) return;
-    setSavingPdf(true);
-    try {
-      await saveReceiptPdf(html);
-    } catch {
-      setSnackbar({
-        visible: true,
-        message: 'Could not generate the PDF receipt.',
-        isError: true,
-      });
-    } finally {
-      setSavingPdf(false);
-    }
   };
 
   const printCurrentReceipt = async () => {
@@ -793,20 +678,20 @@ export default function PosScreen() {
     return (
       <View style={styles.container}>
         <OrderDetail
-          invoice={selectedInvoice ?? null}
-          isLoading={selectedInvoiceLoading}
-          currentUserRole={user?.role ?? ''}
+          invoice={orderDetail.invoice}
+          isLoading={orderDetail.isLoading}
+          currentUserRole={orderDetail.currentUserRole}
           onBack={closeOrderDetail}
-          onPrint={() => void printInvoiceDetail()}
-          printing={printing}
-          onSavePdf={() => void savePdfInvoiceDetail()}
-          savingPdf={savingPdf}
-          refundState={refundState}
-          refundApproved={refundApproved}
-          refundError={refundError}
-          onRequestRefund={requestRefund}
-          onCancelRefund={cancelRefund}
-          onConfirmRefund={() => void confirmRefund()}
+          onPrint={() => void orderDetail.print()}
+          printing={orderDetail.printing}
+          onSavePdf={() => void orderDetail.savePdf()}
+          savingPdf={orderDetail.savingPdf}
+          refundState={orderDetail.refundState}
+          refundApproved={orderDetail.refundApproved}
+          refundError={orderDetail.refundError}
+          onRequestRefund={orderDetail.requestRefund}
+          onCancelRefund={orderDetail.cancelRefund}
+          onConfirmRefund={() => void orderDetail.confirmRefund()}
         />
         {snackbarElement}
       </View>

@@ -89,12 +89,19 @@ export interface InvoiceDetail {
   id: string;
   invoiceNo: string;
   invoiceDate: string;
+  dueDate: string | null;
   status: string;
   subtotal: number | string;
   taxAmount: number | string;
   total: number | string;
+  notes: string | null;
   paymentMethod: string | null;
-  customer: { id: string; name: string } | null;
+  customer: {
+    id: string;
+    name: string;
+    address?: string | null;
+    taxPin?: string | null;
+  } | null;
   items: InvoiceDetailItem[];
   etimsInvoice: {
     status: string;
