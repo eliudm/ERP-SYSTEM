@@ -123,7 +123,7 @@ const buildModernInvoiceHtml = (data: InvoiceDocumentData): string => {
   <style>
     @page { size: A4; margin: 16mm; }
     * { box-sizing: border-box; }
-    body { font-family: -apple-system, 'Segoe UI', Roboto, Arial, sans-serif; color: #1f2430; font-size: 13px; }
+    body { font-family: -apple-system, 'Segoe UI', Roboto, Arial, sans-serif; color: #1f2430; font-size: 13px; min-height: 265mm; display: flex; flex-direction: column; }
     .header { display: flex; justify-content: space-between; align-items: flex-start; }
     .logo-wrap { max-width: 55%; }
     .logo-wrap img { max-height: 60px; max-width: 220px; object-fit: contain; }
@@ -155,7 +155,7 @@ const buildModernInvoiceHtml = (data: InvoiceDocumentData): string => {
     .totals .row.grand { background: #1677ff; color: #ffffff; border-radius: 6px; font-size: 15px; font-weight: 700; margin-top: 4px; padding: 10px; }
     .totals .row .label { color: #6b7280; }
     .totals .row.grand .label { color: #ffffff; }
-    .footer { margin-top: 40px; padding-top: 14px; border-top: 1px solid #edeef1; font-size: 11px; color: #8a8f99; }
+    .footer { margin-top: auto; padding-top: 14px; border-top: 1px solid #edeef1; font-size: 11px; color: #8a8f99; }
     .footer-row { display: flex; justify-content: space-between; }
     .notes { margin-top: 20px; font-size: 12px; color: #4b5260; background: #f8f9fb; border-radius: 8px; padding: 12px 14px; }
   </style>
@@ -245,7 +245,7 @@ const buildClassicInvoiceHtml = (data: InvoiceDocumentData): string => {
   <style>
     @page { size: A4; margin: 18mm; }
     * { box-sizing: border-box; }
-    body { font-family: 'Georgia', 'Times New Roman', serif; color: #111; font-size: 12.5px; }
+    body { font-family: 'Georgia', 'Times New Roman', serif; color: #111; font-size: 12.5px; min-height: 261mm; display: flex; flex-direction: column; }
     .header { text-align: center; border-bottom: 2px solid #111; padding-bottom: 14px; margin-bottom: 18px; }
     .header img { max-height: 55px; max-width: 200px; object-fit: contain; margin-bottom: 8px; }
     .header .name { font-size: 20px; font-weight: 700; letter-spacing: 0.02em; }
@@ -268,7 +268,7 @@ const buildClassicInvoiceHtml = (data: InvoiceDocumentData): string => {
     .totals .row { display: flex; justify-content: space-between; padding: 7px 12px; font-size: 12px; border-bottom: 1px solid #ccc; }
     .totals .row.grand { border-bottom: none; font-size: 14px; font-weight: 700; background: #f2f2f2; }
     .notes { margin-top: 18px; font-size: 11.5px; border-left: 3px solid #111; padding: 6px 12px; }
-    .footer { margin-top: 36px; padding-top: 12px; border-top: 1px solid #111; font-size: 10.5px; color: #444; text-align: center; }
+    .footer { margin-top: auto; padding-top: 12px; border-top: 1px solid #111; font-size: 10.5px; color: #444; text-align: center; }
     .footer div { margin-bottom: 4px; }
   </style>
 </head>
@@ -354,7 +354,7 @@ const buildMinimalInvoiceHtml = (data: InvoiceDocumentData): string => {
   <style>
     @page { size: A4; margin: 20mm; }
     * { box-sizing: border-box; }
-    body { font-family: -apple-system, 'Segoe UI', Roboto, Arial, sans-serif; color: #2b2b2b; font-size: 12.5px; }
+    body { font-family: -apple-system, 'Segoe UI', Roboto, Arial, sans-serif; color: #2b2b2b; font-size: 12.5px; min-height: 257mm; display: flex; flex-direction: column; }
     .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 36px; }
     .header img { max-height: 42px; max-width: 180px; object-fit: contain; }
     .company-name-fallback { font-size: 16px; font-weight: 600; }
@@ -376,7 +376,7 @@ const buildMinimalInvoiceHtml = (data: InvoiceDocumentData): string => {
     .totals .row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 12.5px; color: #6b6b6b; }
     .totals .row.grand { border-top: 1px solid #2b2b2b; margin-top: 6px; padding-top: 10px; font-size: 15px; font-weight: 600; color: #2b2b2b; }
     .notes { margin-top: 24px; font-size: 11.5px; color: #8a8a8a; }
-    .footer { margin-top: 48px; font-size: 10.5px; color: #aaa; }
+    .footer { margin-top: auto; padding-top: 24px; font-size: 10.5px; color: #aaa; }
     .footer div { margin-bottom: 4px; }
   </style>
 </head>
