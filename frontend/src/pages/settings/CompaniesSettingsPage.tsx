@@ -3,12 +3,18 @@ import { Card, Col, Image, Input, Row, Space, Typography, Upload, Button, Alert,
 import { BankOutlined, EnvironmentOutlined, IdcardOutlined, UploadOutlined, DeleteOutlined, PhoneOutlined } from '@ant-design/icons';
 import { useOutletContext } from 'react-router-dom';
 import type { SettingsOutletContext } from './SettingsPage';
-import type { InvoiceTemplate } from '../../types';
+import type { InvoiceTemplate, ReceiptTemplate } from '../../types';
 
 const TEMPLATE_OPTIONS: { value: InvoiceTemplate; label: string; description: string }[] = [
   { value: 'modern', label: 'Modern', description: 'Blue accent bar, highlighted total box' },
   { value: 'classic', label: 'Classic', description: 'Traditional black & white letterhead' },
   { value: 'minimal', label: 'Minimal', description: 'Clean lines, lots of whitespace' },
+];
+
+const RECEIPT_TEMPLATE_OPTIONS: { value: ReceiptTemplate; label: string; description: string }[] = [
+  { value: 'standard', label: 'Standard', description: 'The familiar till-receipt layout' },
+  { value: 'compact', label: 'Compact', description: 'Tighter spacing — saves paper' },
+  { value: 'branded', label: 'Branded', description: 'Bigger logo, slogan banner, boxed total' },
 ];
 
 const { Title, Text } = Typography;
@@ -273,6 +279,40 @@ export const CompaniesSettingsPage: React.FC = () => {
           >
             <Row gutter={[12, 12]}>
               {TEMPLATE_OPTIONS.map((option) => (
+                <Col xs={24} sm={8} key={option.value}>
+                  <Radio.Button
+                    value={option.value}
+                    style={{
+                      width: '100%',
+                      height: 'auto',
+                      padding: '12px 14px',
+                      borderRadius: 14,
+                      display: 'block',
+                    }}
+                  >
+                    <Text strong style={{ display: 'block' }}>{option.label}</Text>
+                    <Text type="secondary" style={{ fontSize: 12 }}>{option.description}</Text>
+                  </Radio.Button>
+                </Col>
+              ))}
+            </Row>
+          </Radio.Group>
+        </Space>
+      </Card>
+
+      <Card bordered={false} style={{ borderRadius: 22 }}>
+        <Space direction="vertical" style={{ width: '100%' }} size="middle">
+          <div>
+            <Title level={5} style={{ margin: 0 }}>Receipt Design</Title>
+            <Text type="secondary">Choose the layout for the thermal receipt printed at the POS terminal.</Text>
+          </div>
+          <Radio.Group
+            value={draft.receiptTemplate}
+            onChange={(event) => updateDraft({ receiptTemplate: event.target.value })}
+            style={{ width: '100%' }}
+          >
+            <Row gutter={[12, 12]}>
+              {RECEIPT_TEMPLATE_OPTIONS.map((option) => (
                 <Col xs={24} sm={8} key={option.value}>
                   <Radio.Button
                     value={option.value}

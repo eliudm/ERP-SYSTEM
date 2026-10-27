@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import dayjs from 'dayjs';
 import { salesApi } from '../../api/sales.api';
+import { settingsApi } from '../../api/settings.api';
 import { formatCurrency } from '../../utils/format';
 import { buildReceiptHtml, openReceiptPrintWindow } from '../../utils/receiptHtml';
 import type { Invoice, PaymentMethod } from '../../types';
@@ -29,6 +30,11 @@ export const POSOrdersPage: React.FC = () => {
   const { data, isLoading } = useQuery({
     queryKey: ['pos-orders', page, statusFilter],
     queryFn: () => salesApi.getInvoices(page, 20, statusFilter),
+  });
+
+  const { data: settings } = useQuery({
+    queryKey: ['system-settings'],
+    queryFn: () => settingsApi.getSystemSettings(),
   });
 
   const invoices: Invoice[] = data?.data ?? [];
@@ -109,22 +115,32 @@ export const POSOrdersPage: React.FC = () => {
   ];
 
   const handleReprint = (inv: Invoice) => {
-    const html = buildReceiptHtml({
-      invoiceNo: inv.invoiceNo,
-      invoiceDate: inv.invoiceDate,
-      customerName: inv.customer?.name ?? '—',
-      paymentMethod: inv.paymentMethod,
-      subtotal: Number(inv.subtotal),
-      taxAmount: Number(inv.taxAmount),
-      total: Number(inv.total),
-      items: (inv.items ?? []).map((item) => ({
-        name: item.product?.name ?? '',
-        quantity: Number(item.quantity),
-        amount: Number(item.lineTotal),
-      })),
-      qrCode: inv.etimsInvoice?.qrCode ?? null,
-      reprint: true,
-    });
+    const html = buildReceiptHtml(
+      {
+        receiptNo: inv.invoiceNo,
+        createdAt: inv.invoiceDate,
+        customerName: inv.customer?.name ?? 'Walk-in Customer',
+        customerPin: inv.customer?.taxPin ?? null,
+        paymentMethod: inv.paymentMethod,
+        subtotal: Number(inv.subtotal),
+        taxAmount: Number(inv.taxAmount),
+        total: Number(inv.total),
+        items: (inv.items ?? []).map((item) => ({
+          name: item.product?.name ?? '',
+          quantity: Number(item.quantity),
+          unitPrice: Number(item.unitPrice),
+        })),
+        qrCode: inv.etimsInvoice?.qrCode ?? null,
+        reprint: true,
+        businessName: settings?.companyName || 'Nexora ERP',
+        businessLogo: settings?.companyLogo ?? null,
+        businessAddress: settings?.companyAddress ?? null,
+        businessPin: settings?.companyPin ?? null,
+        businessSlogan: settings?.receiptSlogan ?? null,
+        showBranding: settings?.posReceiptBranding ?? true,
+      },
+      settings?.receiptTemplate,
+    );
     openReceiptPrintWindow(html);
   };
 

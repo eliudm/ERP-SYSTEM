@@ -193,6 +193,7 @@ export interface DashboardStats {
 
 // ─── SETTINGS ────────────────────────────────────────────
 export type InvoiceTemplate = 'modern' | 'classic' | 'minimal';
+export type ReceiptTemplate = 'standard' | 'compact' | 'branded';
 
 export interface SystemSettings {
   key: string;
@@ -204,6 +205,7 @@ export interface SystemSettings {
   paymentInstructions?: string | null;
   receiptSlogan?: string | null;
   invoiceTemplate: InvoiceTemplate;
+  receiptTemplate: ReceiptTemplate;
   defaultCurrency: string;
   timezone: string;
   defaultLanguage: string;

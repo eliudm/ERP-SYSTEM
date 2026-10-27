@@ -22,6 +22,7 @@ import { salesApi } from '../../../api/sales.api';
 import { settingsApi } from '../../../api/settings.api';
 import { authApi } from '../../../api/auth.api';
 import { formatCurrency } from '../../../utils/format';
+import { buildReceiptHtml, openReceiptPrintWindow } from '../../../utils/receiptHtml';
 import type { Customer, Product, ProductCategory, PaymentMethod } from '../../../types';
 import { PAYMENT_METHOD_LABELS, PAYMENT_METHOD_ICONS } from '../../../types';
 
@@ -697,95 +698,37 @@ export const POSPage: React.FC = () => {
   };
 
   const printReceipt = (receipt: ReceiptData) => {
-    const now = new Date(receipt.createdAt);
-    const printWindow = window.open('', '_blank', 'width=360,height=720');
-
-    if (!printWindow) {
+    const html = buildReceiptHtml(
+      {
+        receiptNo: receipt.receiptNo,
+        createdAt: receipt.createdAt,
+        customerName: receipt.customerName,
+        customerPin: receipt.customerPin,
+        servedBy: receipt.servedBy,
+        paymentMethod: receipt.paymentMethod,
+        subtotal: receipt.subtotal,
+        taxAmount: receipt.taxTotal,
+        total: receipt.total,
+        items: receipt.items.map((item) => ({
+          name: item.name,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+        })),
+        qrCode: receipt.qrCode ?? null,
+        qrProvisional: receipt.provisionalQr,
+        qrMessage: receipt.qrMessage ?? null,
+        businessName: BUSINESS_INFO.name,
+        businessLogo: BUSINESS_INFO.logo,
+        businessAddress: BUSINESS_INFO.address,
+        businessPin: BUSINESS_INFO.pin,
+        businessSlogan: BUSINESS_INFO.slogan,
+        showBranding: showReceiptBranding,
+      },
+      systemSettings?.receiptTemplate,
+    );
+    if (!openReceiptPrintWindow(html)) {
       message.error('Unable to open print window. Please allow pop-ups.');
-      return;
     }
-
-    const rows = receipt.items.map((item) => `
-      <tr>
-        <td style="padding:4px 0; width:18px; vertical-align:top; font-weight:600;">${item.quantity}</td>
-        <td style="padding:4px 0; vertical-align:top;">
-          <div>${item.name}</div>
-          <div style="font-size:10px; color:#888;">${formatCurrency(item.unitPrice)} / Unit</div>
-        </td>
-        <td style="text-align:right; padding:4px 0; vertical-align:top; white-space:nowrap;">${formatCurrency(item.unitPrice * item.quantity)}</td>
-      </tr>
-    `).join('');
-
-    const qrSection = receipt.qrCode
-      ? `<div style="text-align:center; margin-top:10px;"><img src="${receipt.qrCode}" alt="${receipt.provisionalQr ? 'Receipt QR Code' : 'eTIMS QR Code'}" style="width:120px; height:120px;" /><div style="font-size:11px; margin-top:4px;">${receipt.provisionalQr ? 'Provisional Receipt QR' : 'eTIMS QR Code'}</div>${receipt.qrMessage ? `<div style="font-size:10px; margin-top:4px; color:#666;">${receipt.qrMessage}</div>` : ''}</div>`
-      : `<div style="text-align:center; margin-top:10px; font-size:11px; color:#666;">eTIMS QR code pending</div>`;
-
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>POS Receipt</title>
-          <style>
-            @page { size: 80mm auto; margin: 4mm; }
-            body { font-family: Arial, sans-serif; width: 72mm; margin: 0 auto; padding: 0; color: #111; font-size: 12px; }
-            table { width: 100%; border-collapse: collapse; font-size: 12px; }
-            .totals { margin-top: 8px; font-size: 12px; }
-            .line { display: flex; justify-content: space-between; margin: 3px 0; }
-            .grand { font-weight: 700; font-size: 14px; border-top: 1px solid #111; border-bottom: 1px solid #111; padding: 4px 0; margin: 4px 0; }
-            .footer-biz { text-align:center; font-size:11px; margin-top:10px; padding-top:8px; border-top:1px dashed #ccc; }
-          </style>
-        </head>
-        <body>
-          <!-- Logo + Business Identity -->
-          <div style="text-align:center; margin-bottom:0;">
-            ${BUSINESS_INFO.logo
-              ? `<img src="${BUSINESS_INFO.logo}" alt="${BUSINESS_INFO.name}" style="max-height:80px; max-width:200px; object-fit:contain;" />`
-              : `<div style="font-size:16px; font-weight:700;">${BUSINESS_INFO.name}</div>`
-            }
-            ${showReceiptBranding ? `
-            <div style="font-size:11px; margin-top:4px;">
-              ${BUSINESS_INFO.logo ? `<div style="font-weight:700;">${BUSINESS_INFO.name}</div>` : ''}
-              ${BUSINESS_INFO.address ? `<div>${BUSINESS_INFO.address}</div>` : ''}
-              ${BUSINESS_INFO.pin ? `<div>PIN: ${BUSINESS_INFO.pin}</div>` : ''}
-            </div>` : ''}
-          </div>
-
-          <!-- Ticket header (centered) -->
-          <div style="text-align:center; font-size:11px; border-top:1px dashed #ccc; border-bottom:1px dashed #ccc; padding:6px 0; margin:8px 0;">
-            <div>Receipt: ${receipt.receiptNo}</div>
-            <div>${now.toLocaleString()}</div>
-            <div>Served by: ${receipt.servedBy}</div>
-            ${receipt.customerName && receipt.customerName !== 'Walk-in Customer' ? `<div>Customer: ${receipt.customerName}</div>` : ''}
-            ${receipt.customerPin && receipt.customerPin !== 'N/A' ? `<div>PIN: ${receipt.customerPin}</div>` : ''}
-          </div>
-
-          <!-- Items -->
-          <table>
-            <tbody>${rows}</tbody>
-          </table>
-
-          <!-- Totals -->
-          <div class="totals" style="border-top:1px dashed #999; padding-top:6px;">
-            <div class="line"><span>Subtotal</span><span>${formatCurrency(receipt.subtotal)}</span></div>
-            <div class="line"><span>VAT 16%</span><span>${formatCurrency(receipt.taxTotal)}</span></div>
-            <div class="line grand"><span>Total</span><span>${formatCurrency(receipt.total)}</span></div>
-            <div class="line"><span>${PAYMENT_METHOD_LABELS[receipt.paymentMethod]}</span><span>${formatCurrency(receipt.total)}</span></div>
-          </div>
-
-          <!-- QR Code -->
-          ${qrSection}
-
-          <!-- Slogan / payment instructions -->
-          ${BUSINESS_INFO.slogan ? `<div style="text-align:center; font-size:11px; margin-top:10px; padding-top:8px; border-top:1px dashed #eee;">${BUSINESS_INFO.slogan}</div>` : ''}
-
-          <!-- Powered by -->
-          <div style="text-align:center; margin-top:10px; font-size:10px; color:#aaa; border-top:1px dashed #eee; padding-top:6px;">Powered by: Nexora ERP</div>
-        </body>
-      </html>
-    `);
-
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
   };
 
   if (!posVerified) {
