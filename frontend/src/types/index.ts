@@ -76,6 +76,8 @@ export interface Product {
   category?: ProductCategory | null;
   unitPrice: number;
   taxRate: number;
+  costPrice?: number | null;
+  costPriceIncludesVat?: boolean;
   stockQuantity: number;
   reorderLevel?: number;
   isActive?: boolean;

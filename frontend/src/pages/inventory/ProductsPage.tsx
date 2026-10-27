@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   Table, Button, Card, Typography, Space,
-  Input, Modal, Form, InputNumber, Tag, message, Select, Popconfirm, Tooltip,
+  Input, Modal, Form, InputNumber, Tag, message, Select, Popconfirm, Tooltip, Switch,
 } from 'antd';
 import {
   PlusOutlined, SearchOutlined,
@@ -76,6 +76,8 @@ interface ProductFormValues {
   categoryId?: string;
   unitPrice: number;
   taxRate?: number;
+  costPrice?: number;
+  costPriceIncludesVat?: boolean;
   reorderLevel?: number;
 }
 
@@ -187,6 +189,7 @@ export const ProductsPage: React.FC = () => {
     productForm.resetFields();
     productForm.setFieldsValue({
       taxRate: 0.16,
+      costPriceIncludesVat: true,
       reorderLevel: 10,
     });
     setProductModal(true);
@@ -201,6 +204,8 @@ export const ProductsPage: React.FC = () => {
       categoryId: product.categoryId || undefined,
       unitPrice: Number(product.unitPrice),
       taxRate: Number(product.taxRate),
+      costPrice: product.costPrice != null ? Number(product.costPrice) : undefined,
+      costPriceIncludesVat: product.costPriceIncludesVat ?? true,
       reorderLevel: Number(product.reorderLevel || 0),
     });
     setProductModal(true);
@@ -389,12 +394,32 @@ export const ProductsPage: React.FC = () => {
           >
             <InputNumber style={{ width: '100%' }} min={0} />
           </Form.Item>
-          <Form.Item name="taxRate" label="Tax Rate" initialValue={0.16}>
+          <Form.Item
+            name="taxRate"
+            label="Tax Rate"
+            initialValue={0.16}
+            tooltip="Used for both sales and purchases of this product."
+          >
             <InputNumber
               style={{ width: '100%' }}
               min={0} max={1} step={0.01}
               formatter={(v) => `${(Number(v) * 100).toFixed(0)}%`}
             />
+          </Form.Item>
+          <Form.Item
+            name="costPrice"
+            label="Buying Price (KES)"
+            tooltip="What you pay a supplier for this product. Used as the default when adding it to a Purchase Order or RFQ."
+          >
+            <InputNumber style={{ width: '100%' }} min={0} />
+          </Form.Item>
+          <Form.Item
+            name="costPriceIncludesVat"
+            label="Buying price includes VAT"
+            valuePropName="checked"
+            initialValue={true}
+          >
+            <Switch />
           </Form.Item>
           <Form.Item name="reorderLevel" label="Reorder Level" initialValue={10}>
             <InputNumber style={{ width: '100%' }} min={0} />

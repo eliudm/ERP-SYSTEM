@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   Table, Button, Card, Typography, Space, Select,
   Modal, Form, DatePicker, Input, InputNumber,
-  message, Tag, Tooltip,
+  message, Tag, Tooltip, Switch,
 } from 'antd';
 import { PlusOutlined, CheckOutlined, InboxOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -18,7 +18,9 @@ export const PurchaseOrdersPage: React.FC = () => {
   const [status, setStatus] = useState<string>();
   const [createModal, setCreateModal] = useState(false);
   const [receiveModal, setReceiveModal] = useState<any>(null);
-  const [items, setItems] = useState([{ productId: '', quantity: 1, unitCost: 0, taxRate: 0.16 }]);
+  const [items, setItems] = useState([
+    { productId: '', quantity: 1, unitCost: 0, taxRate: 0.16, isTaxInclusive: true },
+  ]);
   const [receiveItems, setReceiveItems] = useState<any[]>([]);
   const [form] = Form.useForm();
   const queryClient = useQueryClient();
@@ -38,7 +40,9 @@ export const PurchaseOrdersPage: React.FC = () => {
       message.success('Purchase order created');
       setCreateModal(false);
       form.resetFields();
-      setItems([{ productId: '', quantity: 1, unitCost: 0, taxRate: 0.16 }]);
+      setItems([
+        { productId: '', quantity: 1, unitCost: 0, taxRate: 0.16, isTaxInclusive: true },
+      ]);
       queryClient.invalidateQueries({ queryKey: ['purchase-orders'] });
     },
     onError: (err: any) => message.error(err.response?.data?.message || 'Failed'),
@@ -135,17 +139,60 @@ export const PurchaseOrdersPage: React.FC = () => {
         </Form>
         <div style={{ background: '#fafafa', padding: 16, borderRadius: 8 }}>
           {items.map((item, i) => (
-            <Space key={i} style={{ width: '100%', marginBottom: 8 }}>
-              <Select style={{ width: 200 }} placeholder="Product" showSearch options={products?.map((p: any) => ({ value: p.id, label: p.name }))}
-                value={item.productId || undefined} onChange={(v) => { const u = [...items]; u[i].productId = v; setItems(u); }} />
+            <Space key={i} wrap style={{ width: '100%', marginBottom: 8 }}>
+              <Select
+                style={{ width: 200 }} placeholder="Product" showSearch
+                options={products?.map((p: any) => ({ value: p.id, label: p.name }))}
+                value={item.productId || undefined}
+                onChange={(v) => {
+                  const u = [...items];
+                  const product = (products as any[])?.find((p) => p.id === v);
+                  u[i] = {
+                    ...u[i],
+                    productId: v,
+                    unitCost: product ? Number(product.costPrice ?? 0) : u[i].unitCost,
+                    taxRate: product ? Number(product.taxRate ?? 0.16) : u[i].taxRate,
+                    isTaxInclusive: product ? (product.costPriceIncludesVat ?? true) : u[i].isTaxInclusive,
+                  };
+                  setItems(u);
+                }}
+              />
               <InputNumber placeholder="Qty" min={0.01} value={item.quantity} style={{ width: 80 }}
                 onChange={(v) => { const u = [...items]; u[i].quantity = v || 1; setItems(u); }} />
-              <InputNumber placeholder="Unit Cost" min={0} value={item.unitCost} style={{ width: 120 }}
+              <InputNumber placeholder="Unit Cost" min={0} value={item.unitCost} style={{ width: 110 }}
                 onChange={(v) => { const u = [...items]; u[i].unitCost = v || 0; setItems(u); }} />
+              <Select
+                style={{ width: 110 }}
+                value={item.taxRate}
+                options={[
+                  { value: 0, label: 'No Tax (0%)' },
+                  { value: 0.08, label: 'VAT 8%' },
+                  { value: 0.16, label: 'VAT 16%' },
+                ]}
+                onChange={(v) => { const u = [...items]; u[i].taxRate = v; setItems(u); }}
+              />
+              <Tooltip title="Switch off if the supplier's price does NOT already include VAT">
+                <Space size={4}>
+                  <Switch
+                    size="small"
+                    checked={item.isTaxInclusive}
+                    onChange={(checked) => { const u = [...items]; u[i].isTaxInclusive = checked; setItems(u); }}
+                  />
+                  <span style={{ fontSize: 12, color: '#666' }}>incl. VAT</span>
+                </Space>
+              </Tooltip>
               {items.length > 1 && <Button danger size="small" onClick={() => setItems(items.filter((_, j) => j !== i))}>✕</Button>}
             </Space>
           ))}
-          <Button type="dashed" block onClick={() => setItems([...items, { productId: '', quantity: 1, unitCost: 0, taxRate: 0.16 }])}>+ Add Item</Button>
+          <Button
+            type="dashed" block
+            onClick={() => setItems([
+              ...items,
+              { productId: '', quantity: 1, unitCost: 0, taxRate: 0.16, isTaxInclusive: true },
+            ])}
+          >
+            + Add Item
+          </Button>
         </div>
       </Modal>
 

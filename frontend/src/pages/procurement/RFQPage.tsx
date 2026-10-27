@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Button, Table, Tag, Space, Modal, Form, Input, Select, InputNumber,
   message, Typography, Card, Steps, Popconfirm, Divider, Row, Col,
-  Descriptions,
+  Descriptions, Switch,
 } from 'antd';
 import {
   PlusOutlined, ArrowLeftOutlined, SendOutlined, CheckOutlined,
@@ -14,7 +14,7 @@ import { procurementApi } from '../../api/procurement.api';
 import { inventoryApi } from '../../api/inventory.api';
 import type { ColumnsType } from 'antd/es/table';
 import { formatCurrency } from '../../utils/format';
-import { extractTax } from '../../utils/tax';
+import { computeLineTax } from '../../utils/tax';
 
 const { Title, Text } = Typography;
 
@@ -35,6 +35,7 @@ interface LineItem {
   quantity: number;
   unitPrice: number;
   taxRate: number;
+  isTaxInclusive: boolean;
 }
 
 // ─── Detail view component ────────────────────────────────────────────────────
@@ -48,7 +49,7 @@ const PurchaseDetail: React.FC<{
   const [editing, setEditing] = useState(isNew);
   const [form] = Form.useForm();
   const [lines, setLines] = useState<LineItem[]>([
-    { productId: '', quantity: 1, unitPrice: 0, taxRate: 0.16 },
+    { productId: '', quantity: 1, unitPrice: 0, taxRate: 0.16, isTaxInclusive: true },
   ]);
   const [receiveOpen, setReceiveOpen] = useState(false);
   const [receiveItems, setReceiveItems] = useState<any[]>([]);
@@ -76,6 +77,7 @@ const PurchaseDetail: React.FC<{
           quantity: Number(i.quantity),
           unitPrice: Number(i.quotedPrice || i.expectedPrice || 0),
           taxRate: Number(i.taxRate || 0.16),
+          isTaxInclusive: i.isTaxInclusive ?? true,
         })),
       );
     }
@@ -177,14 +179,21 @@ const PurchaseDetail: React.FC<{
   };
 
   // Totals
-  const { subtotal, taxTotal } = lines.reduce(
+  const { subtotal, taxTotal, grandTotal } = lines.reduce(
     (acc, l) => {
-      const { tax, net } = extractTax(l.quantity * l.unitPrice, l.taxRate);
-      return { subtotal: acc.subtotal + net, taxTotal: acc.taxTotal + tax };
+      const { taxAmount, net, gross } = computeLineTax(
+        l.quantity * l.unitPrice,
+        l.taxRate,
+        l.isTaxInclusive,
+      );
+      return {
+        subtotal: acc.subtotal + net,
+        taxTotal: acc.taxTotal + taxAmount,
+        grandTotal: acc.grandTotal + gross,
+      };
     },
-    { subtotal: 0, taxTotal: 0 },
+    { subtotal: 0, taxTotal: 0, grandTotal: 0 },
   );
-  const grandTotal = lines.reduce((s, l) => s + l.quantity * l.unitPrice, 0);
 
   const status = rfq?.status ?? 'DRAFT';
   const po = rfq?.purchaseOrder;
@@ -323,13 +332,18 @@ const PurchaseDetail: React.FC<{
                   <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 500, width: 90 }}>Quantity</th>
                   <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 500, width: 130 }}>Unit Price</th>
                   <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 500, width: 110 }}>Taxes (%)</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 500, width: 90 }}>Incl. VAT</th>
                   <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 500, width: 120 }}>Amount</th>
                   {!isReadonly && <th style={{ width: 40 }} />}
                 </tr>
               </thead>
               <tbody>
                 {lines.map((line, i) => {
-                  const amount = line.quantity * line.unitPrice;
+                  const { gross: amount } = computeLineTax(
+                    line.quantity * line.unitPrice,
+                    line.taxRate,
+                    line.isTaxInclusive,
+                  );
                   return (
                     <tr key={i} style={{ borderBottom: '1px solid #f0f0f0' }}>
                       <td style={{ padding: '6px 12px' }}>
@@ -346,7 +360,13 @@ const PurchaseDetail: React.FC<{
                             onChange={(v) => {
                               const product = (products as any[]).find((p) => p.id === v);
                               const u = [...lines];
-                              u[i] = { ...u[i], productId: v, unitPrice: product ? Number(product.unitPrice) : 0 };
+                              u[i] = {
+                                ...u[i],
+                                productId: v,
+                                unitPrice: product ? Number(product.unitPrice) : 0,
+                                taxRate: product ? Number(product.taxRate) : 0.16,
+                                isTaxInclusive: product ? (product.costPriceIncludesVat ?? true) : true,
+                              };
                               setLines(u);
                             }}
                           />
@@ -389,6 +409,17 @@ const PurchaseDetail: React.FC<{
                           />
                         )}
                       </td>
+                      <td style={{ padding: '6px 12px', textAlign: 'center' }}>
+                        {isReadonly ? (
+                          <Text>{line.isTaxInclusive ? 'Yes' : 'No'}</Text>
+                        ) : (
+                          <Switch
+                            size="small"
+                            checked={line.isTaxInclusive}
+                            onChange={(checked) => { const u = [...lines]; u[i].isTaxInclusive = checked; setLines(u); }}
+                          />
+                        )}
+                      </td>
                       <td style={{ padding: '6px 12px', textAlign: 'right' }}>
                         <Text>{formatCurrency(amount)}</Text>
                       </td>
@@ -409,7 +440,10 @@ const PurchaseDetail: React.FC<{
           {!isReadonly && (
             <Button
               type="dashed" style={{ marginTop: 8, color: '#1677ff' }}
-              onClick={() => setLines([...lines, { productId: '', quantity: 1, unitPrice: 0, taxRate: 0.16 }])}
+              onClick={() => setLines([
+                ...lines,
+                { productId: '', quantity: 1, unitPrice: 0, taxRate: 0.16, isTaxInclusive: true },
+              ])}
             >
               + Add a product
             </Button>
