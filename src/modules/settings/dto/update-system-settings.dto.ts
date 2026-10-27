@@ -53,6 +53,11 @@ export class UpdateSystemSettingsDto {
 
   @IsOptional()
   @IsString()
+  @IsIn(['standard', 'compact', 'branded'])
+  receiptTemplate?: string;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(10)
   defaultCurrency?: string;
 

@@ -748,6 +748,7 @@ model SystemSetting {
   paymentInstructions String?  @db.Text
   receiptSlogan       String?
   invoiceTemplate     String   @default("modern")
+  receiptTemplate     String   @default("standard")
   defaultCurrency     String   @default("KES")
   timezone            String   @default("Africa/Nairobi")
   defaultLanguage     String   @default("en-KE")

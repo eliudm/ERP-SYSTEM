@@ -21,6 +21,7 @@ export class SettingsService {
         receiptSlogan:
           'Streamlined operations. Compliant receipts. Better business.',
         invoiceTemplate: 'modern',
+        receiptTemplate: 'standard',
         defaultCurrency: 'KES',
         timezone: 'Africa/Nairobi',
         defaultLanguage: 'en-KE',
