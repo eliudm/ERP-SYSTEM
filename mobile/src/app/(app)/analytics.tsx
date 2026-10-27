@@ -13,53 +13,15 @@ import {
   TopProduct,
   TopCustomer,
 } from '../../api/analytics.api';
+import {
+  getPeriodRange,
+  Period,
+  PERIOD_BUTTONS,
+} from '../../utils/periodRange';
 import { brand } from '../../theme';
-
-type Period = 'this_month' | 'last_month' | 'last_3_months' | 'this_year';
 
 const formatCurrency = (value: number) =>
   `KES ${value.toLocaleString('en-KE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
-
-const toDateInput = (d: Date) => d.toISOString().slice(0, 10);
-
-// Date range + aggregation granularity for each period choice — daily
-// buckets read better over a few weeks, monthly buckets over a few months.
-const getRange = (
-  period: Period,
-): { startDate: string; endDate: string; granularity: 'day' | 'month' } => {
-  const now = new Date();
-  if (period === 'this_month') {
-    const start = new Date(now.getFullYear(), now.getMonth(), 1);
-    return {
-      startDate: toDateInput(start),
-      endDate: toDateInput(now),
-      granularity: 'day',
-    };
-  }
-  if (period === 'last_month') {
-    const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const end = new Date(now.getFullYear(), now.getMonth(), 0);
-    return {
-      startDate: toDateInput(start),
-      endDate: toDateInput(end),
-      granularity: 'day',
-    };
-  }
-  if (period === 'last_3_months') {
-    const start = new Date(now.getFullYear(), now.getMonth() - 2, 1);
-    return {
-      startDate: toDateInput(start),
-      endDate: toDateInput(now),
-      granularity: 'month',
-    };
-  }
-  const start = new Date(now.getFullYear(), 0, 1);
-  return {
-    startDate: toDateInput(start),
-    endDate: toDateInput(now),
-    granularity: 'month',
-  };
-};
 
 const formatPeriodLabel = (period: string, granularity: 'day' | 'month') => {
   if (granularity === 'day') {
@@ -173,7 +135,7 @@ const TopCustomerRow: React.FC<{ rank: number; customer: TopCustomer }> = ({
 
 export default function AnalyticsScreen() {
   const [period, setPeriod] = useState<Period>('this_month');
-  const range = useMemo(() => getRange(period), [period]);
+  const range = useMemo(() => getPeriodRange(period), [period]);
   const queryClient = useQueryClient();
 
   const plQuery = useQuery({
@@ -244,12 +206,7 @@ export default function AnalyticsScreen() {
       <SegmentedButtons
         value={period}
         onValueChange={(v) => setPeriod(v)}
-        buttons={[
-          { value: 'this_month', label: 'This Month' },
-          { value: 'last_month', label: 'Last Month' },
-          { value: 'last_3_months', label: '3 Months' },
-          { value: 'this_year', label: 'This Year' },
-        ]}
+        buttons={[...PERIOD_BUTTONS]}
         style={styles.segmented}
       />
 

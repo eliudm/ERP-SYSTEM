@@ -112,6 +112,14 @@ export default function AppTabsLayout() {
         name="analytics"
         options={{ href: null, headerShown: true, title: 'Business Reports' }}
       />
+      <Tabs.Screen
+        name="ai-insights"
+        options={{ href: null, headerShown: true, title: 'AI Insights' }}
+      />
+      <Tabs.Screen
+        name="branches"
+        options={{ href: null, headerShown: true, title: 'Branch Comparison' }}
+      />
     </Tabs>
   );
 }

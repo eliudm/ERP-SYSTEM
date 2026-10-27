@@ -273,6 +273,22 @@ export default function ProfileScreen() {
                   onPress={() => router.push('/analytics')}
                 />
               )}
+              {(user?.role === 'ADMIN' || user?.role === 'ACCOUNTANT') && (
+                <AdminToolRow
+                  icon="lightbulb-on-outline"
+                  label="AI Insights"
+                  description="Stock alerts, sales trends, payment risk, dormant customers"
+                  onPress={() => router.push('/ai-insights')}
+                />
+              )}
+              {(user?.role === 'ADMIN' || user?.role === 'ACCOUNTANT') && (
+                <AdminToolRow
+                  icon="store-marker-outline"
+                  label="Branch Comparison"
+                  description="Revenue and orders ranked across all branches"
+                  onPress={() => router.push('/branches')}
+                />
+              )}
             </Card.Content>
           </Card>
         </>
