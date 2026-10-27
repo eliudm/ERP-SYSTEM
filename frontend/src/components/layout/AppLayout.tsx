@@ -352,6 +352,7 @@ export const AppLayout: React.FC = () => {
         <div
           style={{
             flex: 1,
+            minHeight: 0,
             overflowY: 'auto',
             overflowX: 'hidden',
             scrollbarWidth: 'thin',
