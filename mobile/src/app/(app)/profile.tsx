@@ -289,6 +289,14 @@ export default function ProfileScreen() {
                   onPress={() => router.push('/branches')}
                 />
               )}
+              {(user?.role === 'ADMIN' || user?.role === 'ACCOUNTANT') && (
+                <AdminToolRow
+                  icon="scale-balance"
+                  label="Accounting Reports"
+                  description="Balance sheet, cash flow, aged receivables/payables, VAT return"
+                  onPress={() => router.push('/accounting-reports')}
+                />
+              )}
             </Card.Content>
           </Card>
         </>

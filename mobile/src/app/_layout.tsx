@@ -87,6 +87,10 @@ function RootNavigator() {
           name="branches"
           options={{ headerShown: true, title: 'Branch Comparison' }}
         />
+        <Stack.Screen
+          name="accounting-reports"
+          options={{ headerShown: true, title: 'Accounting Reports' }}
+        />
       </Stack.Protected>
       <Stack.Protected guard={!user}>
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
