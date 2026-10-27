@@ -135,6 +135,7 @@ export default function PosScreen() {
   const [searchingCustomers, setSearchingCustomers] = useState(false);
   const [mpesaPhone, setMpesaPhone] = useState('');
   const [checkoutStage, setCheckoutStage] = useState<string | null>(null);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
   const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
   const [receiptQr, setReceiptQr] = useState<EtimsQrResult | null>(null);
@@ -326,6 +327,7 @@ export default function PosScreen() {
     setSelectedCustomer(null);
     setMpesaPhone('');
     setCheckoutStage(null);
+    setCheckoutError(null);
   };
 
   const openChargeModal = () => {
@@ -474,11 +476,11 @@ export default function PosScreen() {
         err?.message ??
         err?.response?.data?.message ??
         'Failed to complete sale. Please try again.';
-      setSnackbar({
-        visible: true,
-        message: Array.isArray(message) ? message.join(', ') : message,
-        isError: true,
-      });
+      const text = Array.isArray(message) ? message.join(', ') : message;
+      // Shown inline in the payment screen itself — a Snackbar here would
+      // render behind the still-open payment Modal and never be seen.
+      setCheckoutError(text);
+      setSnackbar({ visible: true, message: text, isError: true });
     },
   });
 
@@ -863,9 +865,13 @@ export default function PosScreen() {
             warehouseId={activeWarehouseId}
             onSelectWarehouse={setWarehouseId}
             checkoutStage={checkoutStage}
+            error={checkoutError}
             isSubmitting={chargeMutation.isPending}
             onBack={closeChargeModal}
-            onConfirm={() => chargeMutation.mutate()}
+            onConfirm={() => {
+              setCheckoutError(null);
+              chargeMutation.mutate();
+            }}
           />
         </Modal>
       </Portal>
@@ -1054,14 +1060,16 @@ export default function PosScreen() {
         </Modal>
       </Portal>
 
-      <Snackbar
-        visible={snackbar.visible}
-        onDismiss={() => setSnackbar((s) => ({ ...s, visible: false }))}
-        duration={5000}
-        style={snackbar.isError ? styles.snackbarError : undefined}
-      >
-        {snackbar.message}
-      </Snackbar>
+      <Portal>
+        <Snackbar
+          visible={snackbar.visible}
+          onDismiss={() => setSnackbar((s) => ({ ...s, visible: false }))}
+          duration={5000}
+          style={snackbar.isError ? styles.snackbarError : undefined}
+        >
+          {snackbar.message}
+        </Snackbar>
+      </Portal>
     </View>
   );
 }

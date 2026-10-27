@@ -49,6 +49,7 @@ interface PaymentScreenProps {
   warehouseId: string | undefined;
   onSelectWarehouse: (id: string) => void;
   checkoutStage: string | null;
+  error: string | null;
   isSubmitting: boolean;
   onBack: () => void;
   onConfirm: () => void;
@@ -71,6 +72,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
   warehouseId,
   onSelectWarehouse,
   checkoutStage,
+  error,
   isSubmitting,
   onBack,
   onConfirm,
@@ -181,6 +183,17 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
           </View>
         )}
       </ScrollView>
+
+      {error && (
+        <View style={styles.errorBanner}>
+          <MaterialCommunityIcons
+            name="alert-circle-outline"
+            size={18}
+            color="#d4380d"
+          />
+          <Text style={styles.errorBannerText}>{error}</Text>
+        </View>
+      )}
 
       <View style={styles.footer}>
         <IconButton
@@ -293,6 +306,22 @@ const styles = StyleSheet.create({
   stageText: {
     fontSize: 12.5,
     color: brand.textMuted,
+  },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    padding: 10,
+    borderRadius: 10,
+    backgroundColor: '#fde3dc',
+  },
+  errorBannerText: {
+    flex: 1,
+    fontSize: 12.5,
+    color: '#d4380d',
+    fontWeight: '600',
   },
   footer: {
     flexDirection: 'row',
