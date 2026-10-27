@@ -14,8 +14,6 @@ import {
   Chip,
   Button,
   IconButton,
-  Portal,
-  Modal,
   TextInput,
   Snackbar,
   Divider,
@@ -71,6 +69,20 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const isValidKenyaPhone = (value: string) =>
   /^(254|0)\d{9}$/.test(value.trim());
 
+// Full in-place screens instead of react-native-paper's Modal/Portal — RN's
+// native Modal primitive can silently swallow touches on some Android
+// devices when nested under GestureHandlerRootView (taps "work" visually —
+// the button's own press animation plays — but nothing inside the modal
+// ever receives the touch). Swapping screens in place avoids that class of
+// bug entirely, at the cost of losing the overlay look.
+type Screen =
+  | 'main'
+  | 'payment'
+  | 'orders'
+  | 'receipt'
+  | 'registerOpen'
+  | 'registerClose';
+
 export default function PosScreen() {
   const queryClient = useQueryClient();
   const { width, height } = useWindowDimensions();
@@ -96,16 +108,13 @@ export default function PosScreen() {
 
   const register = useRegister();
   const heldOrders = useHeldOrders();
-  const [ordersVisible, setOrdersVisible] = useState(false);
+  const [screen, setScreen] = useState<Screen>('main');
 
   const { data: recentInvoices = [] } = useQuery({
     queryKey: ['recent-invoices'],
     queryFn: () => mobileApi.getRecentInvoices(50),
-    enabled: ordersVisible,
+    enabled: screen === 'orders',
   });
-  const [registerModal, setRegisterModal] = useState<'open' | 'close' | null>(
-    null,
-  );
   const [openingFloatInput, setOpeningFloatInput] = useState('');
   const [cashCountedInput, setCashCountedInput] = useState('');
 
@@ -113,7 +122,7 @@ export default function PosScreen() {
   const { data: dailySummary, isLoading: dailySummaryLoading } = useQuery({
     queryKey: ['daily-summary', today],
     queryFn: () => salesApi.getDailySummary(today),
-    enabled: registerModal === 'close',
+    enabled: screen === 'registerClose',
   });
 
   const [search, setSearch] = useState('');
@@ -124,7 +133,6 @@ export default function PosScreen() {
   const [numpadBuffer, setNumpadBuffer] = useState('');
   const [numpadMode, setNumpadMode] = useState<NumpadMode>('qty');
 
-  const [chargeVisible, setChargeVisible] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<string>('CASH');
   const [warehouseId, setWarehouseId] = useState<string | undefined>(undefined);
   const [customerQuery, setCustomerQuery] = useState('');
@@ -258,7 +266,7 @@ export default function PosScreen() {
 
   const loadHeldOrder = (order: HeldOrder) => {
     setCart(order.lines);
-    setOrdersVisible(false);
+    setScreen('main');
     setCartExpanded(true);
     void heldOrders.removeOrder(order.id);
   };
@@ -332,12 +340,12 @@ export default function PosScreen() {
 
   const openChargeModal = () => {
     resetChargeModal();
-    setChargeVisible(true);
+    setScreen('payment');
   };
 
   const closeChargeModal = () => {
     if (chargeMutation.isPending) return;
-    setChargeVisible(false);
+    setScreen('main');
   };
 
   const runCustomerSearch = async (q: string) => {
@@ -455,7 +463,6 @@ export default function PosScreen() {
       };
     },
     onSuccess: ({ invoice, receipt }) => {
-      setChargeVisible(false);
       setCart([]);
       setCartExpanded(false);
       setSelectedLineId(null);
@@ -463,6 +470,7 @@ export default function PosScreen() {
       setReceiptData(receipt);
       setReceiptQr(null);
       setReceiptQrLoading(true);
+      setScreen('receipt');
       void queryClient.invalidateQueries({ queryKey: ['mobile-dashboard'] });
       void queryClient.invalidateQueries({ queryKey: ['pos-data'] });
       void fetchEtimsQrWithRetry(invoice.id).then((qr) => {
@@ -485,9 +493,21 @@ export default function PosScreen() {
   });
 
   const closeReceipt = () => {
+    setScreen('main');
     setReceiptData(null);
     setReceiptQr(null);
   };
+
+  const snackbarElement = (
+    <Snackbar
+      visible={snackbar.visible}
+      onDismiss={() => setSnackbar((s) => ({ ...s, visible: false }))}
+      duration={5000}
+      style={snackbar.isError ? styles.snackbarError : undefined}
+    >
+      {snackbar.message}
+    </Snackbar>
+  );
 
   if (isLoading) {
     return (
@@ -515,6 +535,200 @@ export default function PosScreen() {
     );
   }
 
+  if (screen === 'payment') {
+    return (
+      <View style={styles.container}>
+        <PaymentScreen
+          total={total}
+          paymentMethods={paymentMethods}
+          paymentMethod={paymentMethod}
+          onSelectPaymentMethod={setPaymentMethod}
+          mpesaPhone={mpesaPhone}
+          onMpesaPhoneChange={setMpesaPhone}
+          customerQuery={customerQuery}
+          onCustomerQueryChange={(v) => void runCustomerSearch(v)}
+          customerResults={customerResults}
+          selectedCustomer={selectedCustomer}
+          onSelectCustomer={selectCustomer}
+          searchingCustomers={searchingCustomers}
+          warehouses={warehouses}
+          warehouseId={activeWarehouseId}
+          onSelectWarehouse={setWarehouseId}
+          checkoutStage={checkoutStage}
+          error={checkoutError}
+          isSubmitting={chargeMutation.isPending}
+          onBack={closeChargeModal}
+          onConfirm={() => {
+            setCheckoutError(null);
+            chargeMutation.mutate();
+          }}
+        />
+        {snackbarElement}
+      </View>
+    );
+  }
+
+  if (screen === 'orders') {
+    return (
+      <View style={styles.container}>
+        <View style={styles.ordersHeader}>
+          <IconButton icon="chevron-left" onPress={() => setScreen('main')} />
+          <Text style={styles.ordersTitle}>Orders</Text>
+        </View>
+        <OrdersList
+          heldOrders={heldOrders.orders}
+          recentInvoices={recentInvoices}
+          isLoading={heldOrders.isLoading}
+          onLoadOrder={loadHeldOrder}
+          onDeleteOrder={(id) => void heldOrders.removeOrder(id)}
+        />
+        {snackbarElement}
+      </View>
+    );
+  }
+
+  if (screen === 'receipt') {
+    return (
+      <View style={styles.container}>
+        {receiptData && (
+          <Receipt
+            receipt={receiptData}
+            settings={settings}
+            qr={receiptQr}
+            qrLoading={receiptQrLoading}
+            onDone={closeReceipt}
+          />
+        )}
+      </View>
+    );
+  }
+
+  if (screen === 'registerOpen' || screen === 'registerClose') {
+    return (
+      <View style={styles.container}>
+        <View style={styles.ordersHeader}>
+          <IconButton icon="chevron-left" onPress={() => setScreen('main')} />
+          <Text style={styles.ordersTitle}>
+            {screen === 'registerOpen' ? 'Open Register' : 'Close Register'}
+          </Text>
+        </View>
+        <ScrollView contentContainerStyle={styles.registerScreenContent}>
+          {screen === 'registerOpen' ? (
+            <>
+              <Text style={styles.registerHint}>
+                Enter the starting cash float to begin a new shift.
+              </Text>
+              <TextInput
+                mode="outlined"
+                label="Opening float (KES)"
+                keyboardType="numeric"
+                value={openingFloatInput}
+                onChangeText={setOpeningFloatInput}
+                style={styles.customerInput}
+              />
+              <Button
+                mode="contained"
+                style={styles.registerActionButton}
+                onPress={() => {
+                  void register
+                    .openRegister(Number(openingFloatInput) || 0)
+                    .then(() => setScreen('main'));
+                }}
+              >
+                Open Register
+              </Button>
+            </>
+          ) : (
+            <>
+              <Text style={styles.registerHint}>
+                Today&apos;s sales, for reconciliation against the till.
+              </Text>
+              {dailySummaryLoading ? (
+                <ActivityIndicator
+                  size="small"
+                  color={brand.gradientEnd}
+                  style={{ marginVertical: 12 }}
+                />
+              ) : (
+                <>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.totalsLabel}>Orders</Text>
+                    <Text style={styles.totalsValue}>
+                      {dailySummary?.totalOrders ?? 0}
+                    </Text>
+                  </View>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.totalsLabel}>Total revenue</Text>
+                    <Text style={styles.totalsValue}>
+                      {formatCurrency(dailySummary?.totalRevenue ?? 0)}
+                    </Text>
+                  </View>
+                  <Divider style={styles.divider} />
+                  {(dailySummary?.byPaymentMethod ?? []).map((row) => (
+                    <View key={row.method} style={styles.summaryRow}>
+                      <Text style={styles.totalsLabel}>
+                        {PAYMENT_METHOD_LABELS[row.method] ?? row.method} (
+                        {row.orders})
+                      </Text>
+                      <Text style={styles.totalsValue}>
+                        {formatCurrency(row.amount)}
+                      </Text>
+                    </View>
+                  ))}
+                </>
+              )}
+
+              <TextInput
+                mode="outlined"
+                label="Cash counted (KES)"
+                keyboardType="numeric"
+                value={cashCountedInput}
+                onChangeText={setCashCountedInput}
+                style={[styles.customerInput, { marginTop: 12 }]}
+              />
+              {cashCountedInput.trim().length > 0 &&
+                (() => {
+                  const expectedCash =
+                    dailySummary?.byPaymentMethod.find(
+                      (r) => r.method === 'CASH',
+                    )?.amount ?? 0;
+                  const variance = Number(cashCountedInput) - expectedCash;
+                  return (
+                    <Text
+                      style={[
+                        styles.varianceText,
+                        {
+                          color: variance === 0 ? brand.gradientEnd : '#d4380d',
+                        },
+                      ]}
+                    >
+                      Expected cash {formatCurrency(expectedCash)} · Variance{' '}
+                      {variance >= 0 ? '+' : ''}
+                      {formatCurrency(variance)}
+                    </Text>
+                  );
+                })()}
+
+              <Button
+                mode="contained"
+                style={styles.registerActionButton}
+                onPress={() => {
+                  void register.closeRegister().then(() => {
+                    setScreen('main');
+                    setSnackbar({ visible: true, message: 'Register closed' });
+                  });
+                }}
+              >
+                Close Register
+              </Button>
+            </>
+          )}
+        </ScrollView>
+        {snackbarElement}
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.topBar}>
@@ -536,7 +750,7 @@ export default function PosScreen() {
           icon="notebook-outline"
           mode="outlined"
           size={20}
-          onPress={() => setOrdersVisible(true)}
+          onPress={() => setScreen('orders')}
         />
       </View>
 
@@ -551,7 +765,7 @@ export default function PosScreen() {
           onPress={() => {
             setOpeningFloatInput('');
             setCashCountedInput('');
-            setRegisterModal(register.isOpen ? 'close' : 'open');
+            setScreen(register.isOpen ? 'registerClose' : 'registerOpen');
           }}
         >
           <MaterialCommunityIcons
@@ -841,235 +1055,7 @@ export default function PosScreen() {
         </View>
       )}
 
-      <Portal>
-        <Modal
-          visible={chargeVisible}
-          onDismiss={closeChargeModal}
-          dismissable={!chargeMutation.isPending}
-          contentContainerStyle={styles.paymentModalContainer}
-        >
-          <PaymentScreen
-            total={total}
-            paymentMethods={paymentMethods}
-            paymentMethod={paymentMethod}
-            onSelectPaymentMethod={setPaymentMethod}
-            mpesaPhone={mpesaPhone}
-            onMpesaPhoneChange={setMpesaPhone}
-            customerQuery={customerQuery}
-            onCustomerQueryChange={(v) => void runCustomerSearch(v)}
-            customerResults={customerResults}
-            selectedCustomer={selectedCustomer}
-            onSelectCustomer={selectCustomer}
-            searchingCustomers={searchingCustomers}
-            warehouses={warehouses}
-            warehouseId={activeWarehouseId}
-            onSelectWarehouse={setWarehouseId}
-            checkoutStage={checkoutStage}
-            error={checkoutError}
-            isSubmitting={chargeMutation.isPending}
-            onBack={closeChargeModal}
-            onConfirm={() => {
-              setCheckoutError(null);
-              chargeMutation.mutate();
-            }}
-          />
-        </Modal>
-      </Portal>
-
-      <Portal>
-        <Modal
-          visible={ordersVisible}
-          onDismiss={() => setOrdersVisible(false)}
-          contentContainerStyle={styles.ordersModalContainer}
-        >
-          <View style={styles.ordersHeader}>
-            <IconButton
-              icon="chevron-left"
-              onPress={() => setOrdersVisible(false)}
-            />
-            <Text style={styles.ordersTitle}>Orders</Text>
-          </View>
-          <OrdersList
-            heldOrders={heldOrders.orders}
-            recentInvoices={recentInvoices}
-            isLoading={heldOrders.isLoading}
-            onLoadOrder={loadHeldOrder}
-            onDeleteOrder={(id) => void heldOrders.removeOrder(id)}
-          />
-        </Modal>
-      </Portal>
-
-      <Portal>
-        <Modal
-          visible={!!receiptData}
-          onDismiss={closeReceipt}
-          dismissable={false}
-          contentContainerStyle={styles.receiptModalContainer}
-        >
-          {receiptData && (
-            <Receipt
-              receipt={receiptData}
-              settings={settings}
-              qr={receiptQr}
-              qrLoading={receiptQrLoading}
-              onDone={closeReceipt}
-            />
-          )}
-        </Modal>
-      </Portal>
-
-      <Portal>
-        <Modal
-          visible={registerModal !== null}
-          onDismiss={() => setRegisterModal(null)}
-          contentContainerStyle={styles.modalContainer}
-        >
-          {registerModal === 'open' ? (
-            <>
-              <Text style={styles.modalTitle}>Open Register</Text>
-              <Text style={styles.registerHint}>
-                Enter the starting cash float to begin a new shift.
-              </Text>
-              <TextInput
-                mode="outlined"
-                label="Opening float (KES)"
-                keyboardType="numeric"
-                value={openingFloatInput}
-                onChangeText={setOpeningFloatInput}
-                style={styles.customerInput}
-              />
-              <View style={styles.modalActions}>
-                <Button
-                  mode="outlined"
-                  onPress={() => setRegisterModal(null)}
-                  style={styles.modalActionButton}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  mode="contained"
-                  onPress={() => {
-                    void register
-                      .openRegister(Number(openingFloatInput) || 0)
-                      .then(() => setRegisterModal(null));
-                  }}
-                  style={styles.modalActionButton}
-                >
-                  Open Register
-                </Button>
-              </View>
-            </>
-          ) : (
-            <ScrollView>
-              <Text style={styles.modalTitle}>Close Register</Text>
-              <Text style={styles.registerHint}>
-                Today&apos;s sales, for reconciliation against the till.
-              </Text>
-              {dailySummaryLoading ? (
-                <ActivityIndicator
-                  size="small"
-                  color={brand.gradientEnd}
-                  style={{ marginVertical: 12 }}
-                />
-              ) : (
-                <>
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.totalsLabel}>Orders</Text>
-                    <Text style={styles.totalsValue}>
-                      {dailySummary?.totalOrders ?? 0}
-                    </Text>
-                  </View>
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.totalsLabel}>Total revenue</Text>
-                    <Text style={styles.totalsValue}>
-                      {formatCurrency(dailySummary?.totalRevenue ?? 0)}
-                    </Text>
-                  </View>
-                  <Divider style={styles.divider} />
-                  {(dailySummary?.byPaymentMethod ?? []).map((row) => (
-                    <View key={row.method} style={styles.summaryRow}>
-                      <Text style={styles.totalsLabel}>
-                        {PAYMENT_METHOD_LABELS[row.method] ?? row.method} (
-                        {row.orders})
-                      </Text>
-                      <Text style={styles.totalsValue}>
-                        {formatCurrency(row.amount)}
-                      </Text>
-                    </View>
-                  ))}
-                </>
-              )}
-
-              <TextInput
-                mode="outlined"
-                label="Cash counted (KES)"
-                keyboardType="numeric"
-                value={cashCountedInput}
-                onChangeText={setCashCountedInput}
-                style={[styles.customerInput, { marginTop: 12 }]}
-              />
-              {cashCountedInput.trim().length > 0 &&
-                (() => {
-                  const expectedCash =
-                    dailySummary?.byPaymentMethod.find(
-                      (r) => r.method === 'CASH',
-                    )?.amount ?? 0;
-                  const variance = Number(cashCountedInput) - expectedCash;
-                  return (
-                    <Text
-                      style={[
-                        styles.varianceText,
-                        {
-                          color: variance === 0 ? brand.gradientEnd : '#d4380d',
-                        },
-                      ]}
-                    >
-                      Expected cash {formatCurrency(expectedCash)} · Variance{' '}
-                      {variance >= 0 ? '+' : ''}
-                      {formatCurrency(variance)}
-                    </Text>
-                  );
-                })()}
-
-              <View style={styles.modalActions}>
-                <Button
-                  mode="outlined"
-                  onPress={() => setRegisterModal(null)}
-                  style={styles.modalActionButton}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  mode="contained"
-                  onPress={() => {
-                    void register.closeRegister().then(() => {
-                      setRegisterModal(null);
-                      setSnackbar({
-                        visible: true,
-                        message: 'Register closed',
-                      });
-                    });
-                  }}
-                  style={styles.modalActionButton}
-                >
-                  Close Register
-                </Button>
-              </View>
-            </ScrollView>
-          )}
-        </Modal>
-      </Portal>
-
-      <Portal>
-        <Snackbar
-          visible={snackbar.visible}
-          onDismiss={() => setSnackbar((s) => ({ ...s, visible: false }))}
-          duration={5000}
-          style={snackbar.isError ? styles.snackbarError : undefined}
-        >
-          {snackbar.message}
-        </Snackbar>
-      </Portal>
+      {snackbarElement}
     </View>
   );
 }
@@ -1138,6 +1124,13 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     color: brand.textMuted,
     marginBottom: 12,
+  },
+  registerScreenContent: {
+    padding: 16,
+  },
+  registerActionButton: {
+    marginTop: 16,
+    borderRadius: 12,
   },
   summaryRow: {
     flexDirection: 'row',
