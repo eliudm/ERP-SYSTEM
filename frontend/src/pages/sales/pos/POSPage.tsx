@@ -20,6 +20,7 @@ import { apiClient } from '../../../api/client';
 import { inventoryApi } from '../../../api/inventory.api';
 import { salesApi } from '../../../api/sales.api';
 import { settingsApi } from '../../../api/settings.api';
+import { extractTax } from '../../../utils/tax';
 import { authApi } from '../../../api/auth.api';
 import { formatCurrency } from '../../../utils/format';
 import { buildReceiptHtml, openReceiptPrintWindow } from '../../../utils/receiptHtml';
@@ -554,13 +555,14 @@ export const POSPage: React.FC = () => {
     setCart(cart.filter((i) => i.productId !== productId));
   };
 
-  const subtotal = cart.reduce(
-    (sum, i) => sum + i.unitPrice * i.quantity, 0,
+  const { subtotal, taxTotal } = cart.reduce(
+    (acc, i) => {
+      const { tax, net } = extractTax(i.unitPrice * i.quantity, i.taxRate);
+      return { subtotal: acc.subtotal + net, taxTotal: acc.taxTotal + tax };
+    },
+    { subtotal: 0, taxTotal: 0 },
   );
-  const taxTotal = cart.reduce(
-    (sum, i) => sum + i.unitPrice * i.quantity * i.taxRate, 0,
-  );
-  const total = subtotal + taxTotal;
+  const total = cart.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
 
   const openPayment = () => {
     if (!customerId) {

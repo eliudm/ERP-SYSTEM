@@ -381,7 +381,12 @@ export const ProductsPage: React.FC = () => {
               }))}
             />
           </Form.Item>
-          <Form.Item name="unitPrice" label="Unit Price (KES)" rules={[{ required: true }]}>
+          <Form.Item
+            name="unitPrice"
+            label="Unit Price (KES, incl. VAT)"
+            rules={[{ required: true }]}
+            tooltip="Enter the price customers pay, including VAT. Tax is calculated from this amount, not added on top."
+          >
             <InputNumber style={{ width: '100%' }} min={0} />
           </Form.Item>
           <Form.Item name="taxRate" label="Tax Rate" initialValue={0.16}>

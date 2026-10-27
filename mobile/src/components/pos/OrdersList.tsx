@@ -17,10 +17,7 @@ const formatTime = (iso: string) =>
   });
 
 const heldOrderTotal = (order: HeldOrder) =>
-  order.lines.reduce(
-    (sum, l) => sum + l.unitPrice * l.quantity * (1 + l.taxRate),
-    0,
-  );
+  order.lines.reduce((sum, l) => sum + l.unitPrice * l.quantity, 0);
 
 interface OrdersListProps {
   heldOrders: HeldOrder[];

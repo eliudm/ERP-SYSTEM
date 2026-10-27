@@ -14,6 +14,7 @@ import { procurementApi } from '../../api/procurement.api';
 import { inventoryApi } from '../../api/inventory.api';
 import type { ColumnsType } from 'antd/es/table';
 import { formatCurrency } from '../../utils/format';
+import { extractTax } from '../../utils/tax';
 
 const { Title, Text } = Typography;
 
@@ -176,9 +177,14 @@ const PurchaseDetail: React.FC<{
   };
 
   // Totals
-  const subtotal = lines.reduce((s, l) => s + l.quantity * l.unitPrice, 0);
-  const taxTotal = lines.reduce((s, l) => s + l.quantity * l.unitPrice * l.taxRate, 0);
-  const grandTotal = subtotal + taxTotal;
+  const { subtotal, taxTotal } = lines.reduce(
+    (acc, l) => {
+      const { tax, net } = extractTax(l.quantity * l.unitPrice, l.taxRate);
+      return { subtotal: acc.subtotal + net, taxTotal: acc.taxTotal + tax };
+    },
+    { subtotal: 0, taxTotal: 0 },
+  );
+  const grandTotal = lines.reduce((s, l) => s + l.quantity * l.unitPrice, 0);
 
   const status = rfq?.status ?? 'DRAFT';
   const po = rfq?.purchaseOrder;
@@ -323,7 +329,7 @@ const PurchaseDetail: React.FC<{
               </thead>
               <tbody>
                 {lines.map((line, i) => {
-                  const amount = line.quantity * line.unitPrice * (1 + line.taxRate);
+                  const amount = line.quantity * line.unitPrice;
                   return (
                     <tr key={i} style={{ borderBottom: '1px solid #f0f0f0' }}>
                       <td style={{ padding: '6px 12px' }}>

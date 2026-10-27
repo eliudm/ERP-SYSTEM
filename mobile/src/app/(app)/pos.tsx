@@ -38,6 +38,7 @@ import { OrderDetail } from '../../components/pos/OrderDetail';
 import { OfflineBanner } from '../../components/pos/OfflineBanner';
 import { useRegister } from '../../hooks/useRegister';
 import { useHeldOrders, HeldOrder } from '../../hooks/useHeldOrders';
+import { extractTax } from '../../utils/tax';
 import { useOfflineSales } from '../../hooks/useOfflineSales';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import { useOrderDetailActions } from '../../hooks/useOrderDetailActions';
@@ -212,19 +213,24 @@ export default function PosScreen() {
     () => cart.reduce((sum, l) => sum + l.quantity, 0),
     [cart],
   );
-  const subtotal = useMemo(
-    () => cart.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0),
-    [cart],
-  );
-  const taxTotal = useMemo(
+  const { subtotal, taxTotal } = useMemo(
     () =>
       cart.reduce(
-        (sum, line) => sum + line.unitPrice * line.quantity * line.taxRate,
-        0,
+        (acc, line) => {
+          const { tax, net } = extractTax(
+            line.unitPrice * line.quantity,
+            line.taxRate,
+          );
+          return { subtotal: acc.subtotal + net, taxTotal: acc.taxTotal + tax };
+        },
+        { subtotal: 0, taxTotal: 0 },
       ),
     [cart],
   );
-  const total = subtotal + taxTotal;
+  const total = useMemo(
+    () => cart.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0),
+    [cart],
+  );
 
   const addToCart = (product: PosProduct) => {
     setCart((prev) => {

@@ -14,6 +14,7 @@ import dayjs from 'dayjs';
 import { salesApi } from '../../../api/sales.api';
 import { inventoryApi } from '../../../api/inventory.api';
 import { formatCurrency } from '../../../utils/format';
+import { extractTax } from '../../../utils/tax';
 import type { Product, QuoteStatus } from '../../../types';
 import { SendQuotationModal } from './SendQuotationModal';
 
@@ -61,6 +62,7 @@ interface LineItem {
   marginPct: number;
   taxAmount: number;
   lineTotal: number;
+  lineSubtotal: number;
 }
 
 const emptyLine = (): LineItem => ({
@@ -79,17 +81,18 @@ const emptyLine = (): LineItem => ({
   marginPct: 0,
   taxAmount: 0,
   lineTotal: 0,
+  lineSubtotal: 0,
 });
 
 function calcLine(line: LineItem): LineItem {
   const discounted = line.unitPrice * (1 - line.discount / 100);
-  const subtotal = discounted * line.quantity;
-  const taxAmount = subtotal * (line.taxRate / 100);
-  const lineTotal = subtotal + taxAmount;
+  const grossLine = discounted * line.quantity;
+  const { tax: taxAmount, net: subtotal } = extractTax(grossLine, line.taxRate, 100);
+  const lineTotal = grossLine;
   const cost = line.cost * line.quantity;
   const margin = subtotal - cost;
   const marginPct = subtotal > 0 ? (margin / subtotal) * 100 : 0;
-  return { ...line, taxAmount, lineTotal, margin, marginPct };
+  return { ...line, taxAmount, lineTotal, margin, marginPct, lineSubtotal: subtotal };
 }
 
 // ─── MAIN COMPONENT ────────────────────────────────────────
@@ -153,6 +156,7 @@ export const QuotationFormPage: React.FC = () => {
               marginPct: 0,
               taxAmount: Number(item.taxAmount),
               lineTotal: Number(item.lineTotal),
+              lineSubtotal: 0,
             };
             return calcLine(base);
           }),
@@ -242,8 +246,7 @@ export const QuotationFormPage: React.FC = () => {
 
   const totals = lines.reduce(
     (acc, l) => {
-      const subtotal = l.unitPrice * (1 - l.discount / 100) * l.quantity;
-      acc.subtotal += subtotal;
+      acc.subtotal += l.lineSubtotal;
       acc.tax += l.taxAmount;
       acc.total += l.lineTotal;
       return acc;
