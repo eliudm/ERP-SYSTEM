@@ -492,7 +492,14 @@ const PurchaseDetail: React.FC<{
         title="Receive Products"
         open={receiveOpen}
         onCancel={() => setReceiveOpen(false)}
-        onOk={() => po && receiveMutation.mutate({ poId: po.id, items: receiveItems })}
+        onOk={() => po && receiveMutation.mutate({
+          poId: po.id,
+          items: receiveItems.map(({ productId, quantityReceived, warehouseId }) => ({
+            productId,
+            quantityReceived,
+            warehouseId,
+          })),
+        })}
         confirmLoading={receiveMutation.isPending}
         okText="Confirm Receipt"
       >
