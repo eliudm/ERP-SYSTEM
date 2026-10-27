@@ -6,6 +6,7 @@ const mockBranchesService = () => ({
   findAll: jest.fn(),
   findOne: jest.fn(),
   getReport: jest.fn(),
+  getComparison: jest.fn(),
   create: jest.fn(),
   update: jest.fn(),
   deactivate: jest.fn(),
@@ -63,6 +64,24 @@ describe('BranchesController', () => {
 
       expect(service.getReport).toHaveBeenCalledWith(
         'branch-1',
+        '2024-01-01',
+        '2024-01-31',
+      );
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('getComparison', () => {
+    it('should call branchesService.getComparison with the date range', async () => {
+      const expected = { branches: [] };
+      service.getComparison.mockResolvedValue(expected);
+
+      const result = await controller.getComparison(
+        '2024-01-01',
+        '2024-01-31',
+      );
+
+      expect(service.getComparison).toHaveBeenCalledWith(
         '2024-01-01',
         '2024-01-31',
       );

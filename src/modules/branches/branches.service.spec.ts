@@ -13,6 +13,7 @@ const mockPrisma = () => ({
   },
   salesInvoice: {
     findMany: jest.fn(),
+    groupBy: jest.fn(),
   },
 });
 
@@ -225,6 +226,52 @@ describe('BranchesService', () => {
       await expect(service.getReport('missing')).rejects.toThrow(
         NotFoundException,
       );
+    });
+  });
+
+  describe('getComparison', () => {
+    it('should rank active branches by revenue, defaulting zero totals for branches with no activity', async () => {
+      prisma.branch.findMany.mockResolvedValue([
+        { id: 'branch-1', name: 'Main', code: 'MB-01' },
+        { id: 'branch-2', name: 'Annex', code: 'MB-02' },
+      ]);
+      prisma.salesInvoice.groupBy.mockResolvedValue([
+        { branchId: 'branch-1', status: 'PAID', _sum: { total: 100 }, _count: 1 },
+        { branchId: 'branch-1', status: 'APPROVED', _sum: { total: 50 }, _count: 1 },
+      ]);
+
+      const result = await service.getComparison('2024-01-01', '2024-01-31');
+
+      expect(prisma.salesInvoice.groupBy).toHaveBeenCalledWith({
+        by: ['branchId', 'status'],
+        where: {
+          branchId: { not: null },
+          invoiceDate: {
+            gte: new Date('2024-01-01'),
+            lte: new Date('2024-01-31'),
+          },
+          status: { in: ['APPROVED', 'PAID'] },
+        },
+        _sum: { total: true },
+        _count: true,
+      });
+      expect(result).toEqual({
+        period: { from: new Date('2024-01-01'), to: new Date('2024-01-31') },
+        branches: [
+          {
+            branchId: 'branch-1',
+            name: 'Main',
+            code: 'MB-01',
+            totals: { invoices: 2, paidInvoices: 1, revenue: 150 },
+          },
+          {
+            branchId: 'branch-2',
+            name: 'Annex',
+            code: 'MB-02',
+            totals: { invoices: 0, paidInvoices: 0, revenue: 0 },
+          },
+        ],
+      });
     });
   });
 });

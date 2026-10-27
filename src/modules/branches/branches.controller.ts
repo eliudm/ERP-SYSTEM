@@ -33,6 +33,12 @@ export class BranchesController {
     return this.branchesService.findAll();
   }
 
+  @ApiOperation({ summary: 'Compare revenue and invoices across all active branches for a date range' })
+  @Get('comparison')
+  getComparison(@Query('from') from?: string, @Query('to') to?: string) {
+    return this.branchesService.getComparison(from, to);
+  }
+
   @ApiOperation({ summary: 'Get a single branch by id' })
   @Get(':id')
   findOne(@Param('id') id: string) {
