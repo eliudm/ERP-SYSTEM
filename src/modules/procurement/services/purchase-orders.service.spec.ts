@@ -117,6 +117,7 @@ describe('PurchaseOrdersService', () => {
                 taxRate: 0.1,
                 taxAmount: 18.18,
                 lineTotal: 200,
+                isTaxInclusive: true,
               },
               {
                 productId: 'prod-2',
@@ -125,6 +126,7 @@ describe('PurchaseOrdersService', () => {
                 taxRate: 0,
                 taxAmount: 0,
                 lineTotal: 50,
+                isTaxInclusive: true,
               },
             ],
           },
@@ -150,6 +152,53 @@ describe('PurchaseOrdersService', () => {
       await expect(service.create(dto as any)).rejects.toThrow(
         NotFoundException,
       );
+    });
+
+    it('should add tax on top instead of extracting it when a line is not tax-inclusive', async () => {
+      prisma.supplier.findUnique.mockResolvedValue({ id: 'sup-1' });
+      prisma.product.findMany.mockResolvedValue([{ id: 'prod-1' }]);
+      prisma.purchaseOrder.count.mockResolvedValue(4);
+      const expected = { id: 'po-1' };
+      prisma.purchaseOrder.create.mockResolvedValue(expected);
+
+      const exclusiveDto = {
+        supplierId: 'sup-1',
+        orderDate: '2024-01-01',
+        items: [
+          {
+            productId: 'prod-1',
+            quantity: 2,
+            unitCost: 100,
+            taxRate: 0.1,
+            isTaxInclusive: false,
+          },
+        ],
+      };
+
+      await service.create(exclusiveDto as any);
+
+      // net: 2*100 = 200; tax: 200*0.1 = 20 (added on top, not extracted); gross/lineTotal = 220
+      expect(prisma.purchaseOrder.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          subtotal: 200,
+          taxAmount: 20,
+          total: 220,
+          items: {
+            create: [
+              {
+                productId: 'prod-1',
+                quantity: 2,
+                unitCost: 100,
+                taxRate: 0.1,
+                taxAmount: 20,
+                lineTotal: 220,
+                isTaxInclusive: false,
+              },
+            ],
+          },
+        }),
+        include: { supplier: true, items: { include: { product: true } } },
+      });
     });
   });
 

@@ -6,6 +6,7 @@ import {
   IsArray,
   ValidateNested,
   IsNumber,
+  IsBoolean,
   Min,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -26,6 +27,10 @@ export class CreatePurchaseOrderItemDto {
   @IsNumber()
   @Min(0)
   taxRate!: number;
+
+  @IsOptional()
+  @IsBoolean()
+  isTaxInclusive?: boolean; // defaults to true
 }
 
 export class CreatePurchaseOrderDto {

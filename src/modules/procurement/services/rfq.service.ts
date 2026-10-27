@@ -7,7 +7,7 @@ import { PrismaService } from '../../../prisma.service';
 import { getCurrentTenantId } from '../../../tenant-context';
 import { PostingEngineService } from '../../accounting/services/posting-engine.service';
 import { PurchaseOrderStatus } from '@prisma/client';
-import { extractTax } from '../../../common/utils/tax.util';
+import { computeLineTax } from '../../../common/utils/tax.util';
 
 export class CreateRFQDto {
   supplierId: string;
@@ -23,6 +23,7 @@ export class CreateRFQDto {
     quantity: number;
     unitPrice: number;
     taxRate?: number;
+    isTaxInclusive?: boolean; // defaults to true
   }[];
 }
 
@@ -39,6 +40,7 @@ export class UpdateRFQDto {
     quantity: number;
     unitPrice: number;
     taxRate?: number;
+    isTaxInclusive?: boolean; // defaults to true
   }[];
 }
 
@@ -60,19 +62,26 @@ export class RFQService {
       quantity: number;
       unitPrice: number;
       taxRate?: number;
+      isTaxInclusive?: boolean;
     }[],
   ) {
     return items.map((i) => {
       const taxRate = i.taxRate ?? 0.16;
-      const gross = Number(i.quantity) * Number(i.unitPrice);
-      const { tax } = extractTax(gross, taxRate);
+      const isTaxInclusive = i.isTaxInclusive ?? true;
+      const amount = Number(i.quantity) * Number(i.unitPrice);
+      const { taxAmount: tax, gross: lineTotal } = computeLineTax(
+        amount,
+        taxRate,
+        isTaxInclusive,
+      );
       return {
         productId: i.productId,
         quantity: i.quantity,
         expectedPrice: i.unitPrice,
         taxRate,
         taxAmount: tax,
-        lineTotal: gross,
+        lineTotal,
+        isTaxInclusive,
       };
     });
   }
@@ -204,15 +213,16 @@ export class RFQService {
       taxRate: Number(i.taxRate),
       taxAmount: Number(i.taxAmount),
       lineTotal: Number(i.lineTotal),
+      isTaxInclusive: i.isTaxInclusive ?? true,
     }));
 
+    // Each item's taxAmount/lineTotal were already correctly computed at RFQ
+    // creation time respecting its own isTaxInclusive flag (computeItems) —
+    // sum those directly rather than re-deriving from quantity*unitCost,
+    // whose meaning (net vs. gross) depends on that same flag per item.
     const taxAmount = items.reduce((s, i) => s + i.taxAmount, 0);
-    const grossSubtotal = items.reduce(
-      (s, i) => s + Number(i.quantity) * i.unitCost,
-      0,
-    );
-    const subtotal = grossSubtotal - taxAmount;
-    const total = subtotal + taxAmount;
+    const total = items.reduce((s, i) => s + i.lineTotal, 0);
+    const subtotal = total - taxAmount;
 
     // Get accounting accounts for journal entry
     const apAccount = await this.prisma.account.findFirst({

@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../../prisma.service';
 import { PostingEngineService } from '../../accounting/services/posting-engine.service';
-import { extractTax } from '../../../common/utils/tax.util';
+import { computeLineTax } from '../../../common/utils/tax.util';
 
 export class CreateVendorBillDto {
   supplierId: string;
@@ -19,6 +19,7 @@ export class CreateVendorBillDto {
     quantity: number;
     unitCost: number;
     taxRate: number;
+    isTaxInclusive?: boolean; // defaults to true
   }[];
 }
 
@@ -41,9 +42,19 @@ export class VendorBillsService {
     if (!supplier) throw new NotFoundException('Supplier not found');
 
     const items = dto.items.map((i) => {
-      const gross = i.quantity * i.unitCost;
-      const { tax, net } = extractTax(gross, i.taxRate);
-      return { ...i, taxAmount: tax, lineTotal: gross, lineSubtotal: net };
+      const isTaxInclusive = i.isTaxInclusive ?? true;
+      const { taxAmount: tax, net, gross } = computeLineTax(
+        i.quantity * i.unitCost,
+        i.taxRate,
+        isTaxInclusive,
+      );
+      return {
+        ...i,
+        taxAmount: tax,
+        lineTotal: gross,
+        lineSubtotal: net,
+        isTaxInclusive,
+      };
     });
 
     const subtotal = items.reduce((s, i) => s + i.lineSubtotal, 0);
@@ -72,6 +83,7 @@ export class VendorBillsService {
             taxRate: i.taxRate,
             taxAmount: i.taxAmount,
             lineTotal: i.lineTotal,
+            isTaxInclusive: i.isTaxInclusive,
           })),
         },
       },

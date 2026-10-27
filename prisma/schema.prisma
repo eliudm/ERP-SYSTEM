@@ -444,6 +444,8 @@ model Product {
   category               ProductCategory?               @relation(fields: [categoryId], references: [id])
   unitPrice              Decimal                        @db.Decimal(18, 2)
   taxRate                Decimal                        @default(0.16) @db.Decimal(5, 2)
+  costPrice              Decimal?                       @db.Decimal(18, 2)
+  costPriceIncludesVat   Boolean                        @default(true)
   stockQuantity          Decimal                        @default(0) @db.Decimal(18, 2)
   reorderLevel           Decimal                        @default(0) @db.Decimal(18, 2)
   isActive               Boolean                        @default(true)
@@ -576,6 +578,7 @@ model ProcurementItem {
   taxRate         Decimal       @db.Decimal(5, 2)
   taxAmount       Decimal       @db.Decimal(18, 2)
   lineTotal       Decimal       @db.Decimal(18, 2)
+  isTaxInclusive  Boolean       @default(true)
   createdAt       DateTime      @default(now())
 
   @@index([purchaseOrderId])
@@ -1567,6 +1570,7 @@ model RFQItem {
   taxRate       Decimal             @default(0.16) @db.Decimal(5, 2)
   taxAmount     Decimal             @default(0) @db.Decimal(18, 2)
   lineTotal     Decimal             @default(0) @db.Decimal(18, 2)
+  isTaxInclusive Boolean            @default(true)
   createdAt     DateTime            @default(now())
 
   @@index([rfqId])
@@ -1615,6 +1619,7 @@ model VendorBillItem {
   taxRate      Decimal    @db.Decimal(5, 2)
   taxAmount    Decimal    @db.Decimal(18, 2)
   lineTotal    Decimal    @db.Decimal(18, 2)
+  isTaxInclusive Boolean  @default(true)
   createdAt    DateTime   @default(now())
 
   @@index([vendorBillId])

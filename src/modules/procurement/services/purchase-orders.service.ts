@@ -13,7 +13,7 @@ import {
   MovementType,
 } from '@prisma/client';
 import { WorkflowService } from '../../workflow/workflow.service';
-import { extractTax } from '../../../common/utils/tax.util';
+import { computeLineTax } from '../../../common/utils/tax.util';
 
 @Injectable()
 export class PurchaseOrdersService {
@@ -56,8 +56,12 @@ export class PurchaseOrdersService {
         );
       }
 
-      const gross = item.quantity * item.unitCost;
-      const { tax, net } = extractTax(gross, item.taxRate);
+      const isTaxInclusive = item.isTaxInclusive ?? true;
+      const { taxAmount: tax, net, gross } = computeLineTax(
+        item.quantity * item.unitCost,
+        item.taxRate,
+        isTaxInclusive,
+      );
 
       subtotal += net;
       taxAmount += tax;
@@ -69,6 +73,7 @@ export class PurchaseOrdersService {
         taxRate: item.taxRate,
         taxAmount: tax,
         lineTotal: gross,
+        isTaxInclusive,
       });
     }
 
@@ -283,8 +288,12 @@ export class PurchaseOrdersService {
     let taxAmount = 0;
     const billItems: any[] = [];
     for (const item of po.items as any[]) {
-      const gross = Number(item.quantity) * Number(item.unitCost);
-      const { tax, net } = extractTax(gross, Number(item.taxRate));
+      const isTaxInclusive = item.isTaxInclusive ?? true;
+      const { taxAmount: tax, net, gross } = computeLineTax(
+        Number(item.quantity) * Number(item.unitCost),
+        Number(item.taxRate),
+        isTaxInclusive,
+      );
       subtotal += net;
       taxAmount += tax;
       billItems.push({
@@ -295,6 +304,7 @@ export class PurchaseOrdersService {
         taxRate: Number(item.taxRate),
         taxAmount: tax,
         lineTotal: gross,
+        isTaxInclusive,
       });
     }
 
