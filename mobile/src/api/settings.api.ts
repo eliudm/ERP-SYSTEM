@@ -1,5 +1,7 @@
 import { apiClient } from './client';
 
+export type ReceiptTemplate = 'standard' | 'compact' | 'branded';
+
 export interface SystemSettings {
   companyName?: string;
   companyLogo?: string | null;
@@ -7,6 +9,7 @@ export interface SystemSettings {
   companyAddress?: string;
   receiptSlogan?: string;
   posReceiptBranding?: boolean;
+  receiptTemplate?: ReceiptTemplate;
 }
 
 export const settingsApi = {

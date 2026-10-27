@@ -53,25 +53,31 @@ export const useOrderDetailActions = (
 
   const buildHtml = () => {
     if (!invoice) return null;
-    return buildReceiptHtml({
-      invoiceNo: invoice.invoiceNo,
-      createdAt: invoice.invoiceDate,
-      customerName: invoice.customer?.name ?? WALK_IN_CUSTOMER_NAME,
-      paymentMethod: invoice.paymentMethod,
-      subtotal: Number(invoice.subtotal),
-      taxTotal: Number(invoice.taxAmount),
-      total: Number(invoice.total),
-      items: invoice.items.map((item) => ({
-        name: item.product.name,
-        quantity: Number(item.quantity),
-        unitPrice: Number(item.unitPrice),
-      })),
-      businessName: settings?.companyName,
-      businessAddress: settings?.companyAddress,
-      businessPin: settings?.companyPin,
-      qrCode: invoice.etimsInvoice?.qrCode ?? null,
-      reprint: true,
-    });
+    return buildReceiptHtml(
+      {
+        invoiceNo: invoice.invoiceNo,
+        createdAt: invoice.invoiceDate,
+        customerName: invoice.customer?.name ?? WALK_IN_CUSTOMER_NAME,
+        paymentMethod: invoice.paymentMethod,
+        subtotal: Number(invoice.subtotal),
+        taxTotal: Number(invoice.taxAmount),
+        total: Number(invoice.total),
+        items: invoice.items.map((item) => ({
+          name: item.product.name,
+          quantity: Number(item.quantity),
+          unitPrice: Number(item.unitPrice),
+        })),
+        businessName: settings?.companyName,
+        businessLogo: settings?.companyLogo,
+        businessAddress: settings?.companyAddress,
+        businessPin: settings?.companyPin,
+        businessSlogan: settings?.receiptSlogan,
+        showBranding: settings?.posReceiptBranding,
+        qrCode: invoice.etimsInvoice?.qrCode ?? null,
+        reprint: true,
+      },
+      settings?.receiptTemplate,
+    );
   };
 
   const print = async () => {

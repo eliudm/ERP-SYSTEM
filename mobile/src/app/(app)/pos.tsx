@@ -580,43 +580,55 @@ export default function PosScreen() {
 
   const buildInvoiceDetailReceiptHtml = () => {
     if (!selectedInvoice) return null;
-    return buildReceiptHtml({
-      invoiceNo: selectedInvoice.invoiceNo,
-      createdAt: selectedInvoice.invoiceDate,
-      customerName: selectedInvoice.customer?.name ?? WALK_IN_CUSTOMER_NAME,
-      paymentMethod: selectedInvoice.paymentMethod,
-      subtotal: Number(selectedInvoice.subtotal),
-      taxTotal: Number(selectedInvoice.taxAmount),
-      total: Number(selectedInvoice.total),
-      items: selectedInvoice.items.map((item) => ({
-        name: item.product.name,
-        quantity: Number(item.quantity),
-        unitPrice: Number(item.unitPrice),
-      })),
-      businessName: settings?.companyName,
-      businessAddress: settings?.companyAddress,
-      businessPin: settings?.companyPin,
-      qrCode: selectedInvoice.etimsInvoice?.qrCode ?? null,
-      reprint: true,
-    });
+    return buildReceiptHtml(
+      {
+        invoiceNo: selectedInvoice.invoiceNo,
+        createdAt: selectedInvoice.invoiceDate,
+        customerName: selectedInvoice.customer?.name ?? WALK_IN_CUSTOMER_NAME,
+        paymentMethod: selectedInvoice.paymentMethod,
+        subtotal: Number(selectedInvoice.subtotal),
+        taxTotal: Number(selectedInvoice.taxAmount),
+        total: Number(selectedInvoice.total),
+        items: selectedInvoice.items.map((item) => ({
+          name: item.product.name,
+          quantity: Number(item.quantity),
+          unitPrice: Number(item.unitPrice),
+        })),
+        businessName: settings?.companyName,
+        businessLogo: settings?.companyLogo,
+        businessAddress: settings?.companyAddress,
+        businessPin: settings?.companyPin,
+        businessSlogan: settings?.receiptSlogan,
+        showBranding: settings?.posReceiptBranding,
+        qrCode: selectedInvoice.etimsInvoice?.qrCode ?? null,
+        reprint: true,
+      },
+      settings?.receiptTemplate,
+    );
   };
 
   const buildCurrentReceiptHtml = () => {
     if (!receiptData) return null;
-    return buildReceiptHtml({
-      invoiceNo: receiptData.invoiceNo,
-      createdAt: receiptData.createdAt,
-      customerName: receiptData.customerName,
-      paymentMethod: receiptData.paymentMethod,
-      subtotal: receiptData.subtotal,
-      taxTotal: receiptData.taxTotal,
-      total: receiptData.total,
-      items: receiptData.items,
-      businessName: settings?.companyName,
-      businessAddress: settings?.companyAddress,
-      businessPin: settings?.companyPin,
-      qrCode: receiptQr?.qrCode ?? null,
-    });
+    return buildReceiptHtml(
+      {
+        invoiceNo: receiptData.invoiceNo,
+        createdAt: receiptData.createdAt,
+        customerName: receiptData.customerName,
+        paymentMethod: receiptData.paymentMethod,
+        subtotal: receiptData.subtotal,
+        taxTotal: receiptData.taxTotal,
+        total: receiptData.total,
+        items: receiptData.items,
+        businessName: settings?.companyName,
+        businessLogo: settings?.companyLogo,
+        businessAddress: settings?.companyAddress,
+        businessPin: settings?.companyPin,
+        businessSlogan: settings?.receiptSlogan,
+        showBranding: settings?.posReceiptBranding,
+        qrCode: receiptQr?.qrCode ?? null,
+      },
+      settings?.receiptTemplate,
+    );
   };
 
   const printInvoiceDetail = async () => {
