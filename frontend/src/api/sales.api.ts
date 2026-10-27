@@ -230,7 +230,7 @@ export const salesApi = {
     return res.data;
   },
   approveCreditNote: async (id: string) => {
-    const res = await apiClient.patch(`/sales/credit-notes/${id}/approve`);
+    const res = await apiClient.post(`/sales/credit-notes/${id}/approve`);
     return res.data;
   },
   applyCreditNote: async (id: string, invoiceId: string) => {
