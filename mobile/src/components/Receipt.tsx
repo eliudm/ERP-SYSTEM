@@ -32,6 +32,8 @@ interface ReceiptProps {
   qr: EtimsQrResult | null;
   qrLoading: boolean;
   onDone: () => void;
+  onPrint?: () => void;
+  printing?: boolean;
 }
 
 export const Receipt: React.FC<ReceiptProps> = ({
@@ -40,6 +42,8 @@ export const Receipt: React.FC<ReceiptProps> = ({
   qr,
   qrLoading,
   onDone,
+  onPrint,
+  printing,
 }) => {
   const businessName = settings?.companyName || 'Nexora ERP';
   const showBranding = settings?.posReceiptBranding ?? true;
@@ -134,14 +138,29 @@ export const Receipt: React.FC<ReceiptProps> = ({
         </View>
       </ScrollView>
 
-      <Button
-        mode="contained"
-        onPress={onDone}
-        style={styles.doneButton}
-        contentStyle={styles.doneButtonContent}
-      >
-        New Sale
-      </Button>
+      <View style={styles.footerButtons}>
+        {onPrint && (
+          <Button
+            mode="outlined"
+            icon="printer-outline"
+            onPress={onPrint}
+            loading={printing}
+            disabled={printing}
+            style={styles.printButton}
+            contentStyle={styles.doneButtonContent}
+          >
+            Print
+          </Button>
+        )}
+        <Button
+          mode="contained"
+          onPress={onDone}
+          style={styles.doneButton}
+          contentStyle={styles.doneButtonContent}
+        >
+          New Sale
+        </Button>
+      </View>
     </View>
   );
 };
@@ -266,8 +285,17 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingHorizontal: 20,
   },
-  doneButton: {
+  footerButtons: {
+    flexDirection: 'row',
+    gap: 10,
     marginVertical: 12,
+  },
+  printButton: {
+    flex: 1,
+    borderRadius: 12,
+  },
+  doneButton: {
+    flex: 1,
     borderRadius: 12,
   },
   doneButtonContent: {

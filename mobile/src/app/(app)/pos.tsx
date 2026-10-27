@@ -23,6 +23,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { mobileApi, PosProduct } from '../../api/mobile.api';
 import { customersApi, Customer } from '../../api/customers.api';
 import { salesApi } from '../../api/sales.api';
+import { creditNotesApi } from '../../api/credit-notes.api';
 import { etimsApi, EtimsQrResult } from '../../api/etims.api';
 import { inventoryApi } from '../../api/inventory.api';
 import { settingsApi } from '../../api/settings.api';
@@ -32,8 +33,11 @@ import { Receipt, ReceiptData } from '../../components/Receipt';
 import { CategoryGrid } from '../../components/pos/CategoryGrid';
 import { PaymentScreen } from '../../components/pos/PaymentScreen';
 import { OrdersList } from '../../components/pos/OrdersList';
+import { OrderDetail, RefundState } from '../../components/pos/OrderDetail';
 import { useRegister } from '../../hooks/useRegister';
 import { useHeldOrders, HeldOrder } from '../../hooks/useHeldOrders';
+import { buildReceiptHtml } from '../../utils/receiptHtml';
+import { printReceiptHtml } from '../../utils/printReceipt';
 import { brand } from '../../theme';
 
 interface CartLine {
@@ -79,6 +83,7 @@ type Screen =
   | 'main'
   | 'payment'
   | 'orders'
+  | 'orderDetail'
   | 'receipt'
   | 'registerOpen'
   | 'registerClose';
@@ -115,6 +120,21 @@ export default function PosScreen() {
     queryFn: () => mobileApi.getRecentInvoices(50),
     enabled: screen === 'orders',
   });
+
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(
+    null,
+  );
+  const { data: selectedInvoice, isLoading: selectedInvoiceLoading } = useQuery(
+    {
+      queryKey: ['invoice', selectedInvoiceId],
+      queryFn: () => salesApi.getInvoice(selectedInvoiceId!),
+      enabled: screen === 'orderDetail' && !!selectedInvoiceId,
+    },
+  );
+  const [refundState, setRefundState] = useState<RefundState>('idle');
+  const [refundApproved, setRefundApproved] = useState<boolean | null>(null);
+  const [refundError, setRefundError] = useState<string | null>(null);
+  const [printing, setPrinting] = useState(false);
   const [openingFloatInput, setOpeningFloatInput] = useState('');
   const [cashCountedInput, setCashCountedInput] = useState('');
 
@@ -498,6 +518,130 @@ export default function PosScreen() {
     setReceiptQr(null);
   };
 
+  const openOrderDetail = (invoiceId: string) => {
+    setSelectedInvoiceId(invoiceId);
+    setRefundState('idle');
+    setRefundApproved(null);
+    setRefundError(null);
+    setScreen('orderDetail');
+  };
+
+  const closeOrderDetail = () => {
+    setScreen('orders');
+    setSelectedInvoiceId(null);
+  };
+
+  const requestRefund = () => {
+    setRefundError(null);
+    setRefundState('confirming');
+  };
+
+  const cancelRefund = () => {
+    setRefundState('idle');
+  };
+
+  const confirmRefund = async () => {
+    if (!selectedInvoice) return;
+    setRefundState('submitting');
+    setRefundError(null);
+    try {
+      const creditNote = await creditNotesApi.create({
+        customerId:
+          selectedInvoice.customer?.id ?? (await resolveWalkInCustomer()).id,
+        invoiceId: selectedInvoice.id,
+        reason: 'POS refund',
+        items: selectedInvoice.items.map((item) => ({
+          productId: item.productId,
+          description: item.description ?? undefined,
+          quantity: Number(item.quantity),
+          unitPrice: Number(item.unitPrice),
+          taxRate: Number(item.taxRate),
+        })),
+      });
+
+      const canApprove = user?.role === 'ADMIN' || user?.role === 'ACCOUNTANT';
+      if (canApprove) {
+        await creditNotesApi.approve(creditNote.id);
+      }
+      setRefundApproved(canApprove);
+      setRefundState('done');
+      void queryClient.invalidateQueries({
+        queryKey: ['invoice', selectedInvoice.id],
+      });
+      void queryClient.invalidateQueries({ queryKey: ['recent-invoices'] });
+    } catch (err: any) {
+      setRefundState('confirming');
+      const message =
+        err?.response?.data?.message ?? 'Failed to submit refund.';
+      setRefundError(Array.isArray(message) ? message.join(', ') : message);
+    }
+  };
+
+  const printInvoiceDetail = async () => {
+    if (!selectedInvoice) return;
+    setPrinting(true);
+    try {
+      const html = buildReceiptHtml({
+        invoiceNo: selectedInvoice.invoiceNo,
+        createdAt: selectedInvoice.invoiceDate,
+        customerName: selectedInvoice.customer?.name ?? WALK_IN_CUSTOMER_NAME,
+        paymentMethod: selectedInvoice.paymentMethod,
+        subtotal: Number(selectedInvoice.subtotal),
+        taxTotal: Number(selectedInvoice.taxAmount),
+        total: Number(selectedInvoice.total),
+        items: selectedInvoice.items.map((item) => ({
+          name: item.product.name,
+          quantity: Number(item.quantity),
+          unitPrice: Number(item.unitPrice),
+        })),
+        businessName: settings?.companyName,
+        businessAddress: settings?.companyAddress,
+        businessPin: settings?.companyPin,
+        qrCode: selectedInvoice.etimsInvoice?.qrCode ?? null,
+        reprint: true,
+      });
+      await printReceiptHtml(html);
+    } catch {
+      setSnackbar({
+        visible: true,
+        message: 'Could not open print dialog.',
+        isError: true,
+      });
+    } finally {
+      setPrinting(false);
+    }
+  };
+
+  const printCurrentReceipt = async () => {
+    if (!receiptData) return;
+    setPrinting(true);
+    try {
+      const html = buildReceiptHtml({
+        invoiceNo: receiptData.invoiceNo,
+        createdAt: receiptData.createdAt,
+        customerName: receiptData.customerName,
+        paymentMethod: receiptData.paymentMethod,
+        subtotal: receiptData.subtotal,
+        taxTotal: receiptData.taxTotal,
+        total: receiptData.total,
+        items: receiptData.items,
+        businessName: settings?.companyName,
+        businessAddress: settings?.companyAddress,
+        businessPin: settings?.companyPin,
+        qrCode: receiptQr?.qrCode ?? null,
+      });
+      await printReceiptHtml(html);
+    } catch {
+      setSnackbar({
+        visible: true,
+        message: 'Could not open print dialog.',
+        isError: true,
+      });
+    } finally {
+      setPrinting(false);
+    }
+  };
+
   const snackbarElement = (
     <Snackbar
       visible={snackbar.visible}
@@ -581,6 +725,29 @@ export default function PosScreen() {
           isLoading={heldOrders.isLoading}
           onLoadOrder={loadHeldOrder}
           onDeleteOrder={(id) => void heldOrders.removeOrder(id)}
+          onSelectInvoice={openOrderDetail}
+        />
+        {snackbarElement}
+      </View>
+    );
+  }
+
+  if (screen === 'orderDetail') {
+    return (
+      <View style={styles.container}>
+        <OrderDetail
+          invoice={selectedInvoice ?? null}
+          isLoading={selectedInvoiceLoading}
+          currentUserRole={user?.role ?? ''}
+          onBack={closeOrderDetail}
+          onPrint={() => void printInvoiceDetail()}
+          printing={printing}
+          refundState={refundState}
+          refundApproved={refundApproved}
+          refundError={refundError}
+          onRequestRefund={requestRefund}
+          onCancelRefund={cancelRefund}
+          onConfirmRefund={() => void confirmRefund()}
         />
         {snackbarElement}
       </View>
@@ -597,6 +764,8 @@ export default function PosScreen() {
             qr={receiptQr}
             qrLoading={receiptQrLoading}
             onDone={closeReceipt}
+            onPrint={() => void printCurrentReceipt()}
+            printing={printing}
           />
         )}
       </View>

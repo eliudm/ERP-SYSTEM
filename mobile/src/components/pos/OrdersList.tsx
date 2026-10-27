@@ -1,6 +1,7 @@
 import React from 'react';
-import { View, StyleSheet, FlatList } from 'react-native';
+import { View, StyleSheet, FlatList, Pressable } from 'react-native';
 import { Text, IconButton, Chip, Button } from 'react-native-paper';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { HeldOrder } from '../../hooks/useHeldOrders';
 import { RecentInvoice } from '../../api/mobile.api';
 import { brand } from '../../theme';
@@ -26,6 +27,7 @@ interface OrdersListProps {
   isLoading: boolean;
   onLoadOrder: (order: HeldOrder) => void;
   onDeleteOrder: (id: string) => void;
+  onSelectInvoice: (invoiceId: string) => void;
 }
 
 type Row =
@@ -38,6 +40,7 @@ export const OrdersList: React.FC<OrdersListProps> = ({
   isLoading,
   onLoadOrder,
   onDeleteOrder,
+  onSelectInvoice,
 }) => {
   const today = new Date().toDateString();
   const todaysInvoices = recentInvoices.filter(
@@ -102,7 +105,10 @@ export const OrdersList: React.FC<OrdersListProps> = ({
 
         const { invoice } = item;
         return (
-          <View style={styles.row}>
+          <Pressable
+            style={styles.row}
+            onPress={() => onSelectInvoice(invoice.id)}
+          >
             <View style={styles.rowInfo}>
               <Text style={styles.rowTime}>
                 {formatTime(invoice.invoiceDate)}
@@ -116,7 +122,12 @@ export const OrdersList: React.FC<OrdersListProps> = ({
             <Chip style={styles.statusDone} textStyle={styles.statusDoneText}>
               {invoice.status}
             </Chip>
-          </View>
+            <MaterialCommunityIcons
+              name="chevron-right"
+              size={18}
+              color={brand.textMuted}
+            />
+          </Pressable>
         );
       }}
     />

@@ -66,6 +66,44 @@ export interface DailySummary {
   byPaymentMethod: { method: string; amount: number; orders: number }[];
 }
 
+export interface InvoiceDetailItem {
+  id: string;
+  productId: string;
+  product: { id: string; name: string; code: string };
+  description: string | null;
+  quantity: number | string;
+  unitPrice: number | string;
+  taxRate: number | string;
+  taxAmount: number | string;
+  lineTotal: number | string;
+}
+
+export interface InvoiceCreditNoteRef {
+  id: string;
+  creditNoteNumber: string;
+  status: 'DRAFT' | 'APPROVED' | 'APPLIED';
+  total: number | string;
+}
+
+export interface InvoiceDetail {
+  id: string;
+  invoiceNo: string;
+  invoiceDate: string;
+  status: string;
+  subtotal: number | string;
+  taxAmount: number | string;
+  total: number | string;
+  paymentMethod: string | null;
+  customer: { id: string; name: string } | null;
+  items: InvoiceDetailItem[];
+  etimsInvoice: {
+    status: string;
+    qrCode: string | null;
+    etimsInvoiceNo: string | null;
+  } | null;
+  creditNotes: InvoiceCreditNoteRef[];
+}
+
 export const salesApi = {
   createInvoice: async (data: CreateInvoicePayload): Promise<Invoice> => {
     const res = await apiClient.post('/sales/invoices', data);
@@ -137,6 +175,11 @@ export const salesApi = {
     const res = await apiClient.get('/sales/invoices/daily-summary', {
       params: { date },
     });
+    return res.data;
+  },
+
+  getInvoice: async (invoiceId: string): Promise<InvoiceDetail> => {
+    const res = await apiClient.get(`/sales/invoices/${invoiceId}`);
     return res.data;
   },
 };
