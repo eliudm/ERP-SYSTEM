@@ -7,6 +7,7 @@ import { PrismaService } from '../../../prisma.service';
 import { CreateCreditNoteDto } from '../dto/create-credit-note.dto';
 import { PostingEngineService } from '../../accounting/services/posting-engine.service';
 import { AccountsService } from '../../accounting/services/accounts.service';
+import { extractTax } from '../../../common/utils/tax.util';
 
 @Injectable()
 export class CreditNotesService {
@@ -36,12 +37,12 @@ export class CreditNotesService {
     }
 
     const items = dto.items.map((item) => {
-      const lineSubtotal = item.unitPrice * item.quantity;
-      const taxAmount = lineSubtotal * item.taxRate;
-      return { ...item, taxAmount, lineTotal: lineSubtotal + taxAmount };
+      const gross = item.unitPrice * item.quantity;
+      const { tax, net } = extractTax(gross, item.taxRate);
+      return { ...item, taxAmount: tax, lineTotal: gross, lineSubtotal: net };
     });
 
-    const subtotal = items.reduce((s, i) => s + i.unitPrice * i.quantity, 0);
+    const subtotal = items.reduce((s, i) => s + i.lineSubtotal, 0);
     const taxAmount = items.reduce((s, i) => s + i.taxAmount, 0);
     const total = subtotal + taxAmount;
     const creditNoteNumber = await this.generateNumber();

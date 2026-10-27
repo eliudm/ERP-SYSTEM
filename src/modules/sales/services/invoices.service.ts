@@ -17,6 +17,7 @@ import { EtimsQueueService } from '../../etims/etims-queue/etims-queue.service';
 import { NotificationsService } from '../../notifications/notifications.service';
 import { AuditService } from '../../audit/audit.service';
 import { WorkflowService } from '../../workflow/workflow.service';
+import { extractTax } from '../../../common/utils/tax.util';
 
 @Injectable()
 export class InvoicesService {
@@ -78,11 +79,11 @@ export class InvoicesService {
         );
       }
 
-      const lineTotal = item.quantity * item.unitPrice;
-      const lineTax = lineTotal * item.taxRate;
+      const gross = item.quantity * item.unitPrice;
+      const { tax, net } = extractTax(gross, item.taxRate);
 
-      subtotal += lineTotal;
-      taxAmount += lineTax;
+      subtotal += net;
+      taxAmount += tax;
 
       itemsData.push({
         productId: item.productId,
@@ -90,8 +91,8 @@ export class InvoicesService {
         quantity: item.quantity,
         unitPrice: item.unitPrice,
         taxRate: item.taxRate,
-        taxAmount: lineTax,
-        lineTotal: lineTotal + lineTax,
+        taxAmount: tax,
+        lineTotal: gross,
       });
     }
 

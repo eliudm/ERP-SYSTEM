@@ -119,16 +119,16 @@ describe('InvoicesService', () => {
           invoiceNo: 'INV-00001',
           customerId: 'cust-1',
           status: InvoiceStatus.DRAFT,
-          subtotal: 250,
-          taxAmount: 32,
-          total: 282,
+          subtotal: 222.41,
+          taxAmount: 27.59,
+          total: 250,
           items: {
             create: [
               expect.objectContaining({
                 productId: 'prod-1',
                 description: 'Widget',
-                lineTotal: 232,
-                taxAmount: 32,
+                lineTotal: 200,
+                taxAmount: 27.59,
               }),
               expect.objectContaining({
                 productId: 'prod-2',
@@ -232,9 +232,9 @@ describe('InvoicesService', () => {
       invoiceNo: 'INV-00001',
       status: InvoiceStatus.DRAFT,
       invoiceDate: new Date('2026-01-01'),
-      subtotal: 250,
-      taxAmount: 32,
-      total: 282,
+      subtotal: 222.41,
+      taxAmount: 27.59,
+      total: 250,
       customer: { id: 'cust-1', name: 'Jane' },
       items: [
         {
@@ -285,9 +285,9 @@ describe('InvoicesService', () => {
         expect.objectContaining({
           reference: 'SALE-INV-00001',
           lines: [
-            expect.objectContaining({ accountId: arAccount.id, debit: 282, credit: 0 }),
-            expect.objectContaining({ accountId: revenueAccount.id, debit: 0, credit: 250 }),
-            expect.objectContaining({ accountId: vatAccount.id, debit: 0, credit: 32 }),
+            expect.objectContaining({ accountId: arAccount.id, debit: 250, credit: 0 }),
+            expect.objectContaining({ accountId: revenueAccount.id, debit: 0, credit: 222.41 }),
+            expect.objectContaining({ accountId: vatAccount.id, debit: 0, credit: 27.59 }),
           ],
         }),
       );

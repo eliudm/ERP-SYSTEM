@@ -99,15 +99,15 @@ describe('PurchaseOrdersService', () => {
       expect(prisma.product.findMany).toHaveBeenCalledWith({
         where: { id: { in: ['prod-1', 'prod-2'] } },
       });
-      // subtotal: 2*100 + 1*50 = 250; tax: 200*0.1 + 0 = 20; total = 270
+      // gross: 2*100 + 1*50 = 250; tax: 200*0.1/1.1 + 0 = 18.18; subtotal (net) = 231.82; total = 250
       expect(prisma.purchaseOrder.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           orderNo: 'PO-00005',
           supplierId: 'sup-1',
           status: PurchaseOrderStatus.DRAFT,
-          subtotal: 250,
-          taxAmount: 20,
-          total: 270,
+          subtotal: 231.82,
+          taxAmount: 18.18,
+          total: 250,
           items: {
             create: [
               {
@@ -115,8 +115,8 @@ describe('PurchaseOrdersService', () => {
                 quantity: 2,
                 unitCost: 100,
                 taxRate: 0.1,
-                taxAmount: 20,
-                lineTotal: 220,
+                taxAmount: 18.18,
+                lineTotal: 200,
               },
               {
                 productId: 'prod-2',
@@ -158,9 +158,9 @@ describe('PurchaseOrdersService', () => {
       id: 'po-1',
       orderNo: 'PO-00001',
       status: PurchaseOrderStatus.DRAFT,
-      subtotal: 250,
-      taxAmount: 20,
-      total: 270,
+      subtotal: 231.82,
+      taxAmount: 18.18,
+      total: 250,
       orderDate: new Date('2024-01-01'),
       supplier: { name: 'Acme' },
     };
@@ -186,9 +186,9 @@ describe('PurchaseOrdersService', () => {
           sourceType: 'PURCHASE_ORDER',
           sourceId: 'po-1',
           lines: [
-            expect.objectContaining({ accountId: 'acc-inv', debit: 250, credit: 0 }),
-            expect.objectContaining({ accountId: 'acc-vat', debit: 20, credit: 0 }),
-            expect.objectContaining({ accountId: 'acc-ap', debit: 0, credit: 270 }),
+            expect.objectContaining({ accountId: 'acc-inv', debit: 231.82, credit: 0 }),
+            expect.objectContaining({ accountId: 'acc-vat', debit: 18.18, credit: 0 }),
+            expect.objectContaining({ accountId: 'acc-ap', debit: 0, credit: 250 }),
           ],
         }),
       );
@@ -404,9 +404,9 @@ describe('PurchaseOrdersService', () => {
           billNumber: 'BILL-00003',
           supplierId: 'sup-1',
           purchaseOrderId: 'po-1',
-          subtotal: 200,
-          taxAmount: 20,
-          total: 220,
+          subtotal: 181.82,
+          taxAmount: 18.18,
+          total: 200,
           items: {
             create: [
               expect.objectContaining({
@@ -414,8 +414,8 @@ describe('PurchaseOrdersService', () => {
                 description: 'Widget',
                 quantity: 2,
                 unitCost: 100,
-                taxAmount: 20,
-                lineTotal: 220,
+                taxAmount: 18.18,
+                lineTotal: 200,
               }),
             ],
           },

@@ -7,6 +7,7 @@ import { PrismaService } from '../../../prisma.service';
 import { getCurrentTenantId } from '../../../tenant-context';
 import { PostingEngineService } from '../../accounting/services/posting-engine.service';
 import { PurchaseOrderStatus } from '@prisma/client';
+import { extractTax } from '../../../common/utils/tax.util';
 
 export class CreateRFQDto {
   supplierId: string;
@@ -63,15 +64,15 @@ export class RFQService {
   ) {
     return items.map((i) => {
       const taxRate = i.taxRate ?? 0.16;
-      const lineSubtotal = Number(i.quantity) * Number(i.unitPrice);
-      const taxAmount = lineSubtotal * taxRate;
+      const gross = Number(i.quantity) * Number(i.unitPrice);
+      const { tax } = extractTax(gross, taxRate);
       return {
         productId: i.productId,
         quantity: i.quantity,
         expectedPrice: i.unitPrice,
         taxRate,
-        taxAmount,
-        lineTotal: lineSubtotal + taxAmount,
+        taxAmount: tax,
+        lineTotal: gross,
       };
     });
   }
@@ -205,11 +206,12 @@ export class RFQService {
       lineTotal: Number(i.lineTotal),
     }));
 
-    const subtotal = items.reduce(
+    const taxAmount = items.reduce((s, i) => s + i.taxAmount, 0);
+    const grossSubtotal = items.reduce(
       (s, i) => s + Number(i.quantity) * i.unitCost,
       0,
     );
-    const taxAmount = items.reduce((s, i) => s + i.taxAmount, 0);
+    const subtotal = grossSubtotal - taxAmount;
     const total = subtotal + taxAmount;
 
     // Get accounting accounts for journal entry

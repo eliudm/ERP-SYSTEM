@@ -13,6 +13,7 @@ import {
   MovementType,
 } from '@prisma/client';
 import { WorkflowService } from '../../workflow/workflow.service';
+import { extractTax } from '../../../common/utils/tax.util';
 
 @Injectable()
 export class PurchaseOrdersService {
@@ -55,19 +56,19 @@ export class PurchaseOrdersService {
         );
       }
 
-      const lineTotal = item.quantity * item.unitCost;
-      const lineTax = lineTotal * item.taxRate;
+      const gross = item.quantity * item.unitCost;
+      const { tax, net } = extractTax(gross, item.taxRate);
 
-      subtotal += lineTotal;
-      taxAmount += lineTax;
+      subtotal += net;
+      taxAmount += tax;
 
       itemsData.push({
         productId: item.productId,
         quantity: item.quantity,
         unitCost: item.unitCost,
         taxRate: item.taxRate,
-        taxAmount: lineTax,
-        lineTotal: lineTotal + lineTax,
+        taxAmount: tax,
+        lineTotal: gross,
       });
     }
 
@@ -278,25 +279,24 @@ export class PurchaseOrdersService {
     const billCount = await this.prisma.vendorBill.count();
     const billNumber = `BILL-${String(billCount + 1).padStart(5, '0')}`;
 
-    const billItems = po.items.map((item: any) => {
-      const lineSubtotal = Number(item.quantity) * Number(item.unitCost);
-      const taxAmount = lineSubtotal * Number(item.taxRate);
-      return {
+    let subtotal = 0;
+    let taxAmount = 0;
+    const billItems: any[] = [];
+    for (const item of po.items as any[]) {
+      const gross = Number(item.quantity) * Number(item.unitCost);
+      const { tax, net } = extractTax(gross, Number(item.taxRate));
+      subtotal += net;
+      taxAmount += tax;
+      billItems.push({
         productId: item.productId,
         description: item.product?.name,
         quantity: Number(item.quantity),
         unitCost: Number(item.unitCost),
         taxRate: Number(item.taxRate),
-        taxAmount,
-        lineTotal: lineSubtotal + taxAmount,
-      };
-    });
-
-    const subtotal = po.items.reduce(
-      (s: number, i: any) => s + Number(i.quantity) * Number(i.unitCost),
-      0,
-    );
-    const taxAmount = billItems.reduce((s, i) => s + i.taxAmount, 0);
+        taxAmount: tax,
+        lineTotal: gross,
+      });
+    }
 
     return this.prisma.vendorBill.create({
       data: {

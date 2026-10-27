@@ -10,6 +10,7 @@ import { CreateQuoteDto, UpdateQuoteDto } from '../dto/create-quote.dto';
 import { PostingEngineService } from '../../accounting/services/posting-engine.service';
 import { MailService } from '../../../mail.service';
 import { SendQuoteEmailDto } from '../dto/send-quote-email.dto';
+import { extractTax } from '../../../common/utils/tax.util';
 
 @Injectable()
 export class QuotesService {
@@ -30,14 +31,14 @@ export class QuotesService {
     return items.map((item) => {
       const discount = item.discount || 0;
       const discountedPrice = item.unitPrice * (1 - discount / 100);
-      const lineSubtotal = discountedPrice * item.quantity;
-      const taxAmount = lineSubtotal * item.taxRate;
+      const grossLine = discountedPrice * item.quantity;
+      const { tax, net } = extractTax(grossLine, item.taxRate);
       return {
         ...item,
         discount: discount,
-        taxAmount,
-        lineTotal: lineSubtotal + taxAmount,
-        lineSubtotal,
+        taxAmount: tax,
+        lineTotal: grossLine,
+        lineSubtotal: net,
       };
     });
   }
