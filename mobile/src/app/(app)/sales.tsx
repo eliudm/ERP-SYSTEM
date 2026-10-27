@@ -1,14 +1,24 @@
 import React, { useMemo, useState } from 'react';
-import { View, StyleSheet, FlatList, RefreshControl } from 'react-native';
+import {
+  View,
+  StyleSheet,
+  FlatList,
+  RefreshControl,
+  Pressable,
+} from 'react-native';
 import {
   Text,
   Card,
   ActivityIndicator,
   Chip,
   Searchbar,
+  Snackbar,
 } from 'react-native-paper';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { mobileApi, RecentInvoice } from '../../api/mobile.api';
+import { OrderDetail } from '../../components/pos/OrderDetail';
+import { useOrderDetailActions } from '../../hooks/useOrderDetailActions';
 import { brand } from '../../theme';
 
 const formatCurrency = (value: number) =>
@@ -45,31 +55,78 @@ const StatusChip: React.FC<{ status: string }> = ({ status }) => {
   );
 };
 
-const InvoiceRow: React.FC<{ invoice: RecentInvoice }> = ({ invoice }) => (
-  <Card style={styles.card} mode="contained">
-    <Card.Content style={styles.cardContent}>
-      <View style={styles.cardLeft}>
-        <Text style={styles.invoiceNo}>{invoice.invoiceNo}</Text>
-        <Text style={styles.customerName} numberOfLines={1}>
-          {invoice.customer?.name ?? 'Walk-in Customer'}
-        </Text>
-        <Text style={styles.date}>{formatDate(invoice.invoiceDate)}</Text>
-      </View>
-      <View style={styles.cardRight}>
-        <Text style={styles.total}>{formatCurrency(invoice.total)}</Text>
-        <StatusChip status={invoice.status} />
-      </View>
-    </Card.Content>
-  </Card>
+const ETIMS_STYLES: Record<
+  string,
+  { fg: string; icon: string; label: string }
+> = {
+  SUCCESS: { fg: '#0d7a66', icon: 'check-decagram', label: 'KRA eTIMS' },
+  SUBMITTED: { fg: '#2452c7', icon: 'progress-clock', label: 'KRA pending' },
+  PENDING: { fg: '#ad7a14', icon: 'clock-outline', label: 'KRA pending' },
+  FAILED: { fg: '#d4380d', icon: 'alert-circle-outline', label: 'KRA failed' },
+};
+
+const EtimsBadge: React.FC<{ status: RecentInvoice['etimsStatus'] }> = ({
+  status,
+}) => {
+  if (!status) return null;
+  const style = ETIMS_STYLES[status];
+  if (!style) return null;
+  return (
+    <View style={styles.etimsBadge}>
+      <MaterialCommunityIcons
+        name={style.icon as never}
+        size={12}
+        color={style.fg}
+      />
+      <Text style={[styles.etimsBadgeText, { color: style.fg }]}>
+        {style.label}
+      </Text>
+    </View>
+  );
+};
+
+const InvoiceRow: React.FC<{ invoice: RecentInvoice; onPress: () => void }> = ({
+  invoice,
+  onPress,
+}) => (
+  <Pressable onPress={onPress}>
+    <Card style={styles.card} mode="contained">
+      <Card.Content style={styles.cardContent}>
+        <View style={styles.cardLeft}>
+          <Text style={styles.invoiceNo}>{invoice.invoiceNo}</Text>
+          <Text style={styles.customerName} numberOfLines={1}>
+            {invoice.customer?.name ?? 'Walk-in Customer'}
+          </Text>
+          <Text style={styles.date}>{formatDate(invoice.invoiceDate)}</Text>
+          <EtimsBadge status={invoice.etimsStatus} />
+        </View>
+        <View style={styles.cardRight}>
+          <Text style={styles.total}>{formatCurrency(invoice.total)}</Text>
+          <StatusChip status={invoice.status} />
+        </View>
+      </Card.Content>
+    </Card>
+  </Pressable>
 );
 
 export default function SalesScreen() {
   const [query, setQuery] = useState('');
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(
+    null,
+  );
+  const [toast, setToast] = useState<{ visible: boolean; message: string }>({
+    visible: false,
+    message: '',
+  });
 
   const { data, isLoading, isRefetching, refetch } = useQuery({
     queryKey: ['recent-invoices'],
     queryFn: () => mobileApi.getRecentInvoices(30),
   });
+
+  const orderDetail = useOrderDetailActions(selectedInvoiceId, (message) =>
+    setToast({ visible: true, message }),
+  );
 
   const invoices = data ?? [];
 
@@ -82,6 +139,36 @@ export default function SalesScreen() {
       return invoiceNo.includes(q) || customerName.includes(q);
     });
   }, [invoices, query]);
+
+  if (selectedInvoiceId) {
+    return (
+      <View style={styles.container}>
+        <OrderDetail
+          invoice={orderDetail.invoice}
+          isLoading={orderDetail.isLoading}
+          currentUserRole={orderDetail.currentUserRole}
+          onBack={() => setSelectedInvoiceId(null)}
+          onPrint={() => void orderDetail.print()}
+          printing={orderDetail.printing}
+          onSavePdf={() => void orderDetail.savePdf()}
+          savingPdf={orderDetail.savingPdf}
+          refundState={orderDetail.refundState}
+          refundApproved={orderDetail.refundApproved}
+          refundError={orderDetail.refundError}
+          onRequestRefund={orderDetail.requestRefund}
+          onCancelRefund={orderDetail.cancelRefund}
+          onConfirmRefund={() => void orderDetail.confirmRefund()}
+        />
+        <Snackbar
+          visible={toast.visible}
+          onDismiss={() => setToast((t) => ({ ...t, visible: false }))}
+          duration={4000}
+        >
+          {toast.message}
+        </Snackbar>
+      </View>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -106,7 +193,12 @@ export default function SalesScreen() {
         data={filtered}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.content}
-        renderItem={({ item }) => <InvoiceRow invoice={item} />}
+        renderItem={({ item }) => (
+          <InvoiceRow
+            invoice={item}
+            onPress={() => setSelectedInvoiceId(item.id)}
+          />
+        )}
         refreshControl={
           <RefreshControl
             refreshing={isRefetching}
@@ -196,6 +288,16 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: brand.textMuted,
     marginTop: 2,
+  },
+  etimsBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 6,
+  },
+  etimsBadgeText: {
+    fontSize: 10.5,
+    fontWeight: '700',
   },
   total: {
     fontSize: 15,

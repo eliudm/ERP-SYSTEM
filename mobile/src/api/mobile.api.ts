@@ -42,6 +42,7 @@ export interface RecentInvoice {
   total: number;
   paymentMethod: string | null;
   customer: { id: string; name: string } | null;
+  etimsStatus: 'PENDING' | 'SUBMITTED' | 'SUCCESS' | 'FAILED' | null;
 }
 
 export interface SyncStatus {
