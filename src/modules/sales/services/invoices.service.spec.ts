@@ -7,13 +7,14 @@ import { NotificationsService } from '../../notifications/notifications.service'
 import { AuditService } from '../../audit/audit.service';
 import { WorkflowService } from '../../workflow/workflow.service';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { InvoiceStatus, PaymentMethod } from '@prisma/client';
+import { InvoiceStatus, PaymentMethod, Prisma } from '@prisma/client';
 
 const mockPrisma = () => ({
   salesInvoice: {
     count: jest.fn(),
     create: jest.fn(),
     findUnique: jest.fn(),
+    findFirst: jest.fn(),
     update: jest.fn(),
     findMany: jest.fn(),
   },
@@ -168,6 +169,60 @@ describe('InvoicesService', () => {
         NotFoundException,
       );
       expect(prisma.salesInvoice.create).not.toHaveBeenCalled();
+    });
+
+    it('should return the existing invoice for a clientRef already used, without creating a duplicate or re-validating the customer', async () => {
+      const existing = {
+        id: 'inv-1',
+        invoiceNo: 'INV-00001',
+        clientRef: 'offline-123',
+      };
+      prisma.salesInvoice.findFirst.mockResolvedValue(existing);
+
+      const result = await service.create(
+        { ...dto, clientRef: 'offline-123' } as any,
+      );
+
+      expect(prisma.salesInvoice.findFirst).toHaveBeenCalledWith({
+        where: { clientRef: 'offline-123' },
+        include: { customer: true, items: { include: { product: true } } },
+      });
+      expect(prisma.customer.findUnique).not.toHaveBeenCalled();
+      expect(prisma.salesInvoice.create).not.toHaveBeenCalled();
+      expect(result).toEqual(existing);
+    });
+
+    it('should self-heal a P2002 race on clientRef by returning the row that won', async () => {
+      prisma.salesInvoice.findFirst.mockResolvedValueOnce(null); // no existing row yet
+      prisma.customer.findUnique.mockResolvedValue({ id: 'cust-1', name: 'Jane', tenantId: 't-1' });
+      prisma.product.findMany.mockResolvedValue([
+        { id: 'prod-1', name: 'Widget' },
+        { id: 'prod-2', name: 'Gadget' },
+      ]);
+      prisma.salesInvoice.count.mockResolvedValue(0);
+
+      const raceError = Object.assign(
+        new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+          code: 'P2002',
+          clientVersion: 'test',
+          meta: { target: ['tenantId', 'clientRef'] },
+        } as any),
+        {},
+      );
+      prisma.salesInvoice.create.mockRejectedValue(raceError);
+
+      const winner = {
+        id: 'inv-2',
+        invoiceNo: 'INV-00002',
+        clientRef: 'offline-456',
+      };
+      prisma.salesInvoice.findFirst.mockResolvedValueOnce(winner); // re-fetch after the race
+
+      const result = await service.create(
+        { ...dto, clientRef: 'offline-456' } as any,
+      );
+
+      expect(result).toEqual(winner);
     });
   });
 

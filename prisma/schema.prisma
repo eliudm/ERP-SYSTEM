@@ -293,6 +293,11 @@ model SalesInvoice {
   paymentMethod     PaymentMethod?
   paidAt            DateTime?
   notes             String?
+  // Client-generated reference (e.g. the mobile app's offline-queue id) used
+  // to make retrying POST /sales/invoices idempotent — see InvoicesService.create().
+  // Nullable: every non-offline caller (web, API integrations) never sets it,
+  // and Postgres treats multiple NULLs as distinct under a unique index.
+  clientRef         String?
   createdAt         DateTime              @default(now())
   updatedAt         DateTime              @updatedAt
   items             SalesInvoiceItem[]
@@ -304,6 +309,7 @@ model SalesInvoice {
   notifications     Notification[]
 
   @@unique([tenantId, invoiceNo])
+  @@unique([tenantId, clientRef])
   @@index([tenantId])
   @@index([customerId])
   @@index([branchId])

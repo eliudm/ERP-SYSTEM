@@ -11,6 +11,7 @@ import {
   InvoiceStatus,
   MovementType,
   PaymentMethod,
+  Prisma,
 } from '@prisma/client';
 import { EtimsQueueService } from '../../etims/etims-queue/etims-queue.service';
 import { NotificationsService } from '../../notifications/notifications.service';
@@ -37,6 +38,20 @@ export class InvoicesService {
 
   // ─── CREATE INVOICE (DRAFT) ──────────────────────────────
   async create(dto: CreateInvoiceDto, userId?: string) {
+    // Idempotency: if this exact client attempt already succeeded (e.g. the
+    // mobile offline-sales queue retrying after a dropped response), return
+    // the invoice it already created instead of making a duplicate DRAFT.
+    if (dto.clientRef) {
+      const existing = await this.prisma.salesInvoice.findFirst({
+        where: { clientRef: dto.clientRef },
+        include: {
+          customer: true,
+          items: { include: { product: true } },
+        },
+      });
+      if (existing) return existing;
+    }
+
     // Validate customer exists
     const customer = await this.prisma.customer.findUnique({
       where: { id: dto.customerId },
@@ -84,27 +99,52 @@ export class InvoicesService {
     const invoiceNo = await this.generateInvoiceNo();
 
     // Create invoice in database
-    const invoice = await this.prisma.salesInvoice.create({
-      data: {
-        tenantId: customer.tenantId,
-        invoiceNo,
-        customerId: dto.customerId,
-        branchId: dto.branchId ?? null,
-        invoiceDate: new Date(dto.invoiceDate),
-        dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
-        status: InvoiceStatus.DRAFT,
-        subtotal,
-        taxAmount,
-        total,
-        notes: dto.notes,
-        paymentMethod: dto.paymentMethod ?? null,
-        items: { create: itemsData },
-      },
-      include: {
-        customer: true,
-        items: { include: { product: true } },
-      },
-    });
+    let invoice;
+    try {
+      invoice = await this.prisma.salesInvoice.create({
+        data: {
+          tenantId: customer.tenantId,
+          invoiceNo,
+          customerId: dto.customerId,
+          branchId: dto.branchId ?? null,
+          invoiceDate: new Date(dto.invoiceDate),
+          dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
+          status: InvoiceStatus.DRAFT,
+          subtotal,
+          taxAmount,
+          total,
+          notes: dto.notes,
+          paymentMethod: dto.paymentMethod ?? null,
+          clientRef: dto.clientRef ?? null,
+          items: { create: itemsData },
+        },
+        include: {
+          customer: true,
+          items: { include: { product: true } },
+        },
+      });
+    } catch (err) {
+      // Lost a race against another create() carrying the same clientRef
+      // (e.g. two near-simultaneous sync retries) — the unique constraint
+      // caught the duplicate the findFirst above couldn't see in time.
+      // Self-heal by returning the row that won, instead of erroring.
+      if (
+        dto.clientRef &&
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2002' &&
+        (err.meta?.target as string[] | undefined)?.includes('clientRef')
+      ) {
+        const existing = await this.prisma.salesInvoice.findFirst({
+          where: { clientRef: dto.clientRef },
+          include: {
+            customer: true,
+            items: { include: { product: true } },
+          },
+        });
+        if (existing) return existing;
+      }
+      throw err;
+    }
 
     await this.auditService.log({
       userId,

@@ -58,6 +58,13 @@ export class CreateInvoiceDto {
   @IsEnum(PaymentMethod)
   paymentMethod?: PaymentMethod;
 
+  // Client-generated reference (e.g. the mobile app's offline-queue sale id)
+  // — lets create() be retried safely after a dropped response instead of
+  // creating a duplicate DRAFT invoice. See InvoicesService.create().
+  @IsOptional()
+  @IsString()
+  clientRef?: string;
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => CreateInvoiceItemDto)
