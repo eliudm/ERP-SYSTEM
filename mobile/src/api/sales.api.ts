@@ -13,6 +13,9 @@ export interface CreateInvoicePayload {
   invoiceDate: string;
   paymentMethod?: string;
   notes?: string;
+  // Offline-queue sale id — lets the backend dedupe a retried sync instead
+  // of creating a duplicate draft. See InvoicesService.create() (clientRef).
+  clientRef?: string;
   items: CreateInvoiceItem[];
 }
 

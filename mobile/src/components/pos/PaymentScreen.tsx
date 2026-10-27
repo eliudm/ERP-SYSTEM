@@ -37,6 +37,7 @@ interface PaymentScreenProps {
   paymentMethods: string[];
   paymentMethod: string;
   onSelectPaymentMethod: (method: string) => void;
+  disabledMethods?: string[];
   mpesaPhone: string;
   onMpesaPhoneChange: (value: string) => void;
   customerQuery: string;
@@ -60,6 +61,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
   paymentMethods,
   paymentMethod,
   onSelectPaymentMethod,
+  disabledMethods = [],
   mpesaPhone,
   onMpesaPhoneChange,
   customerQuery,
@@ -84,25 +86,44 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
       <View style={styles.methodGrid}>
         {paymentMethods.map((method) => {
           const selected = paymentMethod === method;
+          const disabled = disabledMethods.includes(method);
           return (
             <Pressable
               key={method}
-              style={[styles.methodTile, selected && styles.methodTileSelected]}
-              onPress={() => onSelectPaymentMethod(method)}
+              style={[
+                styles.methodTile,
+                selected && styles.methodTileSelected,
+                disabled && styles.methodTileDisabled,
+              ]}
+              onPress={() => {
+                if (!disabled) onSelectPaymentMethod(method);
+              }}
             >
-              <MaterialCommunityIcons
-                name={(PAYMENT_METHOD_ICONS[method] ?? 'cash') as never}
-                size={22}
-                color={selected ? brand.gradientEnd : brand.textMuted}
-              />
-              <Text
-                style={[
-                  styles.methodLabel,
-                  selected && styles.methodLabelSelected,
-                ]}
-              >
-                {PAYMENT_METHOD_LABELS[method] ?? method}
-              </Text>
+              <View style={styles.methodTileRow}>
+                <MaterialCommunityIcons
+                  name={(PAYMENT_METHOD_ICONS[method] ?? 'cash') as never}
+                  size={22}
+                  color={
+                    disabled
+                      ? brand.textMuted
+                      : selected
+                        ? brand.gradientEnd
+                        : brand.textMuted
+                  }
+                />
+                <Text
+                  style={[
+                    styles.methodLabel,
+                    selected && styles.methodLabelSelected,
+                    disabled && styles.methodLabelDisabled,
+                  ]}
+                >
+                  {PAYMENT_METHOD_LABELS[method] ?? method}
+                </Text>
+              </View>
+              {disabled && (
+                <Text style={styles.methodCaption}>Needs internet</Text>
+              )}
             </Pressable>
           );
         })}
@@ -243,13 +264,25 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0eef7',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
+    gap: 2,
+  },
+  methodTileRow: {
     flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   methodTileSelected: {
     backgroundColor: '#d6f3ee',
     borderWidth: 1.5,
     borderColor: brand.gradientEnd,
+  },
+  methodTileDisabled: {
+    backgroundColor: '#f5f3ef',
+    opacity: 0.6,
+  },
+  methodCaption: {
+    fontSize: 10.5,
+    color: brand.textMuted,
   },
   methodLabel: {
     fontSize: 14,
@@ -258,6 +291,9 @@ const styles = StyleSheet.create({
   },
   methodLabelSelected: {
     color: brand.gradientEnd,
+  },
+  methodLabelDisabled: {
+    color: brand.textMuted,
   },
   detailsScroll: {
     flex: 1,

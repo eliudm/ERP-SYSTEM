@@ -43,7 +43,14 @@ export interface ReceiptHtmlData {
   showBranding?: boolean;
   qrCode?: string | null;
   reprint?: boolean;
+  // Sold while offline, not yet synced to a real tax invoice — no eTIMS QR
+  // exists yet. Must be unmistakable on a printed/PDF copy so it's never
+  // confused with a final KRA-validated receipt.
+  pendingSync?: boolean;
 }
+
+const PENDING_SYNC_NOTE =
+  'Sale saved offline — will sync automatically once back online. A tax receipt number will be assigned then.';
 
 const paymentLabelOf = (data: ReceiptHtmlData): string =>
   data.paymentMethod
@@ -103,9 +110,11 @@ const buildStandardReceiptHtml = (data: ReceiptHtmlData): string => {
   <div class="row"><span>VAT</span><span>${formatCurrency(data.taxTotal)}</span></div>
   <div class="row grand"><span>Total</span><span>${formatCurrency(data.total)}</span></div>
   ${
-    data.qrCode
-      ? `<div class="qr"><img src="${data.qrCode}" /><div class="muted">eTIMS QR Code</div></div>`
-      : ''
+    data.pendingSync
+      ? `<div class="qr" style="border:1px dashed #ad7a14;border-radius:8px;padding:8px;color:#ad7a14;font-weight:700">${PENDING_SYNC_NOTE}</div>`
+      : data.qrCode
+        ? `<div class="qr"><img src="${data.qrCode}" /><div class="muted">eTIMS QR Code</div></div>`
+        : ''
   }
   ${data.businessSlogan ? `<div class="muted" style="margin-top:10px;padding-top:8px;border-top:1px dashed #eee">${escapeHtml(data.businessSlogan)}</div>` : ''}
   ${printScript}
@@ -148,7 +157,13 @@ const buildCompactReceiptHtml = (data: ReceiptHtmlData): string => {
   <div class="row"><span>VAT</span><span>${formatCurrency(data.taxTotal)}</span></div>
   <div class="row grand"><span>TOTAL</span><span>${formatCurrency(data.total)}</span></div>
   <div class="row"><span>${paymentLabelOf(data)}</span><span></span></div>
-  ${data.qrCode ? `<div style="text-align:center;margin-top:6px"><img src="${data.qrCode}" style="width:80px;height:80px" /></div>` : ''}
+  ${
+    data.pendingSync
+      ? `<div style="text-align:center;margin-top:6px;border:1px dashed #ad7a14;border-radius:6px;padding:4px;color:#ad7a14;font-weight:700;font-size:10px">${PENDING_SYNC_NOTE}</div>`
+      : data.qrCode
+        ? `<div style="text-align:center;margin-top:6px"><img src="${data.qrCode}" style="width:80px;height:80px" /></div>`
+        : ''
+  }
   ${printScript}
 </body>
 </html>`;
@@ -214,7 +229,13 @@ const buildBrandedReceiptHtml = (data: ReceiptHtmlData): string => {
   <div class="grand"><span>Total</span><span>${formatCurrency(data.total)}</span></div>
   <div class="row"><span>Paid via</span><span>${paymentLabelOf(data)}</span></div>
 
-  ${data.qrCode ? `<div style="text-align:center;margin-top:10px;padding:10px;border:1px solid #d8d4e8;border-radius:10px"><img src="${data.qrCode}" style="width:110px;height:110px" /><div style="font-size:10.5px;margin-top:4px">eTIMS QR Code</div></div>` : ''}
+  ${
+    data.pendingSync
+      ? `<div style="text-align:center;margin-top:10px;padding:10px;border:1px dashed #ad7a14;border-radius:10px;color:#ad7a14;font-weight:700;font-size:11px">${PENDING_SYNC_NOTE}</div>`
+      : data.qrCode
+        ? `<div style="text-align:center;margin-top:10px;padding:10px;border:1px solid #d8d4e8;border-radius:10px"><img src="${data.qrCode}" style="width:110px;height:110px" /><div style="font-size:10.5px;margin-top:4px">eTIMS QR Code</div></div>`
+        : ''
+  }
 
   <div style="text-align:center;margin-top:10px;font-size:10px;color:#aaa">Thank you for shopping with ${escapeHtml(data.businessName ?? 'us')}!</div>
   ${printScript}

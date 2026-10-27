@@ -1,5 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
+  AppState,
+  AppStateStatus,
   View,
   StyleSheet,
   FlatList,
@@ -33,8 +35,11 @@ import { CategoryGrid } from '../../components/pos/CategoryGrid';
 import { PaymentScreen } from '../../components/pos/PaymentScreen';
 import { OrdersList } from '../../components/pos/OrdersList';
 import { OrderDetail } from '../../components/pos/OrderDetail';
+import { OfflineBanner } from '../../components/pos/OfflineBanner';
 import { useRegister } from '../../hooks/useRegister';
 import { useHeldOrders, HeldOrder } from '../../hooks/useHeldOrders';
+import { useOfflineSales } from '../../hooks/useOfflineSales';
+import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import { useOrderDetailActions } from '../../hooks/useOrderDetailActions';
 import { buildReceiptHtml } from '../../utils/receiptHtml';
 import { printReceiptHtml, saveReceiptPdf } from '../../utils/printReceipt';
@@ -113,6 +118,8 @@ export default function PosScreen() {
 
   const register = useRegister();
   const heldOrders = useHeldOrders();
+  const offlineSales = useOfflineSales();
+  const network = useNetworkStatus();
   const [screen, setScreen] = useState<Screen>('main');
 
   const { data: recentInvoices = [] } = useQuery({
@@ -162,6 +169,7 @@ export default function PosScreen() {
   const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
   const [receiptQr, setReceiptQr] = useState<EtimsQrResult | null>(null);
   const [receiptQrLoading, setReceiptQrLoading] = useState(false);
+  const [offlinePending, setOfflinePending] = useState(false);
 
   const [snackbar, setSnackbar] = useState<{
     visible: boolean;
@@ -397,6 +405,63 @@ export default function PosScreen() {
     return customersApi.createCustomer({ name: WALK_IN_CUSTOMER_NAME });
   };
 
+  // resolveWalkInCustomer() itself is a live network call — keep it warm in
+  // the cache while online so an offline walk-in sale (see chargeMutation)
+  // has something to fall back on instead of silently failing.
+  const { data: cachedWalkInCustomer } = useQuery({
+    queryKey: ['walk-in-customer'],
+    queryFn: resolveWalkInCustomer,
+    enabled: network.isOnline === true,
+    staleTime: Infinity,
+  });
+
+  // If connectivity drops while M-Pesa is selected, it can't be completed
+  // (STK push needs a live round-trip to the customer's phone) — fall back
+  // to Cash rather than leaving an unusable option selected.
+  useEffect(() => {
+    if (network.isOnline === false && paymentMethod === 'MOBILE_MONEY') {
+      setPaymentMethod('CASH');
+      setSnackbar({
+        visible: true,
+        message: 'M-Pesa needs internet — switched to Cash.',
+      });
+    }
+  }, [network.isOnline, paymentMethod]);
+
+  // Reconnecting (including "was offline when the app started, already
+  // back online once the queue finishes loading from storage") triggers a
+  // sync pass. syncAll() is a no-op when nothing is pending/failed, so this
+  // is safe to re-run on every dependency change rather than needing a
+  // one-shot guard.
+  useEffect(() => {
+    if (
+      !offlineSales.isLoading &&
+      network.isOnline === true &&
+      offlineSales.pendingCount > 0
+    ) {
+      void offlineSales.syncAll();
+    }
+  }, [
+    offlineSales.isLoading,
+    offlineSales.pendingCount,
+    network.isOnline,
+    offlineSales.syncAll,
+  ]);
+
+  // Connectivity that returned while the app was backgrounded may never
+  // fire a NetInfo event the JS runtime was awake to see — re-check and
+  // sync on foreground too.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
+      if (next === 'active') {
+        void network.refresh().then((online) => {
+          if (online) void offlineSales.syncAll();
+        });
+      }
+    });
+    return () => sub.remove();
+  }, [network.refresh, offlineSales.syncAll]);
+
   const waitForMpesaSettlement = async (invoiceId: string) => {
     for (let attempt = 0; attempt < 20; attempt += 1) {
       await sleep(3000);
@@ -429,18 +494,76 @@ export default function PosScreen() {
       if (paymentMethod === 'MOBILE_MONEY' && !isValidKenyaPhone(mpesaPhone)) {
         throw new Error('Enter a valid M-Pesa number, e.g. 2547XXXXXXXX');
       }
+      if (paymentMethod === 'MOBILE_MONEY' && network.isOnline === false) {
+        // Belt-and-braces: the tile is disabled while offline, but
+        // connectivity could have dropped in the gap between render and tap.
+        throw new Error('M-Pesa requires an internet connection.');
+      }
 
-      const customer = selectedCustomer ?? (await resolveWalkInCustomer());
+      // Online: always resolve a fresh walk-in customer, exactly as before.
+      // Offline: fall back to whatever the cache warmed while last online —
+      // resolveWalkInCustomer() itself is a network call that would hang
+      // the sale otherwise.
+      const customer =
+        selectedCustomer ??
+        (network.isOnline
+          ? await resolveWalkInCustomer()
+          : cachedWalkInCustomer);
+      if (!customer) {
+        throw new Error(
+          'No customer available offline. Reconnect once to load the walk-in customer, or select a customer.',
+        );
+      }
+
+      const items = cart.map((line) => ({
+        productId: line.productId,
+        name: line.name,
+        quantity: line.quantity,
+        unitPrice: line.unitPrice,
+        taxRate: line.taxRate,
+      }));
+
+      if (network.isOnline === false) {
+        const sale = await offlineSales.enqueue(
+          items.map((i) => ({
+            productId: i.productId,
+            name: i.name,
+            basePrice: i.unitPrice,
+            unitPrice: i.unitPrice,
+            taxRate: i.taxRate,
+            quantity: i.quantity,
+          })),
+          { id: customer.id, name: customer.name },
+          paymentMethod,
+          activeWarehouseId,
+          { subtotal, taxTotal, total },
+        );
+        return {
+          offline: true as const,
+          invoice: null,
+          receipt: {
+            invoiceNo: sale.reference,
+            createdAt: sale.createdAt,
+            customerName: customer.name,
+            servedBy: user?.email ?? 'Staff',
+            subtotal,
+            taxTotal,
+            total,
+            paymentMethod,
+            items,
+          } satisfies ReceiptData,
+        };
+      }
 
       setCheckoutStage('Creating invoice…');
       const invoice = await salesApi.createInvoice({
         customerId: customer.id,
         invoiceDate: new Date().toISOString(),
-        items: cart.map((line) => ({
-          productId: line.productId,
-          quantity: line.quantity,
-          unitPrice: line.unitPrice,
-          taxRate: line.taxRate,
+        items: items.map((i) => ({
+          productId: i.productId,
+          quantity: i.quantity,
+          unitPrice: i.unitPrice,
+          taxRate: i.taxRate,
         })),
       });
 
@@ -462,6 +585,7 @@ export default function PosScreen() {
       }
 
       return {
+        offline: false as const,
         invoice,
         receipt: {
           invoiceNo: invoice.invoiceNo,
@@ -472,23 +596,24 @@ export default function PosScreen() {
           taxTotal,
           total,
           paymentMethod,
-          items: cart.map((l) => ({
-            name: l.name,
-            quantity: l.quantity,
-            unitPrice: l.unitPrice,
-          })),
+          items,
         } satisfies ReceiptData,
       };
     },
-    onSuccess: ({ invoice, receipt }) => {
+    onSuccess: ({ invoice, receipt, offline }) => {
       setCart([]);
       setCartExpanded(false);
       setSelectedLineId(null);
       setCheckoutStage(null);
       setReceiptData(receipt);
+      setOfflinePending(offline);
       setReceiptQr(null);
-      setReceiptQrLoading(true);
       setScreen('receipt');
+      if (offline) {
+        setReceiptQrLoading(false);
+        return;
+      }
+      setReceiptQrLoading(true);
       void queryClient.invalidateQueries({ queryKey: ['mobile-dashboard'] });
       void queryClient.invalidateQueries({ queryKey: ['pos-data'] });
       void fetchEtimsQrWithRetry(invoice.id).then((qr) => {
@@ -514,6 +639,7 @@ export default function PosScreen() {
     setScreen('main');
     setReceiptData(null);
     setReceiptQr(null);
+    setOfflinePending(false);
   };
 
   const openOrderDetail = (invoiceId: string) => {
@@ -545,6 +671,7 @@ export default function PosScreen() {
         businessSlogan: settings?.receiptSlogan,
         showBranding: settings?.posReceiptBranding,
         qrCode: receiptQr?.qrCode ?? null,
+        pendingSync: offlinePending,
       },
       settings?.receiptTemplate,
     );
@@ -629,6 +756,7 @@ export default function PosScreen() {
           paymentMethods={paymentMethods}
           paymentMethod={paymentMethod}
           onSelectPaymentMethod={setPaymentMethod}
+          disabledMethods={network.isOnline === false ? ['MOBILE_MONEY'] : []}
           mpesaPhone={mpesaPhone}
           onMpesaPhoneChange={setMpesaPhone}
           customerQuery={customerQuery}
@@ -664,10 +792,12 @@ export default function PosScreen() {
         <OrdersList
           heldOrders={heldOrders.orders}
           recentInvoices={recentInvoices}
+          offlineSales={offlineSales.sales}
           isLoading={heldOrders.isLoading}
           onLoadOrder={loadHeldOrder}
           onDeleteOrder={(id) => void heldOrders.removeOrder(id)}
           onSelectInvoice={openOrderDetail}
+          onRetryOfflineSale={(id) => void offlineSales.retryOne(id)}
         />
         {snackbarElement}
       </View>
@@ -712,6 +842,7 @@ export default function PosScreen() {
             printing={printing}
             onSavePdf={() => void saveCurrentReceiptPdf()}
             savingPdf={savingPdf}
+            pendingSync={offlinePending}
           />
         )}
       </View>
@@ -868,6 +999,12 @@ export default function PosScreen() {
           onPress={() => setScreen('orders')}
         />
       </View>
+
+      <OfflineBanner
+        isOnline={network.isOnline}
+        pendingCount={offlineSales.pendingCount}
+        onPress={() => setScreen('orders')}
+      />
 
       {!register.isLoading && (
         <Pressable

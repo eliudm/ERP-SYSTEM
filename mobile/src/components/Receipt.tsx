@@ -36,6 +36,9 @@ interface ReceiptProps {
   printing?: boolean;
   onSavePdf?: () => void;
   savingPdf?: boolean;
+  // Sold while offline — not a real tax invoice yet, nothing to fetch a QR
+  // against until it syncs. See useOfflineSales.ts / pos.tsx's chargeMutation.
+  pendingSync?: boolean;
 }
 
 export const Receipt: React.FC<ReceiptProps> = ({
@@ -48,6 +51,7 @@ export const Receipt: React.FC<ReceiptProps> = ({
   printing,
   onSavePdf,
   savingPdf,
+  pendingSync,
 }) => {
   const businessName = settings?.companyName || 'Nexora ERP';
   const showBranding = settings?.posReceiptBranding ?? true;
@@ -122,8 +126,16 @@ export const Receipt: React.FC<ReceiptProps> = ({
           </Text>
         )}
 
-        <View style={styles.qrSection}>
-          {qrLoading ? (
+        <View style={pendingSync ? styles.pendingSection : styles.qrSection}>
+          {pendingSync ? (
+            <>
+              <Text style={styles.pendingTitle}>Saved offline</Text>
+              <Text style={styles.pendingMessage}>
+                Will sync automatically once you&apos;re back online. A tax
+                receipt number will be assigned then.
+              </Text>
+            </>
+          ) : qrLoading ? (
             <>
               <ActivityIndicator size="small" color={brand.gradientEnd} />
               <Text style={styles.qrLabel}>Fetching eTIMS QR…</Text>
@@ -303,6 +315,24 @@ const styles = StyleSheet.create({
     marginTop: 2,
     textAlign: 'center',
     paddingHorizontal: 20,
+  },
+  pendingSection: {
+    alignItems: 'center',
+    marginTop: 16,
+    padding: 14,
+    borderRadius: 12,
+    backgroundColor: '#fbf1de',
+  },
+  pendingTitle: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: '#ad7a14',
+  },
+  pendingMessage: {
+    fontSize: 11.5,
+    color: '#ad7a14',
+    marginTop: 4,
+    textAlign: 'center',
   },
   footerButtons: {
     flexDirection: 'row',

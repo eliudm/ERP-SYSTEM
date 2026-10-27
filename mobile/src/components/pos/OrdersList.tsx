@@ -3,6 +3,7 @@ import { View, StyleSheet, FlatList, Pressable } from 'react-native';
 import { Text, IconButton, Chip, Button } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { HeldOrder } from '../../hooks/useHeldOrders';
+import { OfflineSale } from '../../hooks/useOfflineSales';
 import { RecentInvoice } from '../../api/mobile.api';
 import { brand } from '../../theme';
 
@@ -24,30 +25,52 @@ const heldOrderTotal = (order: HeldOrder) =>
 interface OrdersListProps {
   heldOrders: HeldOrder[];
   recentInvoices: RecentInvoice[];
+  offlineSales: OfflineSale[];
   isLoading: boolean;
   onLoadOrder: (order: HeldOrder) => void;
   onDeleteOrder: (id: string) => void;
   onSelectInvoice: (invoiceId: string) => void;
+  onRetryOfflineSale: (id: string) => void;
 }
 
 type Row =
+  | { kind: 'offline'; sale: OfflineSale }
   | { kind: 'held'; order: HeldOrder }
   | { kind: 'invoice'; invoice: RecentInvoice };
+
+const OFFLINE_STATUS_STYLE: Record<
+  OfflineSale['status'],
+  { bg: string; fg: string; label: string }
+> = {
+  pending: { bg: '#fbf1de', fg: '#ad7a14', label: 'Queued' },
+  syncing: { bg: '#fbf1de', fg: '#ad7a14', label: 'Syncing…' },
+  failed: { bg: '#fde3dc', fg: '#d4380d', label: 'Failed · Retry' },
+  synced: { bg: '#d6f3ee', fg: brand.gradientEnd, label: 'Synced' }, // never actually rendered — filtered out above
+};
 
 export const OrdersList: React.FC<OrdersListProps> = ({
   heldOrders,
   recentInvoices,
+  offlineSales,
   isLoading,
   onLoadOrder,
   onDeleteOrder,
   onSelectInvoice,
+  onRetryOfflineSale,
 }) => {
   const today = new Date().toDateString();
   const todaysInvoices = recentInvoices.filter(
     (inv) => new Date(inv.invoiceDate).toDateString() === today,
   );
+  // Synced offline sales become indistinguishable from a normal invoice
+  // once they have a real invoiceNo — they show up via recentInvoices
+  // instead, so drop them here rather than listing the same sale twice.
+  const unsettledOfflineSales = offlineSales.filter(
+    (s) => s.status !== 'synced',
+  );
 
   const rows: Row[] = [
+    ...unsettledOfflineSales.map((sale): Row => ({ kind: 'offline', sale })),
     ...heldOrders.map((order): Row => ({ kind: 'held', order })),
     ...todaysInvoices.map((invoice): Row => ({ kind: 'invoice', invoice })),
   ];
@@ -62,7 +85,11 @@ export const OrdersList: React.FC<OrdersListProps> = ({
       contentContainerStyle={styles.content}
       data={rows}
       keyExtractor={(row) =>
-        row.kind === 'held' ? row.order.id : row.invoice.id
+        row.kind === 'offline'
+          ? row.sale.id
+          : row.kind === 'held'
+            ? row.order.id
+            : row.invoice.id
       }
       ListEmptyComponent={
         <View style={styles.empty}>
@@ -70,6 +97,37 @@ export const OrdersList: React.FC<OrdersListProps> = ({
         </View>
       }
       renderItem={({ item }) => {
+        if (item.kind === 'offline') {
+          const { sale } = item;
+          const style = OFFLINE_STATUS_STYLE[sale.status];
+          const isFailed = sale.status === 'failed';
+          return (
+            <Pressable
+              style={styles.row}
+              onPress={() => {
+                if (isFailed) onRetryOfflineSale(sale.id);
+              }}
+            >
+              <View style={styles.rowInfo}>
+                <Text style={styles.rowTime}>{formatTime(sale.createdAt)}</Text>
+                <Text style={styles.rowRef}>{sale.reference}</Text>
+                <Text style={styles.rowCustomer} numberOfLines={1}>
+                  {sale.customerName} · {sale.lines.length} item
+                  {sale.lines.length === 1 ? '' : 's'}
+                  {isFailed && sale.error ? ` · ${sale.error}` : ''}
+                </Text>
+              </View>
+              <Text style={styles.rowTotal}>{formatCurrency(sale.total)}</Text>
+              <Chip
+                style={{ backgroundColor: style.bg }}
+                textStyle={{ color: style.fg, fontSize: 11 }}
+              >
+                {style.label}
+              </Chip>
+            </Pressable>
+          );
+        }
+
         if (item.kind === 'held') {
           const { order } = item;
           return (
