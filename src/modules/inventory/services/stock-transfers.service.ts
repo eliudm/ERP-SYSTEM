@@ -3,14 +3,46 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
+import {
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  IsArray,
+  ValidateNested,
+  IsNumber,
+  Min,
+} from 'class-validator';
+import { Type } from 'class-transformer';
 import { PrismaService } from '../../../prisma.service';
 import { getCurrentTenantId } from '../../../tenant-context';
 
+export class TransferLineInputDto {
+  @IsString()
+  @IsNotEmpty()
+  productId!: string;
+
+  @IsNumber()
+  @Min(0.01)
+  quantity!: number;
+}
+
 export class CreateTransferDto {
-  fromWarehouseId: string;
-  toWarehouseId: string;
+  @IsString()
+  @IsNotEmpty()
+  fromWarehouseId!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  toWarehouseId!: string;
+
+  @IsOptional()
+  @IsString()
   notes?: string;
-  lines: { productId: string; quantity: number }[];
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => TransferLineInputDto)
+  lines!: TransferLineInputDto[];
 }
 
 @Injectable()

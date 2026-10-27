@@ -3,13 +3,24 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
+import { IsString, IsOptional, IsNumber, IsIn } from 'class-validator';
 import { PrismaService } from '../../../prisma.service';
 import { getCurrentTenantId } from '../../../tenant-context';
 
 export class CreateLandedCostDto {
+  @IsOptional()
+  @IsString()
   purchaseOrderId?: string;
+
+  @IsOptional()
+  @IsString()
   description?: string;
-  amount: number;
+
+  @IsNumber()
+  amount!: number;
+
+  @IsOptional()
+  @IsIn(['EQUAL', 'BY_QTY', 'BY_VALUE'])
   method?: 'EQUAL' | 'BY_QTY' | 'BY_VALUE';
 }
 

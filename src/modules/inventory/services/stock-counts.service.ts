@@ -3,18 +3,36 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
+import {
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  IsDateString,
+  IsNumber,
+} from 'class-validator';
 import { PrismaService } from '../../../prisma.service';
 import { getCurrentTenantId } from '../../../tenant-context';
 
 export class CreateStockCountDto {
-  warehouseId: string;
-  countDate: string;
+  @IsString()
+  @IsNotEmpty()
+  warehouseId!: string;
+
+  @IsDateString()
+  countDate!: string;
+
+  @IsOptional()
+  @IsString()
   notes?: string;
 }
 
 export class AddCountLineDto {
-  productId: string;
-  countedQty: number;
+  @IsString()
+  @IsNotEmpty()
+  productId!: string;
+
+  @IsNumber()
+  countedQty!: number;
 }
 
 @Injectable()

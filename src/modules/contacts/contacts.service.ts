@@ -1,48 +1,168 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  IsEnum,
+  IsEmail,
+  IsArray,
+  IsBoolean,
+} from 'class-validator';
 import { PrismaService } from '../../prisma.service';
 import { getCurrentTenantId } from '../../tenant-context';
 import { ContactType } from '@prisma/client';
 
 export class CreateContactDto {
+  @IsOptional()
+  @IsEnum(ContactType)
   type?: ContactType;
-  name: string;
+
+  @IsString()
+  @IsNotEmpty()
+  name!: string;
+
+  @IsOptional()
+  @IsString()
   companyId?: string;
+
+  @IsOptional()
+  @IsEmail()
   email?: string;
+
+  @IsOptional()
+  @IsString()
   phone?: string;
+
+  @IsOptional()
+  @IsString()
   mobile?: string;
+
+  @IsOptional()
+  @IsString()
   website?: string;
+
+  @IsOptional()
+  @IsString()
   street?: string;
+
+  @IsOptional()
+  @IsString()
   street2?: string;
+
+  @IsOptional()
+  @IsString()
   city?: string;
+
+  @IsOptional()
+  @IsString()
   state?: string;
+
+  @IsOptional()
+  @IsString()
   zip?: string;
+
+  @IsOptional()
+  @IsString()
   country?: string;
+
+  @IsOptional()
+  @IsString()
   taxId?: string;
+
+  @IsOptional()
+  @IsString()
   jobPosition?: string;
+
+  @IsOptional()
+  @IsString()
   partnerLevel?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
   tags?: string[];
+
+  @IsOptional()
+  @IsString()
   notes?: string;
 }
 
 export class UpdateContactDto {
+  @IsOptional()
+  @IsEnum(ContactType)
   type?: ContactType;
+
+  @IsOptional()
+  @IsString()
   name?: string;
+
+  @IsOptional()
+  @IsString()
   companyId?: string | null;
+
+  @IsOptional()
+  @IsEmail()
   email?: string;
+
+  @IsOptional()
+  @IsString()
   phone?: string;
+
+  @IsOptional()
+  @IsString()
   mobile?: string;
+
+  @IsOptional()
+  @IsString()
   website?: string;
+
+  @IsOptional()
+  @IsString()
   street?: string;
+
+  @IsOptional()
+  @IsString()
   street2?: string;
+
+  @IsOptional()
+  @IsString()
   city?: string;
+
+  @IsOptional()
+  @IsString()
   state?: string;
+
+  @IsOptional()
+  @IsString()
   zip?: string;
+
+  @IsOptional()
+  @IsString()
   country?: string;
+
+  @IsOptional()
+  @IsString()
   taxId?: string;
+
+  @IsOptional()
+  @IsString()
   jobPosition?: string;
+
+  @IsOptional()
+  @IsString()
   partnerLevel?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
   tags?: string[];
+
+  @IsOptional()
+  @IsString()
   notes?: string;
+
+  @IsOptional()
+  @IsBoolean()
   isActive?: boolean;
 }
 

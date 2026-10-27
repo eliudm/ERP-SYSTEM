@@ -1,9 +1,18 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { IsString, IsNotEmpty, IsOptional } from 'class-validator';
 import { PrismaService } from '../../../prisma.service';
 
 export class CreateSerialDto {
-  productId: string;
-  serial: string;
+  @IsString()
+  @IsNotEmpty()
+  productId!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  serial!: string;
+
+  @IsOptional()
+  @IsString()
   warehouseId?: string;
 }
 

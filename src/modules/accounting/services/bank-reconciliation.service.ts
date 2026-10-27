@@ -3,29 +3,69 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
+import {
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  IsDateString,
+  IsNumber,
+  IsEnum,
+} from 'class-validator';
 import { PaymentMethod } from '@prisma/client';
 import { PrismaService } from '../../../prisma.service';
 import { getCurrentTenantId } from '../../../tenant-context';
 
 export class CreateBankAccountDto {
-  name: string;
-  accountNumber: string;
-  bankName: string;
+  @IsString()
+  @IsNotEmpty()
+  name!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  accountNumber!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  bankName!: string;
+
+  @IsOptional()
+  @IsString()
   currency?: string;
+
+  @IsOptional()
+  @IsString()
   glAccountId?: string;
 }
 
 export class CreateBankStatementDto {
-  statementDate: string;
-  openingBalance: number;
-  closingBalance: number;
+  @IsDateString()
+  statementDate!: string;
+
+  @IsNumber()
+  openingBalance!: number;
+
+  @IsNumber()
+  closingBalance!: number;
 }
 
 export class CreateBankStatementLineDto {
-  transactionDate: string;
-  description: string;
+  @IsDateString()
+  transactionDate!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  description!: string;
+
+  @IsOptional()
+  @IsEnum(PaymentMethod)
   paymentMethod?: PaymentMethod;
+
+  @IsOptional()
+  @IsNumber()
   debit?: number;
+
+  @IsOptional()
+  @IsNumber()
   credit?: number;
 }
 
