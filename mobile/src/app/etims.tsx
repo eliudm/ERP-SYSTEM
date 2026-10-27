@@ -21,9 +21,9 @@ import {
   EtimsFailedSubmission,
   EtimsQueueStatus,
   EtimsStats,
-} from '../../api/etims.api';
-import { useSession } from '../../providers/SessionProvider';
-import { brand } from '../../theme';
+} from '../api/etims.api';
+import { useSession } from '../providers/SessionProvider';
+import { brand } from '../theme';
 
 const STATS_QUERY_KEY = ['etims-stats'];
 const FAILED_QUERY_KEY = ['etims-failed'];

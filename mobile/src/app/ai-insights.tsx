@@ -7,8 +7,8 @@ import {
   aiInsightsApi,
   Insight,
   InsightSeverity,
-} from '../../api/ai-insights.api';
-import { brand } from '../../theme';
+} from '../api/ai-insights.api';
+import { brand } from '../theme';
 
 const SEVERITY_ORDER: InsightSeverity[] = ['critical', 'warning', 'info'];
 

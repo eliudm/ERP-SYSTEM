@@ -60,6 +60,33 @@ function RootNavigator() {
     <Stack>
       <Stack.Protected guard={!!user}>
         <Stack.Screen name="(app)" options={{ headerShown: false }} />
+        {/* Admin-tool "drill-in" screens, reachable from Profile's "Admin
+            Tools" list. These live as top-level Stack routes rather than
+            hidden (href: null) Tabs.Screen entries inside (app) — React
+            Navigation's bottom-tabs doesn't reliably push/navigate to a
+            hidden tab screen from a DIFFERENT tab (it was bouncing back to
+            the Dashboard tab instead), where a plain Stack screen just
+            works with router.push() and gets a native back button too. */}
+        <Stack.Screen
+          name="stock"
+          options={{ headerShown: true, title: 'Stock' }}
+        />
+        <Stack.Screen
+          name="etims"
+          options={{ headerShown: true, title: 'eTIMS' }}
+        />
+        <Stack.Screen
+          name="analytics"
+          options={{ headerShown: true, title: 'Business Reports' }}
+        />
+        <Stack.Screen
+          name="ai-insights"
+          options={{ headerShown: true, title: 'AI Insights' }}
+        />
+        <Stack.Screen
+          name="branches"
+          options={{ headerShown: true, title: 'Branch Comparison' }}
+        />
       </Stack.Protected>
       <Stack.Protected guard={!user}>
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />

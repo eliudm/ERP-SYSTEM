@@ -23,14 +23,14 @@ import {
   Divider,
 } from 'react-native-paper';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { mobileApi, PosProduct } from '../../api/mobile.api';
+import { mobileApi, PosProduct } from '../api/mobile.api';
 import {
   inventoryApi,
   StockMovement,
   CreateStockMovementPayload,
-} from '../../api/inventory.api';
-import { useSession } from '../../providers/SessionProvider';
-import { brand } from '../../theme';
+} from '../api/inventory.api';
+import { useSession } from '../providers/SessionProvider';
+import { brand } from '../theme';
 
 const ALLOWED_ROLES = ['ADMIN', 'INVENTORY_MANAGER'];
 

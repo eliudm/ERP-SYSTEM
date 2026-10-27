@@ -7,13 +7,9 @@ import {
   SegmentedButtons,
 } from 'react-native-paper';
 import { useQuery } from '@tanstack/react-query';
-import { branchesApi, BranchComparisonEntry } from '../../api/branches.api';
-import {
-  getPeriodRange,
-  Period,
-  PERIOD_BUTTONS,
-} from '../../utils/periodRange';
-import { brand } from '../../theme';
+import { branchesApi, BranchComparisonEntry } from '../api/branches.api';
+import { getPeriodRange, Period, PERIOD_BUTTONS } from '../utils/periodRange';
+import { brand } from '../theme';
 
 const formatCurrency = (value: number) =>
   `KES ${value.toLocaleString('en-KE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;

@@ -12,13 +12,9 @@ import {
   ProfitTrendPoint,
   TopProduct,
   TopCustomer,
-} from '../../api/analytics.api';
-import {
-  getPeriodRange,
-  Period,
-  PERIOD_BUTTONS,
-} from '../../utils/periodRange';
-import { brand } from '../../theme';
+} from '../api/analytics.api';
+import { getPeriodRange, Period, PERIOD_BUTTONS } from '../utils/periodRange';
+import { brand } from '../theme';
 
 const formatCurrency = (value: number) =>
   `KES ${value.toLocaleString('en-KE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
