@@ -157,12 +157,14 @@ export class MobileService {
         total: true,
         paymentMethod: true,
         customer: { select: { id: true, name: true } },
+        etimsInvoice: { select: { status: true } },
       },
     });
 
-    return invoices.map((inv) => ({
+    return invoices.map(({ etimsInvoice, ...inv }) => ({
       ...inv,
       total: Number(inv.total),
+      etimsStatus: etimsInvoice?.status ?? null,
     }));
   }
 
