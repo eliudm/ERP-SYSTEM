@@ -20,6 +20,7 @@ export class SettingsService {
         companyAddress: 'Moi Avenue, Nairobi, Kenya',
         receiptSlogan:
           'Streamlined operations. Compliant receipts. Better business.',
+        invoiceTemplate: 'modern',
         defaultCurrency: 'KES',
         timezone: 'Africa/Nairobi',
         defaultLanguage: 'en-KE',

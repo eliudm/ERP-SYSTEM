@@ -1,5 +1,6 @@
 import {
   IsBoolean,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -32,8 +33,23 @@ export class UpdateSystemSettingsDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(30)
+  companyPhone?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  paymentInstructions?: string;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(255)
   receiptSlogan?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['modern', 'classic', 'minimal'])
+  invoiceTemplate?: string;
 
   @IsOptional()
   @IsString()

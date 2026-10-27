@@ -736,25 +736,28 @@ model LeaveRequest {
 // ============================================
 
 model SystemSetting {
-  id                 String   @id @default(uuid())
-  tenantId           String
-  tenant             Tenant   @relation(fields: [tenantId], references: [id])
-  key                String   @default("system")
-  companyName        String
-  companyLogo        String?  @db.Text
-  companyPin         String?
-  companyAddress     String?
-  receiptSlogan      String?
-  defaultCurrency    String   @default("KES")
-  timezone           String   @default("Africa/Nairobi")
-  defaultLanguage    String   @default("en-KE")
-  emailNotifications Boolean  @default(true)
-  autoApproveDrafts  Boolean  @default(false)
-  showLowStockAlerts Boolean  @default(true)
-  lowStockThreshold  Int      @default(5)
-  posReceiptBranding Boolean  @default(true)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id                  String   @id @default(uuid())
+  tenantId            String
+  tenant              Tenant   @relation(fields: [tenantId], references: [id])
+  key                 String   @default("system")
+  companyName         String
+  companyLogo         String?  @db.Text
+  companyPin          String?
+  companyAddress      String?
+  companyPhone        String?
+  paymentInstructions String?  @db.Text
+  receiptSlogan       String?
+  invoiceTemplate     String   @default("modern")
+  defaultCurrency     String   @default("KES")
+  timezone            String   @default("Africa/Nairobi")
+  defaultLanguage     String   @default("en-KE")
+  emailNotifications  Boolean  @default(true)
+  autoApproveDrafts   Boolean  @default(false)
+  showLowStockAlerts  Boolean  @default(true)
+  lowStockThreshold   Int      @default(5)
+  posReceiptBranding  Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
   @@unique([tenantId, key])
   @@index([tenantId])
