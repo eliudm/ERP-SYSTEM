@@ -1,8 +1,9 @@
 import React from 'react';
 import { Badge, Button, Card, DatePicker, Input, Select, Space, Table, Tag, Typography } from 'antd';
-import { SearchOutlined, PrinterOutlined } from '@ant-design/icons';
+import { SearchOutlined, PrinterOutlined, EyeOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { salesApi } from '../../api/sales.api';
 import { settingsApi } from '../../api/settings.api';
@@ -22,6 +23,7 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 export const POSOrdersPage: React.FC = () => {
+  const navigate = useNavigate();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>();
@@ -59,7 +61,15 @@ export const POSOrdersPage: React.FC = () => {
       title: 'Order',
       dataIndex: 'invoiceNo',
       key: 'invoiceNo',
-      render: (v: string) => <Text strong style={{ fontFamily: 'monospace' }}>{v}</Text>,
+      render: (v: string, row: Invoice) => (
+        <Button
+          type="link"
+          style={{ padding: 0, fontFamily: 'monospace', fontWeight: 600 }}
+          onClick={(e) => { e.stopPropagation(); navigate(`/sales/invoices/${row.id}`); }}
+        >
+          {v}
+        </Button>
+      ),
     },
     {
       title: 'Customer',
@@ -105,9 +115,16 @@ export const POSOrdersPage: React.FC = () => {
           <Button
             type="text"
             size="small"
+            icon={<EyeOutlined />}
+            title="View particulars"
+            onClick={(e) => { e.stopPropagation(); navigate(`/sales/invoices/${row.id}`); }}
+          />
+          <Button
+            type="text"
+            size="small"
             icon={<PrinterOutlined />}
             title="Reprint receipt"
-            onClick={() => handleReprint(row)}
+            onClick={(e) => { e.stopPropagation(); handleReprint(row); }}
           />
         </Space>
       ),
@@ -187,6 +204,10 @@ export const POSOrdersPage: React.FC = () => {
           dataSource={filtered}
           rowKey="id"
           loading={isLoading}
+          onRow={(row) => ({
+            onClick: () => navigate(`/sales/invoices/${row.id}`),
+            style: { cursor: 'pointer' },
+          })}
           pagination={{
             current: page,
             total,
