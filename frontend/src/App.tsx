@@ -5,6 +5,7 @@ import { AppLayout } from './components/layout/AppLayout';
 import { LoginPage } from './pages/auth/LoginPage';
 import { DashboardPage } from './pages/dashboard/DashboardPage';
 import { InvoicesPage } from './pages/sales/invoices/InvoicesPage';
+import { InvoiceDetailPage } from './pages/sales/invoices/InvoiceDetailPage';
 import { CustomersPage } from './pages/sales/customers/CustomersPage';
 import { POSPage } from './pages/sales/pos/POSPage';
 import { QuotationsPage } from './pages/sales/quotes/QuotationsPage';
@@ -90,6 +91,7 @@ const App: React.FC = () => {
           <Route path="sales/quotes" element={<QuotationsPage />} />
           <Route path="sales/quotes/:id" element={<QuotationFormPage />} />
           <Route path="sales/invoices" element={<InvoicesPage />} />
+          <Route path="sales/invoices/:id" element={<InvoiceDetailPage />} />
           <Route path="sales/customers" element={<CustomersPage />} />
           <Route path="sales/credit-notes" element={<CreditNotesPage />} />
           <Route path="sales/price-lists" element={<PriceListsPage />} />

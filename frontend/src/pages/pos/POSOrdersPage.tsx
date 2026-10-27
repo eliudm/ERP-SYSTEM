@@ -6,6 +6,7 @@ import { useState } from 'react';
 import dayjs from 'dayjs';
 import { salesApi } from '../../api/sales.api';
 import { formatCurrency } from '../../utils/format';
+import { buildReceiptHtml, openReceiptPrintWindow } from '../../utils/receiptHtml';
 import type { Invoice, PaymentMethod } from '../../types';
 import { PAYMENT_METHOD_LABELS, PAYMENT_METHOD_ICONS } from '../../types';
 
@@ -108,47 +109,23 @@ export const POSOrdersPage: React.FC = () => {
   ];
 
   const handleReprint = (inv: Invoice) => {
-    const rows = (inv.items ?? [])
-      .map(
-        (item) =>
-          `<tr>
-            <td style="padding:4px 0">${item.product?.name ?? ''}</td>
-            <td style="text-align:right">${item.quantity}</td>
-            <td style="text-align:right">${formatCurrency(Number(item.lineTotal))}</td>
-          </tr>`,
-      )
-      .join('');
-
-    const html = `<!DOCTYPE html>
-<html>
-<head>
-  <title>Receipt ${inv.invoiceNo}</title>
-  <style>
-    @page{size:80mm auto;margin:4mm} body{font-family:Arial,sans-serif;width:72mm;margin:0 auto;font-size:12px}
-    table{width:100%;border-collapse:collapse} th{border-bottom:1px solid #ddd;padding:4px 0;text-align:left}
-    .grand{font-weight:700;font-size:14px;border-top:1px dashed #999;padding-top:6px;margin-top:6px}
-  </style>
-</head>
-<body>
-  <h3 style="margin:0 0 6px 0;text-align:center">REPRINT</h3>
-  <div>Invoice: ${inv.invoiceNo}</div>
-  <div>Date: ${dayjs(inv.invoiceDate).format('DD MMM YYYY HH:mm')}</div>
-  <div>Customer: ${inv.customer?.name ?? '—'}</div>
-  <div>Payment: ${inv.paymentMethod ? PAYMENT_METHOD_LABELS[inv.paymentMethod as PaymentMethod] : '—'}</div>
-  <hr/>
-  <table>
-    <thead><tr><th>Item</th><th style="text-align:right">Qty</th><th style="text-align:right">Amount</th></tr></thead>
-    <tbody>${rows}</tbody>
-  </table>
-  <hr/>
-  <div style="display:flex;justify-content:space-between"><span>Subtotal</span><span>${formatCurrency(Number(inv.subtotal))}</span></div>
-  <div style="display:flex;justify-content:space-between"><span>VAT</span><span>${formatCurrency(Number(inv.taxAmount))}</span></div>
-  <div class="grand" style="display:flex;justify-content:space-between"><span>Total</span><span>${formatCurrency(Number(inv.total))}</span></div>
-  <script>window.onload=function(){window.print()}</script>
-</body>
-</html>`;
-    const win = window.open('', '_blank', 'width=360,height=600');
-    if (win) { win.document.write(html); win.document.close(); }
+    const html = buildReceiptHtml({
+      invoiceNo: inv.invoiceNo,
+      invoiceDate: inv.invoiceDate,
+      customerName: inv.customer?.name ?? '—',
+      paymentMethod: inv.paymentMethod,
+      subtotal: Number(inv.subtotal),
+      taxAmount: Number(inv.taxAmount),
+      total: Number(inv.total),
+      items: (inv.items ?? []).map((item) => ({
+        name: item.product?.name ?? '',
+        quantity: Number(item.quantity),
+        amount: Number(item.lineTotal),
+      })),
+      qrCode: inv.etimsInvoice?.qrCode ?? null,
+      reprint: true,
+    });
+    openReceiptPrintWindow(html);
   };
 
   return (

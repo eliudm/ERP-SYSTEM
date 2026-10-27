@@ -125,6 +125,18 @@ export interface Invoice {
   paymentMethod?: PaymentMethod;
   paidAt?: string;
   items: InvoiceItem[];
+  // Only present on GET /sales/invoices/:id (the list endpoint omits both).
+  etimsInvoice?: {
+    status: 'PENDING' | 'SUBMITTED' | 'SUCCESS' | 'FAILED';
+    qrCode: string | null;
+    etimsInvoiceNo: string | null;
+  } | null;
+  creditNotes?: {
+    id: string;
+    creditNoteNumber: string;
+    status: 'DRAFT' | 'APPROVED' | 'APPLIED';
+    total: number;
+  }[];
 }
 
 // ─── QUOTES / SALES ORDERS ───────────────────────────────
