@@ -17,7 +17,7 @@ import { EtimsQueueService } from '../../etims/etims-queue/etims-queue.service';
 import { NotificationsService } from '../../notifications/notifications.service';
 import { AuditService } from '../../audit/audit.service';
 import { WorkflowService } from '../../workflow/workflow.service';
-import { extractTax } from '../../../common/utils/tax.util';
+import { extractTax, computeLineTax } from '../../../common/utils/tax.util';
 
 @Injectable()
 export class InvoicesService {
@@ -35,6 +35,31 @@ export class InvoicesService {
     const count = await this.prisma.salesInvoice.count();
     const padded = String(count + 1).padStart(5, '0');
     return `INV-${padded}`;
+  }
+
+  // ─── COST OF GOODS SOLD ──────────────────────────────────
+  // Uses the product's CURRENT costPrice at time of sale — this system has
+  // no inventory costing layers (FIFO/lots), so a line with no costPrice set
+  // simply contributes 0 (sale is never blocked for missing cost data).
+  private calculateCogs(
+    items: {
+      quantity: number | Prisma.Decimal;
+      product: {
+        costPrice: Prisma.Decimal | null;
+        taxRate: Prisma.Decimal;
+        costPriceIncludesVat: boolean;
+      };
+    }[],
+  ): number {
+    return items.reduce((sum, item) => {
+      if (item.product.costPrice == null) return sum;
+      const { net } = computeLineTax(
+        Number(item.quantity) * Number(item.product.costPrice),
+        Number(item.product.taxRate),
+        item.product.costPriceIncludesVat,
+      );
+      return sum + net;
+    }, 0);
   }
 
   // ─── CREATE INVOICE (DRAFT) ──────────────────────────────
@@ -215,17 +240,33 @@ export class InvoicesService {
     }
 
     // Get required accounts
-    const [arAccount, revenueAccount, vatAccount] = await Promise.all([
+    const [
+      arAccount,
+      revenueAccount,
+      vatAccount,
+      cogsAccount,
+      inventoryAccount,
+    ] = await Promise.all([
       this.prisma.account.findFirst({ where: { code: '1100' } }), // Accounts Receivable
       this.prisma.account.findFirst({ where: { code: '4000' } }), // Sales Revenue
       this.prisma.account.findFirst({ where: { code: '2100' } }), // VAT Payable
+      this.prisma.account.findFirst({ where: { code: '5000' } }), // Cost of Goods Sold
+      this.prisma.account.findFirst({ where: { code: '1200' } }), // Inventory
     ]);
 
-    if (!arAccount || !revenueAccount || !vatAccount) {
+    if (
+      !arAccount ||
+      !revenueAccount ||
+      !vatAccount ||
+      !cogsAccount ||
+      !inventoryAccount
+    ) {
       throw new BadRequestException(
         'Required accounts not found. Please seed chart of accounts first.',
       );
     }
+
+    const totalCogs = this.calculateCogs(invoice.items);
 
     // Post accounting journal entry automatically
     await this.postingEngine.postTransaction({
@@ -256,6 +297,24 @@ export class InvoicesService {
           credit: Number(invoice.taxAmount),
           description: `VAT - ${invoice.invoiceNo}`,
         },
+        // Cost of Goods Sold — only when at least one sold product has a
+        // known costPrice; skipped entirely otherwise (no zero-amount lines)
+        ...(totalCogs > 0
+          ? [
+              {
+                accountId: cogsAccount.id,
+                debit: totalCogs,
+                credit: 0,
+                description: `COGS - ${invoice.invoiceNo}`,
+              },
+              {
+                accountId: inventoryAccount.id,
+                debit: 0,
+                credit: totalCogs,
+                description: `Inventory reduction - ${invoice.invoiceNo}`,
+              },
+            ]
+          : []),
       ],
     });
 
@@ -331,6 +390,85 @@ export class InvoicesService {
     }
 
     return approvedInvoice;
+  }
+
+  // ─── BACKFILL COGS (one-off, see scripts/backfill-cogs.ts) ──
+  // Posts a catch-up COGS/Inventory journal entry for already-approved/paid
+  // invoices that predate COGS posting being added to approve() above.
+  // Idempotent: safe to re-run, skips invoices already backfilled.
+  async backfillCogs(): Promise<{
+    totalInvoices: number;
+    posted: number;
+    skippedAlreadyBackfilled: number;
+    skippedNoCostData: number;
+    totalCogsPosted: number;
+  }> {
+    const [cogsAccount, inventoryAccount] = await Promise.all([
+      this.prisma.account.findFirst({ where: { code: '5000' } }),
+      this.prisma.account.findFirst({ where: { code: '1200' } }),
+    ]);
+    if (!cogsAccount || !inventoryAccount) {
+      throw new BadRequestException(
+        'Required accounts not found. Please seed chart of accounts first.',
+      );
+    }
+
+    const invoices = await this.prisma.salesInvoice.findMany({
+      where: { status: { in: [InvoiceStatus.APPROVED, InvoiceStatus.PAID] } },
+      include: { items: { include: { product: true } } },
+    });
+
+    const summary = {
+      totalInvoices: invoices.length,
+      posted: 0,
+      skippedAlreadyBackfilled: 0,
+      skippedNoCostData: 0,
+      totalCogsPosted: 0,
+    };
+
+    for (const invoice of invoices) {
+      const reference = `COGS-${invoice.invoiceNo}`;
+      const already = await this.prisma.journalEntry.findFirst({
+        where: { reference },
+      });
+      if (already) {
+        summary.skippedAlreadyBackfilled += 1;
+        continue;
+      }
+
+      const totalCogs = this.calculateCogs(invoice.items);
+      if (totalCogs <= 0) {
+        summary.skippedNoCostData += 1;
+        continue;
+      }
+
+      await this.postingEngine.postTransaction({
+        reference,
+        description: `COGS backfill - Sales Invoice ${invoice.invoiceNo}`,
+        entryDate: invoice.invoiceDate.toISOString(),
+        sourceType: 'SALES_INVOICE',
+        sourceId: invoice.id,
+        lines: [
+          {
+            accountId: cogsAccount.id,
+            debit: totalCogs,
+            credit: 0,
+            description: `COGS (backfill) - ${invoice.invoiceNo}`,
+          },
+          {
+            accountId: inventoryAccount.id,
+            debit: 0,
+            credit: totalCogs,
+            description: `Inventory reduction (backfill) - ${invoice.invoiceNo}`,
+          },
+        ],
+      });
+
+      summary.posted += 1;
+      summary.totalCogsPosted += totalCogs;
+    }
+
+    return summary;
   }
 
   // ─── MARK AS PAID ────────────────────────────────────────

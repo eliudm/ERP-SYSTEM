@@ -3,11 +3,12 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../prisma.service';
 import { CreateCreditNoteDto } from '../dto/create-credit-note.dto';
 import { PostingEngineService } from '../../accounting/services/posting-engine.service';
 import { AccountsService } from '../../accounting/services/accounts.service';
-import { extractTax } from '../../../common/utils/tax.util';
+import { extractTax, computeLineTax } from '../../../common/utils/tax.util';
 
 @Injectable()
 export class CreditNotesService {
@@ -20,6 +21,29 @@ export class CreditNotesService {
   private async generateNumber(): Promise<string> {
     const count = await this.prisma.creditNote.count();
     return `CN-${String(count + 1).padStart(5, '0')}`;
+  }
+
+  // Mirrors InvoicesService's calculateCogs — see that file for the
+  // "no costPrice = contributes 0" rationale.
+  private calculateCogs(
+    items: {
+      quantity: number | Prisma.Decimal;
+      product: {
+        costPrice: Prisma.Decimal | null;
+        taxRate: Prisma.Decimal;
+        costPriceIncludesVat: boolean;
+      };
+    }[],
+  ): number {
+    return items.reduce((sum, item) => {
+      if (item.product.costPrice == null) return sum;
+      const { net } = computeLineTax(
+        Number(item.quantity) * Number(item.product.costPrice),
+        Number(item.product.taxRate),
+        item.product.costPriceIncludesVat,
+      );
+      return sum + net;
+    }, 0);
   }
 
   // ─── CREATE ──────────────────────────────────────────────
@@ -112,23 +136,36 @@ export class CreditNotesService {
       throw new BadRequestException('Only DRAFT credit notes can be approved');
 
     // Get chart of accounts
-    const arAccount = await this.prisma.account.findFirst({
-      where: { code: '1200' },
-    });
-    const revenueAccount = await this.prisma.account.findFirst({
-      where: { code: '4000' },
-    });
-    const taxAccount = await this.prisma.account.findFirst({
-      where: { code: '2200' },
-    });
+    const [
+      arAccount,
+      revenueAccount,
+      taxAccount,
+      cogsAccount,
+      inventoryAccount,
+    ] = await Promise.all([
+      this.prisma.account.findFirst({ where: { code: '1100' } }), // Accounts Receivable
+      this.prisma.account.findFirst({ where: { code: '4000' } }), // Sales Revenue
+      this.prisma.account.findFirst({ where: { code: '2100' } }), // VAT Payable
+      this.prisma.account.findFirst({ where: { code: '5000' } }), // Cost of Goods Sold
+      this.prisma.account.findFirst({ where: { code: '1200' } }), // Inventory
+    ]);
 
-    if (!arAccount || !revenueAccount || !taxAccount) {
+    if (
+      !arAccount ||
+      !revenueAccount ||
+      !taxAccount ||
+      !cogsAccount ||
+      !inventoryAccount
+    ) {
       throw new BadRequestException(
-        'Required GL accounts not configured (AR: 1200, Revenue: 4000, Tax: 2200)',
+        'Required GL accounts not configured (AR: 1100, Revenue: 4000, Tax: 2100, COGS: 5000, Inventory: 1200)',
       );
     }
 
-    // Reverse journal: Credit AR, Debit Revenue, Debit Tax (VAT adjustments)
+    const totalCogs = this.calculateCogs(cn.items);
+
+    // Reverse journal: Credit AR, Debit Revenue, Debit Tax (VAT adjustments),
+    // plus a COGS/Inventory reversal since the returned stock goes back in.
     const entryDate = new Date();
     await this.postingEngine.postTransaction({
       reference: `CN-JE-${cn.creditNoteNumber}`,
@@ -155,6 +192,22 @@ export class CreditNotesService {
           credit: Number(cn.total),
           description: 'AR reduction',
         },
+        ...(totalCogs > 0
+          ? [
+              {
+                accountId: cogsAccount.id,
+                debit: 0,
+                credit: totalCogs,
+                description: 'COGS reversal',
+              },
+              {
+                accountId: inventoryAccount.id,
+                debit: totalCogs,
+                credit: 0,
+                description: 'Inventory restored',
+              },
+            ]
+          : []),
       ],
     });
 

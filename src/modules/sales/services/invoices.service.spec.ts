@@ -94,7 +94,10 @@ describe('InvoicesService', () => {
     };
 
     it('should batch-fetch products, compute totals, and create the invoice', async () => {
-      prisma.customer.findUnique.mockResolvedValue({ id: 'cust-1', name: 'Jane' });
+      prisma.customer.findUnique.mockResolvedValue({
+        id: 'cust-1',
+        name: 'Jane',
+      });
       prisma.product.findMany.mockResolvedValue([
         { id: 'prod-1', name: 'Widget' },
         { id: 'prod-2', name: 'Gadget' },
@@ -162,8 +165,13 @@ describe('InvoicesService', () => {
     });
 
     it('should throw NotFoundException if a product from the batch lookup is missing', async () => {
-      prisma.customer.findUnique.mockResolvedValue({ id: 'cust-1', name: 'Jane' });
-      prisma.product.findMany.mockResolvedValue([{ id: 'prod-1', name: 'Widget' }]);
+      prisma.customer.findUnique.mockResolvedValue({
+        id: 'cust-1',
+        name: 'Jane',
+      });
+      prisma.product.findMany.mockResolvedValue([
+        { id: 'prod-1', name: 'Widget' },
+      ]);
 
       await expect(service.create(dto as any)).rejects.toThrow(
         NotFoundException,
@@ -179,9 +187,10 @@ describe('InvoicesService', () => {
       };
       prisma.salesInvoice.findFirst.mockResolvedValue(existing);
 
-      const result = await service.create(
-        { ...dto, clientRef: 'offline-123' } as any,
-      );
+      const result = await service.create({
+        ...dto,
+        clientRef: 'offline-123',
+      } as any);
 
       expect(prisma.salesInvoice.findFirst).toHaveBeenCalledWith({
         where: { clientRef: 'offline-123' },
@@ -194,7 +203,11 @@ describe('InvoicesService', () => {
 
     it('should self-heal a P2002 race on clientRef by returning the row that won', async () => {
       prisma.salesInvoice.findFirst.mockResolvedValueOnce(null); // no existing row yet
-      prisma.customer.findUnique.mockResolvedValue({ id: 'cust-1', name: 'Jane', tenantId: 't-1' });
+      prisma.customer.findUnique.mockResolvedValue({
+        id: 'cust-1',
+        name: 'Jane',
+        tenantId: 't-1',
+      });
       prisma.product.findMany.mockResolvedValue([
         { id: 'prod-1', name: 'Widget' },
         { id: 'prod-2', name: 'Gadget' },
@@ -218,9 +231,10 @@ describe('InvoicesService', () => {
       };
       prisma.salesInvoice.findFirst.mockResolvedValueOnce(winner); // re-fetch after the race
 
-      const result = await service.create(
-        { ...dto, clientRef: 'offline-456' } as any,
-      );
+      const result = await service.create({
+        ...dto,
+        clientRef: 'offline-456',
+      } as any);
 
       expect(result).toEqual(winner);
     });
@@ -248,6 +262,8 @@ describe('InvoicesService', () => {
     const arAccount = { id: 'acc-ar', code: '1100' };
     const revenueAccount = { id: 'acc-rev', code: '4000' };
     const vatAccount = { id: 'acc-vat', code: '2100' };
+    const cogsAccount = { id: 'acc-cogs', code: '5000' };
+    const inventoryAccount = { id: 'acc-inv', code: '1200' };
 
     beforeEach(() => {
       prisma.salesInvoice.findUnique.mockResolvedValue(invoice);
@@ -256,6 +272,8 @@ describe('InvoicesService', () => {
         if (code === '1100') return Promise.resolve(arAccount);
         if (code === '4000') return Promise.resolve(revenueAccount);
         if (code === '2100') return Promise.resolve(vatAccount);
+        if (code === '5000') return Promise.resolve(cogsAccount);
+        if (code === '1200') return Promise.resolve(inventoryAccount);
         return Promise.resolve(null);
       });
       prisma.$transaction.mockImplementation(async (cb) => {
@@ -275,7 +293,12 @@ describe('InvoicesService', () => {
     });
 
     it('should post the journal entry, move stock, and approve the invoice', async () => {
-      const result = await service.approve('inv-1', undefined, undefined, 'user-1');
+      const result = await service.approve(
+        'inv-1',
+        undefined,
+        undefined,
+        'user-1',
+      );
 
       expect(workflowService.assertApprovalIfExists).toHaveBeenCalledWith(
         'SALES_INVOICE',
@@ -285,9 +308,21 @@ describe('InvoicesService', () => {
         expect.objectContaining({
           reference: 'SALE-INV-00001',
           lines: [
-            expect.objectContaining({ accountId: arAccount.id, debit: 250, credit: 0 }),
-            expect.objectContaining({ accountId: revenueAccount.id, debit: 0, credit: 222.41 }),
-            expect.objectContaining({ accountId: vatAccount.id, debit: 0, credit: 27.59 }),
+            expect.objectContaining({
+              accountId: arAccount.id,
+              debit: 250,
+              credit: 0,
+            }),
+            expect.objectContaining({
+              accountId: revenueAccount.id,
+              debit: 0,
+              credit: 222.41,
+            }),
+            expect.objectContaining({
+              accountId: vatAccount.id,
+              debit: 0,
+              credit: 27.59,
+            }),
           ],
         }),
       );
@@ -300,6 +335,62 @@ describe('InvoicesService', () => {
       );
       expect(etimsQueue.addSubmitJob).toHaveBeenCalledWith('inv-1');
       expect(result.status).toBe(InvoiceStatus.APPROVED);
+    });
+
+    it('should also post COGS/Inventory lines when the sold product has a costPrice', async () => {
+      prisma.salesInvoice.findUnique.mockResolvedValue({
+        ...invoice,
+        items: [
+          {
+            productId: 'prod-1',
+            quantity: 2,
+            product: {
+              id: 'prod-1',
+              name: 'Widget',
+              stockQuantity: 10,
+              costPrice: 50,
+              taxRate: 0.16,
+              costPriceIncludesVat: true,
+            },
+          },
+        ],
+      });
+
+      await service.approve('inv-1', undefined, undefined, 'user-1');
+
+      // gross cost: 2*50=100; tax: 100*0.16/1.16=13.79; net COGS=86.21
+      expect(postingEngine.postTransaction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          reference: 'SALE-INV-00001',
+          lines: [
+            expect.objectContaining({
+              accountId: arAccount.id,
+              debit: 250,
+              credit: 0,
+            }),
+            expect.objectContaining({
+              accountId: revenueAccount.id,
+              debit: 0,
+              credit: 222.41,
+            }),
+            expect.objectContaining({
+              accountId: vatAccount.id,
+              debit: 0,
+              credit: 27.59,
+            }),
+            expect.objectContaining({
+              accountId: cogsAccount.id,
+              debit: 86.21,
+              credit: 0,
+            }),
+            expect.objectContaining({
+              accountId: inventoryAccount.id,
+              debit: 0,
+              credit: 86.21,
+            }),
+          ],
+        }),
+      );
     });
 
     it('should throw NotFoundException if the invoice does not exist', async () => {
@@ -364,10 +455,13 @@ describe('InvoicesService', () => {
         paymentMethod: PaymentMethod.CASH,
       });
       prisma.account.findFirst.mockImplementation(({ where: { code } }) => {
-        if (code === '1000') return Promise.resolve({ id: 'acc-cash', code: '1000' });
+        if (code === '1000')
+          return Promise.resolve({ id: 'acc-cash', code: '1000' });
         if (code === '1100') return Promise.resolve(arAccount);
         if (code === '4000') return Promise.resolve(revenueAccount);
         if (code === '2100') return Promise.resolve(vatAccount);
+        if (code === '5000') return Promise.resolve(cogsAccount);
+        if (code === '1200') return Promise.resolve(inventoryAccount);
         return Promise.resolve(null);
       });
 
@@ -394,7 +488,11 @@ describe('InvoicesService', () => {
         status: InvoiceStatus.VOID,
       });
 
-      const result = await service.void('inv-1', 'customer cancelled', 'user-1');
+      const result = await service.void(
+        'inv-1',
+        'customer cancelled',
+        'user-1',
+      );
 
       expect(postingEngine.voidTransaction).toHaveBeenCalledWith(
         'je-1',
