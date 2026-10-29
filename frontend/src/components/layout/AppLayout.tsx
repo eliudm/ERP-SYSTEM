@@ -78,6 +78,7 @@ export const AppLayout: React.FC = () => {
       posAllowed: false,
       children: [
         { key: '/accounting/accounts', label: t('accounting.chartOfAccounts'), posAllowed: false },
+        { key: '/accounting/expenses', label: t('accounting.expenses'), posAllowed: false },
         { key: '/accounting/journals', label: t('accounting.journalEntries'), posAllowed: false },
         { key: '/accounting/trial-balance', label: t('accounting.trialBalance'), posAllowed: false },
         { key: '/accounting/pnl', label: t('accounting.profitLoss'), posAllowed: false },

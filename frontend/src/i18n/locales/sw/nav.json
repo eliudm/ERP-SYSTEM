@@ -20,6 +20,7 @@
   "accounting": {
     "title": "Uhasibu",
     "chartOfAccounts": "Chati ya Akaunti",
+    "expenses": "Matumizi",
     "journalEntries": "Maingizo ya Jarida",
     "trialBalance": "Mizani ya Majaribio",
     "profitLoss": "Faida na Hasara",

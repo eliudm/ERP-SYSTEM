@@ -20,6 +20,7 @@
   "accounting": {
     "title": "Accounting",
     "chartOfAccounts": "Chart of Accounts",
+    "expenses": "Expenses",
     "journalEntries": "Journal Entries",
     "trialBalance": "Trial Balance",
     "profitLoss": "Profit & Loss",

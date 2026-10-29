@@ -46,6 +46,22 @@ export interface JournalEntry {
   createdAt: string;
 }
 
+export interface Expense {
+  id: string;
+  expenseNo: string;
+  date: string;
+  accountId: string;
+  account: Account;
+  payee: string;
+  description?: string;
+  amount: number;
+  status: 'DRAFT' | 'APPROVED' | 'PAID' | 'VOID';
+  paymentMethod?: PaymentMethod;
+  paidAt?: string;
+  notes?: string;
+  createdAt: string;
+}
+
 // ─── SALES ───────────────────────────────────────────────
 export interface Customer {
   id: string;

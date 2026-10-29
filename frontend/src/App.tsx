@@ -19,6 +19,7 @@ import { QuotationsPage } from './pages/sales/quotes/QuotationsPage';
 import { QuotationFormPage } from './pages/sales/quotes/QuotationFormPage';
 import { AccountsPage } from './pages/accounting/accounts/AccountsPage';
 import { JournalEntriesPage } from './pages/accounting/journals/JournalEntriesPage';
+import { ExpensesPage } from './pages/accounting/expenses/ExpensesPage';
 import { TrialBalancePage } from './pages/accounting/reports/TrialBalancePage';
 import { ProfitLossPage } from './pages/accounting/reports/ProfitLossPage';
 import { BalanceSheetPage } from './pages/accounting/reports/BalanceSheetPage';
@@ -144,6 +145,7 @@ const App: React.FC = () => {
           {/* Accounting */}
           <Route path="accounting/accounts" element={<AccountsPage />} />
           <Route path="accounting/journals" element={<JournalEntriesPage />} />
+          <Route path="accounting/expenses" element={<ExpensesPage />} />
           <Route path="accounting/trial-balance" element={<TrialBalancePage />} />
           <Route path="accounting/pnl" element={<ProfitLossPage />} />
           <Route path="accounting/bank-accounts" element={<BankAccountsPage />} />

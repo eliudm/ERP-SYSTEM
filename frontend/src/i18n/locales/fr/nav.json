@@ -20,6 +20,7 @@
   "accounting": {
     "title": "Comptabilité",
     "chartOfAccounts": "Plan comptable",
+    "expenses": "Dépenses",
     "journalEntries": "Écritures de journal",
     "trialBalance": "Balance de vérification",
     "profitLoss": "Profits et pertes",
