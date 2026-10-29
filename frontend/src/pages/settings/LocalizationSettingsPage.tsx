@@ -1,10 +1,21 @@
 import React from 'react';
-import { Card, Col, Input, Row, Space, Tag, Typography } from 'antd';
+import { Card, Col, Input, Row, Select, Space, Tag, Typography } from 'antd';
 import { GlobalOutlined, ClockCircleOutlined } from '@ant-design/icons';
 import { useOutletContext } from 'react-router-dom';
 import type { SettingsOutletContext } from './SettingsPage';
 
 const { Title, Text } = Typography;
+
+// Stored as company-profile metadata only — it does not translate the
+// app's own screens (no i18n system exists here) or change any date/
+// currency formatting, which stays hardcoded to en-KE throughout the app.
+const LANGUAGE_OPTIONS = [
+  { value: 'en-KE', label: 'English (Kenya)' },
+  { value: 'sw-KE', label: 'Kiswahili (Kenya)' },
+  { value: 'en-US', label: 'English (United States)' },
+  { value: 'en-GB', label: 'English (United Kingdom)' },
+  { value: 'fr-FR', label: 'Français (France)' },
+];
 
 export const LocalizationSettingsPage: React.FC = () => {
   const { draft, updateDraft } = useOutletContext<SettingsOutletContext>();
@@ -26,11 +37,12 @@ export const LocalizationSettingsPage: React.FC = () => {
             <Space direction="vertical" style={{ width: '100%' }} size="large">
               <div>
                 <Text type="secondary">Default Language</Text>
-                <Input
+                <Select
                   value={draft.defaultLanguage}
-                  onChange={(event) => updateDraft({ defaultLanguage: event.target.value })}
+                  onChange={(value) => updateDraft({ defaultLanguage: value })}
+                  options={LANGUAGE_OPTIONS}
                   size="large"
-                  style={{ marginTop: 8 }}
+                  style={{ width: '100%', marginTop: 8 }}
                 />
               </div>
 
@@ -63,7 +75,9 @@ export const LocalizationSettingsPage: React.FC = () => {
               <Space>
                 <GlobalOutlined style={{ fontSize: 18, color: '#6f67ff' }} />
                 <div>
-                  <Text strong>{draft.defaultLanguage}</Text>
+                  <Text strong>
+                    {LANGUAGE_OPTIONS.find((l) => l.value === draft.defaultLanguage)?.label ?? draft.defaultLanguage}
+                  </Text>
                   <div><Text type="secondary">Default language code</Text></div>
                 </div>
               </Space>
