@@ -6,6 +6,7 @@ import {
 import { CheckOutlined, DollarOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { procurementApi } from '../../api/procurement.api';
+import { accountingApi } from '../../api/accounting.api';
 import type { ColumnsType } from 'antd/es/table';
 import { formatCurrency } from '../../utils/format';
 
@@ -30,6 +31,15 @@ export const VendorBillsPage: React.FC = () => {
   });
   const bills: any[] = (billsRes as any).data ?? (Array.isArray(billsRes) ? billsRes : []);
 
+  const { data: cashAccounts } = useQuery({
+    queryKey: ['accounts-by-type', 'ASSET'],
+    queryFn: () => accountingApi.getAccountsByType('ASSET'),
+  });
+  const cashAccountOptions = (cashAccounts || []).map((a) => ({
+    value: a.id,
+    label: `${a.code} — ${a.name}`,
+  }));
+
   const approveMutation = useMutation({
     mutationFn: (id: string) => procurementApi.approveVendorBill(id),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['vendor-bills'] }); message.success('Bill validated and posted to accounting'); },
@@ -37,7 +47,8 @@ export const VendorBillsPage: React.FC = () => {
   });
 
   const payMutation = useMutation({
-    mutationFn: ({ id, method }: { id: string; method: string }) => procurementApi.payVendorBill(id, method),
+    mutationFn: ({ id, cashAccountId }: { id: string; cashAccountId: string }) =>
+      procurementApi.payVendorBill(id, cashAccountId),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['vendor-bills'] }); message.success('Bill paid'); setPayOpen(false); payForm.resetFields(); },
     onError: (e: any) => message.error(e?.response?.data?.message ?? 'Error'),
   });
@@ -102,14 +113,14 @@ export const VendorBillsPage: React.FC = () => {
           form={payForm}
           layout="vertical"
           style={{ marginTop: 12 }}
-          onFinish={(v) => payMutation.mutate({ id: selectedId, method: v.paymentMethod })}
+          onFinish={(v) => payMutation.mutate({ id: selectedId, cashAccountId: v.cashAccountId })}
         >
-          <Form.Item name="paymentMethod" label="Payment Method" rules={[{ required: true }]}>
-            <Select options={[
-              { value: 'CASH', label: 'Cash' },
-              { value: 'BANK_TRANSFER', label: 'Bank Transfer' },
-              { value: 'MOBILE_MONEY', label: 'Mobile Money' },
-            ]} />
+          <Form.Item
+            name="cashAccountId"
+            label="Paid from"
+            rules={[{ required: true, message: 'Select which account the money came from' }]}
+          >
+            <Select placeholder="Select cash/bank account..." options={cashAccountOptions} />
           </Form.Item>
         </Form>
       </Modal>

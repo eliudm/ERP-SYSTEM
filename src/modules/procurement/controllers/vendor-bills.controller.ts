@@ -11,6 +11,7 @@ import {
 import {
   VendorBillsService,
   CreateVendorBillDto,
+  PayVendorBillDto,
 } from '../services/vendor-bills.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
@@ -33,7 +34,10 @@ export class VendorBillsController {
     return this.vendorBillsService.create(dto);
   }
 
-  @ApiOperation({ summary: 'List vendor bills, optionally filtered by status, with pagination' })
+  @ApiOperation({
+    summary:
+      'List vendor bills, optionally filtered by status, with pagination',
+  })
   @Get()
   findAll(
     @Query('page') page: string,
@@ -61,8 +65,8 @@ export class VendorBillsController {
   @Post(':id/pay')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.ACCOUNTANT)
-  pay(@Param('id') id: string) {
-    return this.vendorBillsService.pay(id);
+  pay(@Param('id') id: string, @Body() dto: PayVendorBillDto) {
+    return this.vendorBillsService.pay(id, dto.cashAccountId);
   }
 
   @ApiOperation({ summary: 'Void a vendor bill' })

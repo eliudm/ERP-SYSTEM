@@ -71,6 +71,16 @@ export class CreateVendorBillDto {
   items!: VendorBillItemInputDto[];
 }
 
+export class PayVendorBillDto {
+  @IsString()
+  @IsNotEmpty()
+  cashAccountId!: string;
+}
+
+// Real Accounts Payable, not this file's former mistaken use of code
+// '2100' (which is actually seeded as VAT Payable).
+const AP_ACCOUNT_CODE = '2000';
+
 @Injectable()
 export class VendorBillsService {
   constructor(
@@ -177,9 +187,10 @@ export class VendorBillsService {
     if (bill.status !== 'DRAFT')
       throw new BadRequestException('Only DRAFT bills can be approved');
 
-    // Get AP and Expense accounts
+    // Get AP and Expense accounts. Real Accounts Payable is code '2000' —
+    // '2100' is seeded as VAT Payable, a different liability entirely.
     const apAccount = await this.prisma.account.findFirst({
-      where: { code: '2100' },
+      where: { code: AP_ACCOUNT_CODE },
     });
     const expenseAccount = await this.prisma.account.findFirst({
       where: { code: '5000' },
@@ -190,7 +201,7 @@ export class VendorBillsService {
 
     if (!apAccount || !expenseAccount || !taxAccount) {
       throw new BadRequestException(
-        'Required GL accounts not configured (AP: 2100, Expense: 5000, Input Tax: 1300)',
+        `Required GL accounts not configured (AP: ${AP_ACCOUNT_CODE}, Expense: 5000, Input Tax: 1300)`,
       );
     }
 
@@ -229,22 +240,24 @@ export class VendorBillsService {
   }
 
   // ─── PAY ────────────────────────────────────────────────
-  async pay(id: string) {
+  // cashAccountId: the real cash/bank ASSET account the payment came from,
+  // chosen by the caller — previously hardcoded to code '1100', which is
+  // actually seeded as Accounts Receivable, not cash.
+  async pay(id: string, cashAccountId: string) {
     const bill = await this.findOne(id);
     if (bill.status !== 'APPROVED')
       throw new BadRequestException('Only APPROVED bills can be paid');
 
-    // Get bank/cash and AP accounts
-    const bankAccount = await this.prisma.account.findFirst({
-      where: { code: '1100' },
-    });
-    const apAccount = await this.prisma.account.findFirst({
-      where: { code: '2100' },
-    });
+    const [bankAccount, apAccount] = await Promise.all([
+      this.prisma.account.findUnique({ where: { id: cashAccountId } }),
+      this.prisma.account.findFirst({ where: { code: AP_ACCOUNT_CODE } }),
+    ]);
 
-    if (!bankAccount || !apAccount) {
+    if (!bankAccount)
+      throw new NotFoundException('Cash/bank account not found');
+    if (!apAccount) {
       throw new BadRequestException(
-        'Required GL accounts not configured (Bank: 1100, AP: 2100)',
+        `Required GL account not configured (AP: ${AP_ACCOUNT_CODE})`,
       );
     }
 

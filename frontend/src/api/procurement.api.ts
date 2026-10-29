@@ -78,11 +78,14 @@ export const procurementApi = {
     return res.data;
   },
   approveVendorBill: async (id: string) => {
-    const res = await apiClient.patch(`/procurement/vendor-bills/${id}/approve`);
+    // POST, not PATCH — the backend only registers this route as POST;
+    // a PATCH here silently 404s (the Validate button looked wired but
+    // never actually reached the service).
+    const res = await apiClient.post(`/procurement/vendor-bills/${id}/approve`);
     return res.data;
   },
-  payVendorBill: async (id: string, paymentMethod: string) => {
-    const res = await apiClient.patch(`/procurement/vendor-bills/${id}/pay`, { paymentMethod });
+  payVendorBill: async (id: string, cashAccountId: string) => {
+    const res = await apiClient.post(`/procurement/vendor-bills/${id}/pay`, { cashAccountId });
     return res.data;
   },
 
