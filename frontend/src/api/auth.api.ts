@@ -8,6 +8,7 @@ export interface CreateUserPayload {
   password: string;
   role: string;
   posOnly?: boolean;
+  branchId?: string;
 }
 
 export interface UpdateUserPayload {
@@ -16,6 +17,7 @@ export interface UpdateUserPayload {
   role?: string;
   posOnly?: boolean;
   isActive?: boolean;
+  branchId?: string | null;
 }
 
 export const authApi = {

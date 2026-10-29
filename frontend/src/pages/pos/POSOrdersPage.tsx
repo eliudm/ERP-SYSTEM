@@ -136,7 +136,11 @@ export const POSOrdersPage: React.FC = () => {
     {
       title: 'Point of Sale',
       key: 'pointOfSale',
-      render: (_: unknown, row: Invoice) => row.branch?.name ?? '—',
+      // Prefer the session's branch (the cashier's own assigned outlet,
+      // Settings > Users) since it's reliably set once a cashier has one —
+      // fall back to the invoice's own branch (from the fulfilling
+      // warehouse) for older sales or ones made outside a session.
+      render: (_: unknown, row: Invoice) => row.posSession?.branch?.name ?? row.branch?.name ?? '—',
     },
     {
       title: 'Receipt No',

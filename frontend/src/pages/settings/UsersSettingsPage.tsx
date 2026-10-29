@@ -12,6 +12,7 @@ import { useOutletContext } from 'react-router-dom';
 import type { AxiosError } from 'axios';
 import { authApi } from '../../api/auth.api';
 import type { CreateUserPayload, UpdateUserPayload } from '../../api/auth.api';
+import { branchesApi } from '../../api/branches.api';
 import type { User } from '../../types';
 import type { SettingsOutletContext } from './SettingsPage';
 
@@ -42,6 +43,11 @@ export const UsersSettingsPage: React.FC = () => {
   const { data: users, isLoading } = useQuery({
     queryKey: ['settings-users'],
     queryFn: () => authApi.getUsers(),
+  });
+
+  const { data: branches } = useQuery({
+    queryKey: ['branches'],
+    queryFn: () => branchesApi.getBranches(),
   });
 
   const createMutation = useMutation({
@@ -136,6 +142,11 @@ export const UsersSettingsPage: React.FC = () => {
       render: (value: string) => <Tag color="blue">{value.replaceAll('_', ' ')}</Tag>,
     },
     {
+      title: 'Branch',
+      key: 'branch',
+      render: (_: unknown, record: User) => record.branch?.name ?? '—',
+    },
+    {
       title: 'Status',
       dataIndex: 'isActive',
       key: 'isActive',
@@ -179,6 +190,7 @@ export const UsersSettingsPage: React.FC = () => {
                 role: record.role,
                 posOnly: record.posOnly,
                 isActive: record.isActive,
+                branchId: record.branchId ?? undefined,
               });
             }}
           >
@@ -276,6 +288,17 @@ export const UsersSettingsPage: React.FC = () => {
               {ROLES.map((r) => <Option key={r.value} value={r.value}>{r.label}</Option>)}
             </Select>
           </Form.Item>
+          <Form.Item
+            name="branchId"
+            label="Branch"
+            tooltip="The outlet/till this user is assigned to — drives which Point of Sale their sales are attributed to."
+          >
+            <Select allowClear placeholder="No branch assigned">
+              {(branches || []).map((b: any) => (
+                <Option key={b.id} value={b.id}>{b.name}</Option>
+              ))}
+            </Select>
+          </Form.Item>
           <Form.Item name="posOnly" label="Access Type" valuePropName="checked">
             <Switch checkedChildren="POS Only" unCheckedChildren="Full Access" />
           </Form.Item>
@@ -297,7 +320,13 @@ export const UsersSettingsPage: React.FC = () => {
           layout="vertical"
           onFinish={(values) => {
             if (!editTarget) return;
-            updateMutation.mutate({ id: editTarget.id, payload: values });
+            // Clearing the Select submits `undefined`, which the backend
+            // DTO reads as "leave unchanged" — send an explicit `null` so
+            // clearing the branch actually un-assigns it.
+            updateMutation.mutate({
+              id: editTarget.id,
+              payload: { ...values, branchId: values.branchId ?? null },
+            });
           }}
         >
           <Space style={{ width: '100%' }} size="middle">
@@ -311,6 +340,17 @@ export const UsersSettingsPage: React.FC = () => {
           <Form.Item name="role" label="Role" rules={[{ required: true }]}>
             <Select>
               {ROLES.map((r) => <Option key={r.value} value={r.value}>{r.label}</Option>)}
+            </Select>
+          </Form.Item>
+          <Form.Item
+            name="branchId"
+            label="Branch"
+            tooltip="The outlet/till this user is assigned to — drives which Point of Sale their sales are attributed to."
+          >
+            <Select allowClear placeholder="No branch assigned">
+              {(branches || []).map((b: any) => (
+                <Option key={b.id} value={b.id}>{b.name}</Option>
+              ))}
             </Select>
           </Form.Item>
           <Form.Item name="posOnly" label="Access Type" valuePropName="checked">

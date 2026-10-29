@@ -7,6 +7,8 @@ export interface User {
   role: string;
   posOnly: boolean;
   isActive: boolean;
+  branchId?: string | null;
+  branch?: { id: string; name: string; code: string } | null;
   createdAt: string;
 }
 
@@ -141,7 +143,11 @@ export interface Invoice {
   }[];
   branch?: { id: string; name: string; code: string } | null;
   cashier?: { id: string; firstName: string; lastName: string } | null;
-  posSession?: { id: string; sessionRef: string } | null;
+  posSession?: {
+    id: string;
+    sessionRef: string;
+    branch?: { id: string; name: string; code: string } | null;
+  } | null;
 }
 
 // ─── QUOTES / SALES ORDERS ───────────────────────────────
