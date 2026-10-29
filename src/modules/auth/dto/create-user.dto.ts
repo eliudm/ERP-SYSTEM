@@ -31,4 +31,8 @@ export class CreateUserDto {
   @IsBoolean()
   @IsOptional()
   posOnly?: boolean;
+
+  @IsString()
+  @IsOptional()
+  branchId?: string;
 }

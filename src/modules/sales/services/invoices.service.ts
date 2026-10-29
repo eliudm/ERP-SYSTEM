@@ -649,7 +649,11 @@ export class InvoicesService {
           items: { include: { product: true } },
           etimsInvoice: true,
           branch: true,
-          posSession: true,
+          posSession: {
+            include: {
+              branch: { select: { id: true, name: true, code: true } },
+            },
+          },
           cashier: { select: { id: true, firstName: true, lastName: true } },
         },
         orderBy: { createdAt: 'desc' },

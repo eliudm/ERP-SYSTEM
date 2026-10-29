@@ -27,6 +27,10 @@ export class UpdateUserDto {
   @IsBoolean()
   @IsOptional()
   isActive?: boolean;
+
+  @IsString()
+  @IsOptional()
+  branchId?: string | null;
 }
 
 export class ResetPasswordDto {

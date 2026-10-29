@@ -95,6 +95,56 @@ describe('PosSessionsService', () => {
       );
     });
 
+    it("falls back to the cashier's assigned branch when none is given explicitly", async () => {
+      prisma.posSession.findFirst.mockResolvedValue(null);
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        tenantId: 'tenant-1',
+        branchId: 'branch-9',
+      });
+      prisma.branch.findUnique.mockResolvedValue({
+        id: 'branch-9',
+        code: 'WEST',
+      });
+      prisma.posSession.count.mockResolvedValue(2);
+      prisma.posSession.create.mockResolvedValue({});
+
+      await service.openSession('user-1', {});
+
+      expect(prisma.posSession.create).toHaveBeenCalledWith({
+        data: {
+          tenantId: 'tenant-1',
+          sessionRef: 'WEST/00003',
+          cashierId: 'user-1',
+          branchId: 'branch-9',
+          status: 'OPEN',
+        },
+      });
+    });
+
+    it("prefers an explicitly-given branch over the cashier's assigned one", async () => {
+      prisma.posSession.findFirst.mockResolvedValue(null);
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        tenantId: 'tenant-1',
+        branchId: 'branch-9',
+      });
+      prisma.branch.findUnique.mockResolvedValue({
+        id: 'branch-1',
+        code: 'MAIN',
+      });
+      prisma.posSession.count.mockResolvedValue(0);
+      prisma.posSession.create.mockResolvedValue({});
+
+      await service.openSession('user-1', { branchId: 'branch-1' });
+
+      expect(prisma.posSession.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ branchId: 'branch-1' }),
+        }),
+      );
+    });
+
     it('throws NotFoundException if the cashier does not exist', async () => {
       prisma.posSession.findFirst.mockResolvedValue(null);
       prisma.user.findUnique.mockResolvedValue(null);

@@ -102,6 +102,11 @@ model User {
   role          Role           @default(SALES_USER)
   posOnly       Boolean        @default(false)
   isActive      Boolean        @default(true)
+  // The cashier's assigned outlet/till — drives "Point of Sale" on sales
+  // made during their shifts, independent of which warehouse the sale is
+  // later fulfilled from.
+  branchId      String?
+  branch        Branch?        @relation(fields: [branchId], references: [id])
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   refreshTokens RefreshToken[]
@@ -448,6 +453,7 @@ model Branch {
   invoices                  SalesInvoice[]
   recurringInvoiceTemplates RecurringInvoiceTemplate[]
   posSessions               PosSession[]
+  users                     User[]
 
   @@unique([tenantId, code])
   @@index([tenantId])

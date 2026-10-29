@@ -225,6 +225,8 @@ export class AuthService {
         role: true,
         posOnly: true,
         isActive: true,
+        branchId: true,
+        branch: { select: { id: true, name: true, code: true } },
         createdAt: true,
       },
       orderBy: { createdAt: 'desc' },
@@ -289,6 +291,7 @@ export class AuthService {
         password: hashed,
         role: dto.role,
         posOnly: dto.posOnly ?? false,
+        branchId: dto.branchId ?? null,
       },
       select: {
         id: true,
@@ -298,6 +301,8 @@ export class AuthService {
         role: true,
         posOnly: true,
         isActive: true,
+        branchId: true,
+        branch: { select: { id: true, name: true, code: true } },
         createdAt: true,
       },
     });
@@ -317,6 +322,7 @@ export class AuthService {
         ...(dto.role !== undefined && { role: dto.role }),
         ...(dto.posOnly !== undefined && { posOnly: dto.posOnly }),
         ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+        ...(dto.branchId !== undefined && { branchId: dto.branchId }),
       },
       select: {
         id: true,
@@ -326,6 +332,8 @@ export class AuthService {
         role: true,
         posOnly: true,
         isActive: true,
+        branchId: true,
+        branch: { select: { id: true, name: true, code: true } },
         createdAt: true,
       },
     });

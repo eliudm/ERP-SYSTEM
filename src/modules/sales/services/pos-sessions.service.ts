@@ -36,14 +36,20 @@ export class PosSessionsService {
     });
     if (!cashier) throw new NotFoundException('User not found');
 
-    const sessionRef = await this.generateSessionRef(dto.branchId);
+    // Prefer an explicitly-chosen branch, else the cashier's own assigned
+    // outlet (Settings > Users) — this is what makes "Point of Sale" on the
+    // Orders list reliable instead of depending on whichever warehouse a
+    // sale eventually gets fulfilled from.
+    const branchId = dto.branchId ?? cashier.branchId ?? null;
+
+    const sessionRef = await this.generateSessionRef(branchId);
 
     return this.prisma.posSession.create({
       data: {
         tenantId: cashier.tenantId,
         sessionRef,
         cashierId,
-        branchId: dto.branchId ?? null,
+        branchId,
         status: 'OPEN',
       },
     });
