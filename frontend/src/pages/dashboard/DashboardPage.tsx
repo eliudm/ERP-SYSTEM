@@ -464,6 +464,10 @@ export const DashboardPage: React.FC = () => {
           loading={isLoading}
           pagination={false}
           size="small"
+          onRow={(record: any) => ({
+            onClick: () => navigate(`/sales/invoices/${record.id}`),
+            style: { cursor: 'pointer' },
+          })}
         />
       </Card>
     </Space>
