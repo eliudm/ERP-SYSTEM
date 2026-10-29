@@ -6,11 +6,13 @@ import {
 import {
   PlusOutlined, SearchOutlined,
   WarningOutlined, EditOutlined, DeleteOutlined, CheckOutlined, CloseOutlined,
+  DownloadOutlined, DollarOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { AxiosError } from 'axios';
 import { inventoryApi } from '../../api/inventory.api';
 import { formatCurrency } from '../../utils/format';
+import { exportStockListToExcel, exportStockValuationToExcel } from '../../utils/excel';
 import type { Product, ProductCategory } from '../../types';
 
 const { Title, Text } = Typography;
@@ -95,6 +97,8 @@ export const ProductsPage: React.FC = () => {
   const [editingCategory, setEditingCategory] = useState<ProductCategory | null>(null);
   const [productForm] = Form.useForm<ProductFormValues>();
   const [categoryForm] = Form.useForm<CategoryFormValues>();
+  const [exporting, setExporting] = useState(false);
+  const [exportingValue, setExportingValue] = useState(false);
   const queryClient = useQueryClient();
 
   const { data: products, isLoading } = useQuery({
@@ -253,6 +257,45 @@ export const ProductsPage: React.FC = () => {
     categoryForm.resetFields();
   };
 
+  const handleExportStockList = async () => {
+    setExporting(true);
+    try {
+      const allProducts = await inventoryApi.getProducts(undefined, undefined, 10000);
+      await exportStockListToExcel(
+        allProducts.map((p) => ({
+          code: p.code,
+          name: p.name,
+          categoryName: p.category?.name,
+          unitPrice: Number(p.unitPrice),
+          taxRate: Number(p.taxRate),
+          costPrice: p.costPrice != null ? Number(p.costPrice) : null,
+          stockQuantity: Number(p.stockQuantity),
+          reorderLevel: Number(p.reorderLevel || 0),
+          isActive: p.isActive ?? true,
+        })),
+      );
+    } catch {
+      message.error('Failed to export stock list');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleExportStockValue = async () => {
+    setExportingValue(true);
+    try {
+      const valuation = await inventoryApi.getStockValuation();
+      await exportStockValuationToExcel(valuation.items, {
+        totalCostValue: valuation.totalCostValue,
+        totalRetailValue: valuation.totalRetailValue,
+      });
+    } catch {
+      message.error('Failed to export stock value');
+    } finally {
+      setExportingValue(false);
+    }
+  };
+
   const columns = [
     { title: 'Code', dataIndex: 'code', key: 'code', width: 120 },
     { title: 'Name', dataIndex: 'name', key: 'name' },
@@ -336,6 +379,20 @@ export const ProductsPage: React.FC = () => {
       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
         <Title level={4} style={{ margin: 0 }}>Products</Title>
         <Space>
+          <Button
+            icon={<DollarOutlined />}
+            loading={exportingValue}
+            onClick={handleExportStockValue}
+          >
+            Stock Value
+          </Button>
+          <Button
+            icon={<DownloadOutlined />}
+            loading={exporting}
+            onClick={handleExportStockList}
+          >
+            Export
+          </Button>
           <Button onClick={() => setCategoryModal(true)}>Manage Categories</Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={openCreateProductModal}>
             New Product

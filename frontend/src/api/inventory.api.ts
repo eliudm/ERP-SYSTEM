@@ -3,8 +3,13 @@ import type { Product, ProductCategory } from '../types';
 
 export const inventoryApi = {
   // Products
-  getProducts: async (search?: string, categoryId?: string): Promise<Product[]> => {
-    const res = await apiClient.get('/inventory/products', { params: { search, categoryId } });
+  getProducts: async (search?: string, categoryId?: string, limit?: number): Promise<Product[]> => {
+    const res = await apiClient.get('/inventory/products', { params: { search, categoryId, limit } });
+    return res.data;
+  },
+
+  getStockValuation: async () => {
+    const res = await apiClient.get('/inventory/products/valuation');
     return res.data;
   },
 
@@ -73,6 +78,17 @@ export const inventoryApi = {
   getMovementSummary: async () => {
     const res = await apiClient.get('/inventory/stock-movements/summary');
     return res.data;
+  },
+
+  bulkImportStock: async (rows: Array<{
+    productCode: string;
+    warehouseName?: string;
+    quantity: number;
+    unitCost?: number;
+    notes?: string;
+  }>) => {
+    const res = await apiClient.post('/inventory/stock-movements/bulk-import', { rows });
+    return res.data as { imported: number; failed: number; errors: { row: number; code: string; reason: string }[] };
   },
 
   // Stock Transfers

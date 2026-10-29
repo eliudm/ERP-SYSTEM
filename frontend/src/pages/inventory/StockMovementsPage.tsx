@@ -2,15 +2,21 @@ import React, { useState } from 'react';
 import {
   Table, Button, Card, Typography, Space,
   Select, Tag, Modal, Form, InputNumber,
-  message, Row, Col, Statistic, Tooltip,
+  message, Row, Col, Statistic, Tooltip, Upload, Alert,
 } from 'antd';
 import {
   PlusOutlined, ArrowUpOutlined, ArrowDownOutlined,
-  SwapOutlined,
+  SwapOutlined, UploadOutlined, FileExcelOutlined,
+  DownloadOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { inventoryApi } from '../../api/inventory.api';
 import { formatCurrency, formatDate } from '../../utils/format';
+import {
+  downloadStockImportTemplate,
+  parseStockImportFile,
+  type ParsedStockImportRow,
+} from '../../utils/excel';
 
 const { Title, Text } = Typography;
 
@@ -26,6 +32,15 @@ export const StockMovementsPage: React.FC = () => {
   const [modal, setModal] = useState(false);
   const [form] = Form.useForm();
   const queryClient = useQueryClient();
+
+  const [importModal, setImportModal] = useState(false);
+  const [importRows, setImportRows] = useState<ParsedStockImportRow[]>([]);
+  const [importResult, setImportResult] = useState<{
+    imported: number;
+    failed: number;
+    errors: { row: number; code: string; reason: string }[];
+  } | null>(null);
+  const [parsing, setParsing] = useState(false);
 
   const { data: movements, isLoading } = useQuery({
     queryKey: ['stock-movements', page, productFilter],
@@ -61,6 +76,82 @@ export const StockMovementsPage: React.FC = () => {
       message.error(err.response?.data?.message || 'Failed to record movement');
     },
   });
+
+  const bulkImportMutation = useMutation({
+    mutationFn: inventoryApi.bulkImportStock,
+    onSuccess: (result) => {
+      setImportResult(result);
+      if (result.imported > 0) {
+        queryClient.invalidateQueries({ queryKey: ['stock-movements'] });
+        queryClient.invalidateQueries({ queryKey: ['stock-movements-summary'] });
+        queryClient.invalidateQueries({ queryKey: ['products'] });
+      }
+      if (result.failed === 0) {
+        message.success(`Imported ${result.imported} row(s)`);
+      } else {
+        message.warning(`Imported ${result.imported} row(s), ${result.failed} failed — see details below`);
+      }
+    },
+    onError: (err: any) => {
+      message.error(err.response?.data?.message || 'Import failed');
+    },
+  });
+
+  const resetImportModal = () => {
+    setImportModal(false);
+    setImportRows([]);
+    setImportResult(null);
+  };
+
+  const handleFileSelected = async (file: File) => {
+    setParsing(true);
+    setImportResult(null);
+    try {
+      const rows = await parseStockImportFile(file);
+      if (rows.length === 0) {
+        message.error('No rows found — check the file matches the template columns');
+      }
+      setImportRows(rows);
+    } catch {
+      message.error('Could not read that file — make sure it is a valid .xlsx file');
+      setImportRows([]);
+    } finally {
+      setParsing(false);
+    }
+    return false; // prevent antd Upload from trying to POST the raw file itself
+  };
+
+  const knownProductCodes = new Set((products || []).map((p: any) => p.code));
+  const knownWarehouseNames = new Set((warehouses || []).map((w: any) => String(w.name).toLowerCase()));
+
+  const importPreviewColumns = [
+    {
+      title: 'Code',
+      dataIndex: 'productCode',
+      key: 'productCode',
+      render: (v: string) => (
+        <Text type={knownProductCodes.has(v) ? undefined : 'danger'}>{v}</Text>
+      ),
+    },
+    { title: 'Quantity', dataIndex: 'quantity', key: 'quantity' },
+    {
+      title: 'Warehouse',
+      dataIndex: 'warehouseName',
+      key: 'warehouseName',
+      render: (v: string | undefined) => {
+        if (!v) return <Text type="secondary">(default)</Text>;
+        const ok = knownWarehouseNames.has(v.toLowerCase());
+        return <Text type={ok ? undefined : 'danger'}>{v}</Text>;
+      },
+    },
+    {
+      title: 'Unit Cost',
+      dataIndex: 'unitCost',
+      key: 'unitCost',
+      render: (v: number | undefined) => (v !== undefined ? formatCurrency(v) : '—'),
+    },
+    { title: 'Notes', dataIndex: 'notes', key: 'notes', render: (v: string) => v || '—' },
+  ];
 
   const columns = [
     {
@@ -135,9 +226,14 @@ export const StockMovementsPage: React.FC = () => {
     <Space direction="vertical" style={{ width: '100%' }} size="large">
       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
         <Title level={4} style={{ margin: 0 }}>Stock Movements</Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => setModal(true)}>
-          Record Movement
-        </Button>
+        <Space>
+          <Button icon={<FileExcelOutlined />} onClick={() => setImportModal(true)}>
+            Import Excel
+          </Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => setModal(true)}>
+            Record Movement
+          </Button>
+        </Space>
       </div>
 
       {summary && (
@@ -290,6 +386,81 @@ export const StockMovementsPage: React.FC = () => {
             </Form.Item>
           </Form.Item>
         </Form>
+      </Modal>
+
+      <Modal
+        title="Import Stock from Excel"
+        open={importModal}
+        onCancel={resetImportModal}
+        footer={null}
+        width={720}
+      >
+        <Space direction="vertical" style={{ width: '100%' }} size="middle">
+          <Space wrap>
+            <Button icon={<DownloadOutlined />} onClick={() => downloadStockImportTemplate()}>
+              Download Template
+            </Button>
+            <Upload
+              accept=".xlsx,.xls"
+              showUploadList={false}
+              beforeUpload={handleFileSelected}
+            >
+              <Button icon={<UploadOutlined />} loading={parsing}>
+                Choose File
+              </Button>
+            </Upload>
+          </Space>
+
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            Columns: Code, Quantity, Warehouse (optional if you only have one warehouse), Unit Cost (optional), Notes (optional).
+            Rows highlighted in red reference a product code or warehouse this doesn't recognize yet — fix those in the file and re-upload before importing.
+          </Text>
+
+          {importRows.length > 0 && (
+            <Table
+              size="small"
+              columns={importPreviewColumns}
+              dataSource={importRows}
+              rowKey={(_, i) => String(i)}
+              pagination={importRows.length > 10 ? { pageSize: 10 } : false}
+            />
+          )}
+
+          {importResult && (
+            <Alert
+              type={importResult.failed === 0 ? 'success' : 'warning'}
+              showIcon
+              message={`${importResult.imported} imported, ${importResult.failed} failed`}
+              description={
+                importResult.errors.length > 0 ? (
+                  <Table
+                    size="small"
+                    pagination={false}
+                    dataSource={importResult.errors}
+                    rowKey={(e) => `${e.row}-${e.code}`}
+                    columns={[
+                      { title: 'Row', dataIndex: 'row', key: 'row', width: 70 },
+                      { title: 'Code', dataIndex: 'code', key: 'code', width: 140 },
+                      { title: 'Reason', dataIndex: 'reason', key: 'reason' },
+                    ]}
+                  />
+                ) : undefined
+              }
+            />
+          )}
+
+          <Space style={{ justifyContent: 'flex-end', width: '100%' }}>
+            <Button onClick={resetImportModal}>Close</Button>
+            <Button
+              type="primary"
+              disabled={importRows.length === 0}
+              loading={bulkImportMutation.isPending}
+              onClick={() => bulkImportMutation.mutate(importRows)}
+            >
+              Import {importRows.length > 0 ? `${importRows.length} Row(s)` : ''}
+            </Button>
+          </Space>
+        </Space>
       </Modal>
     </Space>
   );
