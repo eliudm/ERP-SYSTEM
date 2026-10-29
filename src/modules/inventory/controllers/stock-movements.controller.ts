@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { StockMovementsService } from '../services/stock-movements.service';
-import { CreateStockMovementDto } from '../dto';
+import { CreateStockMovementDto, BulkImportStockDto } from '../dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
@@ -30,7 +30,20 @@ export class StockMovementsController {
     return this.stockMovementsService.create(dto);
   }
 
-  @ApiOperation({ summary: 'List stock movements with pagination, optionally filtered by product' })
+  @ApiOperation({
+    summary: 'Bulk-import stock receipts from a parsed Excel sheet',
+  })
+  @Post('bulk-import')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN, Role.INVENTORY_MANAGER)
+  bulkImport(@Body() dto: BulkImportStockDto) {
+    return this.stockMovementsService.bulkImportStock(dto.rows);
+  }
+
+  @ApiOperation({
+    summary:
+      'List stock movements with pagination, optionally filtered by product',
+  })
   @Get()
   findAll(
     @Query('page') page: string,
@@ -44,7 +57,9 @@ export class StockMovementsController {
     );
   }
 
-  @ApiOperation({ summary: 'Get a summary of stock movements within a date range' })
+  @ApiOperation({
+    summary: 'Get a summary of stock movements within a date range',
+  })
   @Get('summary')
   getSummary(
     @Query('startDate') startDate: string,
@@ -59,7 +74,9 @@ export class StockMovementsController {
     return this.stockMovementsService.findOne(id);
   }
 
-  @ApiOperation({ summary: 'Adjust a product stock quantity in a warehouse to a new value' })
+  @ApiOperation({
+    summary: 'Adjust a product stock quantity in a warehouse to a new value',
+  })
   @Post('adjust')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.INVENTORY_MANAGER)

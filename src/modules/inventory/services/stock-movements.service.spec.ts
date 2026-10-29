@@ -12,8 +12,8 @@ const mockTx = () => ({
 });
 
 const mockPrisma = () => ({
-  product: { findUnique: jest.fn(), update: jest.fn() },
-  warehouse: { findUnique: jest.fn() },
+  product: { findUnique: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
+  warehouse: { findUnique: jest.fn(), findMany: jest.fn() },
   stockMovement: {
     create: jest.fn(),
     findMany: jest.fn(),
@@ -137,12 +137,22 @@ describe('StockMovementsService', () => {
           reference: 'ACC-REF1',
           sourceType: 'STOCK_IN',
           lines: [
-            expect.objectContaining({ accountId: 'acc-1', debit: 50, credit: 0 }),
-            expect.objectContaining({ accountId: 'acc-2', debit: 0, credit: 50 }),
+            expect.objectContaining({
+              accountId: 'acc-1',
+              debit: 50,
+              credit: 0,
+            }),
+            expect.objectContaining({
+              accountId: 'acc-2',
+              debit: 0,
+              credit: 50,
+            }),
           ],
         }),
       );
-      expect(notificationsService.checkAndNotifyLowStock).not.toHaveBeenCalled();
+      expect(
+        notificationsService.checkAndNotifyLowStock,
+      ).not.toHaveBeenCalled();
       expect(result).toEqual(createdMovement);
     });
 
@@ -167,8 +177,16 @@ describe('StockMovementsService', () => {
           reference: 'ACC-REF2',
           sourceType: 'STOCK_OUT',
           lines: [
-            expect.objectContaining({ accountId: 'acc-1', debit: 100, credit: 0 }),
-            expect.objectContaining({ accountId: 'acc-2', debit: 0, credit: 100 }),
+            expect.objectContaining({
+              accountId: 'acc-1',
+              debit: 100,
+              credit: 0,
+            }),
+            expect.objectContaining({
+              accountId: 'acc-2',
+              debit: 0,
+              credit: 100,
+            }),
           ],
         }),
       );
@@ -294,7 +312,10 @@ describe('StockMovementsService', () => {
     });
 
     it('should throw NotFoundException if warehouse not found', async () => {
-      prisma.product.findUnique.mockResolvedValue({ id: 'prod-1', stockQuantity: 10 });
+      prisma.product.findUnique.mockResolvedValue({
+        id: 'prod-1',
+        stockQuantity: 10,
+      });
       prisma.warehouse.findUnique.mockResolvedValue(null);
 
       await expect(
@@ -303,7 +324,10 @@ describe('StockMovementsService', () => {
     });
 
     it('should record the adjustment and set the new stock quantity', async () => {
-      prisma.product.findUnique.mockResolvedValue({ id: 'prod-1', stockQuantity: 10 });
+      prisma.product.findUnique.mockResolvedValue({
+        id: 'prod-1',
+        stockQuantity: 10,
+      });
       prisma.warehouse.findUnique.mockResolvedValue({ id: 'wh-1' });
       const movement = { id: 'mov-1', quantity: 5 };
       tx.stockMovement.create.mockResolvedValue(movement);
@@ -325,6 +349,141 @@ describe('StockMovementsService', () => {
         data: { stockQuantity: 15 },
       });
       expect(result).toEqual(movement);
+    });
+  });
+
+  describe('bulkImportStock', () => {
+    const warehouse = { id: 'wh-1', name: 'Main Warehouse', isActive: true };
+
+    beforeEach(() => {
+      prisma.warehouse.findMany.mockResolvedValue([warehouse]);
+      prisma.warehouse.findUnique.mockResolvedValue(warehouse);
+      prisma.account.findFirst.mockResolvedValue(null); // skip accounting posting in these tests
+    });
+
+    it('imports a matched row, increments stock, and updates costPrice from unitCost', async () => {
+      const product = {
+        id: 'prod-1',
+        code: 'SKU1',
+        stockQuantity: 10,
+        unitPrice: 20,
+      };
+      prisma.product.findFirst.mockResolvedValue(product);
+      prisma.product.findUnique.mockResolvedValue(product);
+      tx.stockMovement.create.mockResolvedValue({ id: 'mov-1' });
+
+      const result = await service.bulkImportStock([
+        { productCode: 'SKU1', quantity: 5, unitCost: 7.5 } as any,
+      ]);
+
+      expect(result).toEqual({ imported: 1, failed: 0, errors: [] });
+      expect(tx.product.update).toHaveBeenCalledWith({
+        where: { id: 'prod-1' },
+        data: { stockQuantity: { increment: 5 } },
+      });
+      expect(prisma.product.update).toHaveBeenCalledWith({
+        where: { id: 'prod-1' },
+        data: { costPrice: 7.5 },
+      });
+    });
+
+    it('defaults to the sole active warehouse when the row omits one', async () => {
+      const product = {
+        id: 'prod-1',
+        code: 'SKU1',
+        stockQuantity: 10,
+        unitPrice: 20,
+      };
+      prisma.product.findFirst.mockResolvedValue(product);
+      prisma.product.findUnique.mockResolvedValue(product);
+      tx.stockMovement.create.mockResolvedValue({ id: 'mov-1' });
+
+      await service.bulkImportStock([
+        { productCode: 'SKU1', quantity: 5 } as any,
+      ]);
+
+      expect(tx.stockMovement.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ warehouseId: 'wh-1' }),
+        }),
+      );
+      expect(prisma.product.update).not.toHaveBeenCalled(); // no unitCost on this row
+    });
+
+    it('records a per-row failure for an unknown product code without aborting the batch', async () => {
+      const product = {
+        id: 'prod-2',
+        code: 'SKU2',
+        stockQuantity: 0,
+        unitPrice: 10,
+      };
+      prisma.product.findFirst
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(product);
+      prisma.product.findUnique.mockResolvedValue(product);
+      tx.stockMovement.create.mockResolvedValue({ id: 'mov-2' });
+
+      const result = await service.bulkImportStock([
+        { productCode: 'MISSING', quantity: 1 } as any,
+        { productCode: 'SKU2', quantity: 3 } as any,
+      ]);
+
+      expect(result.imported).toBe(1);
+      expect(result.failed).toBe(1);
+      expect(result.errors).toEqual([
+        { row: 1, code: 'MISSING', reason: 'Product code not found' },
+      ]);
+    });
+
+    it('records a per-row failure when the named warehouse does not resolve', async () => {
+      const product = {
+        id: 'prod-1',
+        code: 'SKU1',
+        stockQuantity: 10,
+        unitPrice: 20,
+      };
+      prisma.product.findFirst.mockResolvedValue(product);
+
+      const result = await service.bulkImportStock([
+        {
+          productCode: 'SKU1',
+          warehouseName: 'Does Not Exist',
+          quantity: 5,
+        } as any,
+      ]);
+
+      expect(result).toEqual({
+        imported: 0,
+        failed: 1,
+        errors: [
+          {
+            row: 1,
+            code: 'SKU1',
+            reason: 'Warehouse "Does Not Exist" not found',
+          },
+        ],
+      });
+    });
+
+    it('flags a row needing a warehouse when none is given and the tenant has more than one', async () => {
+      prisma.warehouse.findMany.mockResolvedValue([
+        warehouse,
+        { id: 'wh-2', name: 'Branch Warehouse', isActive: true },
+      ]);
+      const product = {
+        id: 'prod-1',
+        code: 'SKU1',
+        stockQuantity: 10,
+        unitPrice: 20,
+      };
+      prisma.product.findFirst.mockResolvedValue(product);
+
+      const result = await service.bulkImportStock([
+        { productCode: 'SKU1', quantity: 5 } as any,
+      ]);
+
+      expect(result.failed).toBe(1);
+      expect(result.errors[0].reason).toMatch(/more than one active warehouse/);
     });
   });
 

@@ -6,8 +6,20 @@ import {
 import { PrismaService } from '../../../prisma.service';
 import { PostingEngineService } from '../../accounting/services/posting-engine.service';
 import { NotificationsService } from '../../notifications/notifications.service';
-import { CreateStockMovementDto } from '../dto';
+import { CreateStockMovementDto, BulkImportStockRowDto } from '../dto';
 import { MovementType } from '@prisma/client';
+
+export interface BulkImportStockRowError {
+  row: number;
+  code: string;
+  reason: string;
+}
+
+export interface BulkImportStockResult {
+  imported: number;
+  failed: number;
+  errors: BulkImportStockRowError[];
+}
 
 @Injectable()
 export class StockMovementsService {
@@ -105,6 +117,106 @@ export class StockMovementsService {
       this.notificationsService
         .checkAndNotifyLowStock(dto.productId)
         .catch(() => {});
+    }
+
+    return result;
+  }
+
+  // ─── BULK IMPORT STOCK (Excel) ───────────────────────────
+  // Each row is resolved and posted independently — one bad row (unknown
+  // code, unresolvable warehouse, etc.) is recorded as a failure and never
+  // aborts the rest of the batch, unlike hr/attendance's bulkImport().
+  async bulkImportStock(
+    rows: BulkImportStockRowDto[],
+  ): Promise<BulkImportStockResult> {
+    const result: BulkImportStockResult = {
+      imported: 0,
+      failed: 0,
+      errors: [],
+    };
+    const batchRef = `EXCEL-IMPORT-${Date.now()}`;
+
+    let defaultWarehouseId: string | undefined;
+    const activeWarehouses = await this.prisma.warehouse.findMany({
+      where: { isActive: true },
+    });
+    if (activeWarehouses.length === 1) {
+      defaultWarehouseId = activeWarehouses[0].id;
+    }
+
+    for (let i = 0; i < rows.length; i += 1) {
+      const row = rows[i];
+      const rowNumber = i + 1;
+
+      try {
+        const product = await this.prisma.product.findFirst({
+          where: { code: row.productCode },
+        });
+        if (!product) {
+          result.failed += 1;
+          result.errors.push({
+            row: rowNumber,
+            code: row.productCode,
+            reason: 'Product code not found',
+          });
+          continue;
+        }
+
+        let warehouseId = defaultWarehouseId;
+        if (row.warehouseName) {
+          const warehouse = activeWarehouses.find(
+            (w) =>
+              w.name.toLowerCase() === row.warehouseName!.trim().toLowerCase(),
+          );
+          if (!warehouse) {
+            result.failed += 1;
+            result.errors.push({
+              row: rowNumber,
+              code: row.productCode,
+              reason: `Warehouse "${row.warehouseName}" not found`,
+            });
+            continue;
+          }
+          warehouseId = warehouse.id;
+        }
+
+        if (!warehouseId) {
+          result.failed += 1;
+          result.errors.push({
+            row: rowNumber,
+            code: row.productCode,
+            reason:
+              'No warehouse specified and tenant has more than one active warehouse',
+          });
+          continue;
+        }
+
+        await this.create({
+          productId: product.id,
+          warehouseId,
+          movementType: MovementType.IN,
+          quantity: row.quantity,
+          unitCost: row.unitCost,
+          reference: batchRef,
+          notes: row.notes,
+        });
+
+        if (row.unitCost !== undefined) {
+          await this.prisma.product.update({
+            where: { id: product.id },
+            data: { costPrice: row.unitCost },
+          });
+        }
+
+        result.imported += 1;
+      } catch (err: unknown) {
+        result.failed += 1;
+        result.errors.push({
+          row: rowNumber,
+          code: row.productCode,
+          reason: err instanceof Error ? err.message : 'Unknown error',
+        });
+      }
     }
 
     return result;

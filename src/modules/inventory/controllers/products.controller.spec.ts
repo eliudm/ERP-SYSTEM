@@ -77,12 +77,20 @@ describe('ProductsController', () => {
 
   describe('getValuation', () => {
     it('should call productsService.getStockValuation', async () => {
-      service.getStockValuation.mockResolvedValue({ items: [], totalValue: 0 });
+      service.getStockValuation.mockResolvedValue({
+        items: [],
+        totalRetailValue: 0,
+        totalCostValue: 0,
+      });
 
       const result = await controller.getValuation();
 
       expect(service.getStockValuation).toHaveBeenCalled();
-      expect(result).toEqual({ items: [], totalValue: 0 });
+      expect(result).toEqual({
+        items: [],
+        totalRetailValue: 0,
+        totalCostValue: 0,
+      });
     });
   });
 

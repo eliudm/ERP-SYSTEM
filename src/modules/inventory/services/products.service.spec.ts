@@ -28,7 +28,10 @@ describe('ProductsService', () => {
     prisma = mockPrisma();
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [ProductsService, { provide: PrismaService, useValue: prisma }],
+      providers: [
+        ProductsService,
+        { provide: PrismaService, useValue: prisma },
+      ],
     }).compile();
 
     service = module.get<ProductsService>(ProductsService);
@@ -55,7 +58,10 @@ describe('ProductsService', () => {
       const dtoWithCategory = { ...dto, categoryId: 'cat-1' };
       prisma.product.findFirst.mockResolvedValue(null);
       prisma.productCategory.findUnique.mockResolvedValue({ id: 'cat-1' });
-      prisma.product.create.mockResolvedValue({ id: 'prod-1', ...dtoWithCategory });
+      prisma.product.create.mockResolvedValue({
+        id: 'prod-1',
+        ...dtoWithCategory,
+      });
 
       await service.create(dtoWithCategory);
 
@@ -180,7 +186,9 @@ describe('ProductsService', () => {
       const updated = { id: 'prod-1', name: 'New Name' };
       prisma.product.update.mockResolvedValue(updated);
 
-      const result = await service.update('prod-1', { name: 'New Name' } as any);
+      const result = await service.update('prod-1', {
+        name: 'New Name',
+      } as any);
 
       expect(prisma.product.update).toHaveBeenCalledWith({
         where: { id: 'prod-1' },
@@ -212,7 +220,10 @@ describe('ProductsService', () => {
   describe('deactivate', () => {
     it('should set isActive to false', async () => {
       prisma.product.findUnique.mockResolvedValue({ id: 'prod-1' });
-      prisma.product.update.mockResolvedValue({ id: 'prod-1', isActive: false });
+      prisma.product.update.mockResolvedValue({
+        id: 'prod-1',
+        isActive: false,
+      });
 
       const result = await service.deactivate('prod-1');
 
@@ -250,19 +261,52 @@ describe('ProductsService', () => {
   });
 
   describe('getStockValuation', () => {
-    it('should compute per-product and total stock value', async () => {
+    it('should compute per-product retail and cost value, plus totals', async () => {
       prisma.product.findMany.mockResolvedValue([
-        { id: '1', code: 'A', name: 'A', stockQuantity: 10, unitPrice: 5 },
-        { id: '2', code: 'B', name: 'B', stockQuantity: 2, unitPrice: 50 },
+        {
+          id: '1',
+          code: 'A',
+          name: 'A',
+          stockQuantity: 10,
+          unitPrice: 5,
+          costPrice: 3,
+        },
+        {
+          id: '2',
+          code: 'B',
+          name: 'B',
+          stockQuantity: 2,
+          unitPrice: 50,
+          costPrice: null,
+        },
       ]);
 
       const result = await service.getStockValuation();
 
       expect(result.items).toEqual([
-        { id: '1', code: 'A', name: 'A', stockQuantity: 10, unitPrice: 5, totalValue: 50 },
-        { id: '2', code: 'B', name: 'B', stockQuantity: 2, unitPrice: 50, totalValue: 100 },
+        {
+          id: '1',
+          code: 'A',
+          name: 'A',
+          stockQuantity: 10,
+          unitPrice: 5,
+          costPrice: 3,
+          retailValue: 50,
+          costValue: 30,
+        },
+        {
+          id: '2',
+          code: 'B',
+          name: 'B',
+          stockQuantity: 2,
+          unitPrice: 50,
+          costPrice: 0,
+          retailValue: 100,
+          costValue: 0,
+        },
       ]);
-      expect(result.totalValue).toBe(150);
+      expect(result.totalRetailValue).toBe(150);
+      expect(result.totalCostValue).toBe(30);
     });
   });
 });

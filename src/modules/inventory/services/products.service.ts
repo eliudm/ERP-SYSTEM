@@ -43,12 +43,7 @@ export class ProductsService {
   }
 
   // ─── GET ALL PRODUCTS ────────────────────────────────────
-  async findAll(
-    search?: string,
-    categoryId?: string,
-    page = 1,
-    limit = 200,
-  ) {
+  async findAll(search?: string, categoryId?: string, page = 1, limit = 200) {
     return this.prisma.product.findMany({
       where: {
         isActive: true,
@@ -149,17 +144,26 @@ export class ProductsService {
       where: { isActive: true },
     });
 
-    const items = products.map((p) => ({
-      id: p.id,
-      code: p.code,
-      name: p.name,
-      stockQuantity: Number(p.stockQuantity),
-      unitPrice: Number(p.unitPrice),
-      totalValue: Number(p.stockQuantity) * Number(p.unitPrice),
-    }));
+    const items = products.map((p) => {
+      const stockQuantity = Number(p.stockQuantity);
+      const unitPrice = Number(p.unitPrice);
+      const costPrice = p.costPrice ? Number(p.costPrice) : 0;
 
-    const totalValue = items.reduce((sum, p) => sum + p.totalValue, 0);
+      return {
+        id: p.id,
+        code: p.code,
+        name: p.name,
+        stockQuantity,
+        unitPrice,
+        costPrice,
+        retailValue: stockQuantity * unitPrice,
+        costValue: stockQuantity * costPrice,
+      };
+    });
 
-    return { items, totalValue };
+    const totalRetailValue = items.reduce((sum, p) => sum + p.retailValue, 0);
+    const totalCostValue = items.reduce((sum, p) => sum + p.costValue, 0);
+
+    return { items, totalRetailValue, totalCostValue };
   }
 }

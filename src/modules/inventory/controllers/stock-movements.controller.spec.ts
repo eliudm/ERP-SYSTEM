@@ -4,6 +4,7 @@ import { StockMovementsService } from '../services/stock-movements.service';
 
 const mockStockMovementsService = () => ({
   create: jest.fn(),
+  bulkImportStock: jest.fn(),
   findAll: jest.fn(),
   getSummary: jest.fn(),
   findOne: jest.fn(),
@@ -22,9 +23,7 @@ describe('StockMovementsController', () => {
       providers: [{ provide: StockMovementsService, useValue: service }],
     }).compile();
 
-    controller = module.get<StockMovementsController>(
-      StockMovementsController,
-    );
+    controller = module.get<StockMovementsController>(StockMovementsController);
   });
 
   describe('create', () => {
@@ -36,6 +35,22 @@ describe('StockMovementsController', () => {
 
       expect(service.create).toHaveBeenCalledWith(dto);
       expect(result).toEqual({ id: 'mov-1', ...dto });
+    });
+  });
+
+  describe('bulkImport', () => {
+    it('should call stockMovementsService.bulkImportStock with the parsed rows', async () => {
+      const dto = { rows: [{ productCode: 'SKU1', quantity: 5 }] } as any;
+      service.bulkImportStock.mockResolvedValue({
+        imported: 1,
+        failed: 0,
+        errors: [],
+      });
+
+      const result = await controller.bulkImport(dto);
+
+      expect(service.bulkImportStock).toHaveBeenCalledWith(dto.rows);
+      expect(result).toEqual({ imported: 1, failed: 0, errors: [] });
     });
   });
 
@@ -52,7 +67,11 @@ describe('StockMovementsController', () => {
     it('should default page to 1 and limit to 20 when not provided', async () => {
       service.findAll.mockResolvedValue({ data: [], meta: {} });
 
-      await controller.findAll(undefined as any, undefined as any, undefined as any);
+      await controller.findAll(
+        undefined as any,
+        undefined as any,
+        undefined as any,
+      );
 
       expect(service.findAll).toHaveBeenCalledWith(1, 20, undefined);
     });
