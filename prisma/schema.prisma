@@ -28,6 +28,7 @@ model Tenant {
   salesInvoices  SalesInvoice[]
   accounts       Account[]
   journalEntries JournalEntry[]
+  expenses       Expense[]
   products       Product[]
   warehouses     Warehouse[]
   stockMovements StockMovement[]
@@ -165,6 +166,7 @@ model Account {
   bankAccounts BankAccount[]
   taxRates     TaxRate[]
   budgetLines  BudgetLine[]
+  expenses     Expense[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -240,6 +242,40 @@ model AccountingPeriod {
 
   @@index([tenantId])
   @@map("accounting_periods")
+}
+
+enum ExpenseStatus {
+  DRAFT
+  APPROVED
+  PAID
+  VOID
+}
+
+model Expense {
+  id            String         @id @default(uuid())
+  tenantId      String
+  tenant        Tenant         @relation(fields: [tenantId], references: [id])
+  expenseNo     String
+  date          DateTime
+  accountId     String
+  account       Account        @relation(fields: [accountId], references: [id])
+  payee         String
+  description   String?
+  amount        Decimal        @db.Decimal(18, 2)
+  status        ExpenseStatus  @default(DRAFT)
+  // Only set once PAID — either at approve() (recorded as already paid) or
+  // at pay() (recorded as payable, then settled later).
+  paymentMethod PaymentMethod?
+  paidAt        DateTime?
+  notes         String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@unique([tenantId, expenseNo])
+  @@index([tenantId])
+  @@index([accountId])
+  @@index([status])
+  @@map("expenses")
 }
 
 // ============================================
