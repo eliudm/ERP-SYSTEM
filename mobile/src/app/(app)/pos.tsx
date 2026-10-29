@@ -22,6 +22,7 @@ import {
 } from 'react-native-paper';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { mobileApi, PosProduct } from '../../api/mobile.api';
 import { customersApi, Customer } from '../../api/customers.api';
 import { salesApi } from '../../api/sales.api';
@@ -58,13 +59,17 @@ interface CartLine {
 const formatCurrency = (value: number) =>
   `KES ${value.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+// This is a real backend data value (matched/created via the customers API
+// below, not just display text) — it must stay a stable, untranslated
+// string regardless of UI language so every locale resolves to the same
+// underlying walk-in customer record.
 const WALK_IN_CUSTOMER_NAME = 'Walk-in Customer';
-const PAYMENT_METHOD_LABELS: Record<string, string> = {
-  CASH: 'Cash',
-  CARD: 'Card',
-  MOBILE_MONEY: 'M-Pesa',
-  BANK_TRANSFER: 'Bank Transfer',
-  CREDIT: 'Credit',
+const PAYMENT_METHOD_LABEL_KEYS: Record<string, string> = {
+  CASH: 'paymentMethods.cash',
+  CARD: 'paymentMethods.card',
+  MOBILE_MONEY: 'paymentMethods.mobileMoney',
+  BANK_TRANSFER: 'paymentMethods.bankTransfer',
+  CREDIT: 'paymentMethods.credit',
 };
 
 const TILE_COLORS = ['#1db8a0', '#6f67ff', '#f08c2f', '#2f80ed', '#e05297'];
@@ -95,6 +100,11 @@ type Screen =
   | 'registerClose';
 
 export default function PosScreen() {
+  const { t } = useTranslation('pos');
+  const paymentMethodLabel = (method: string) =>
+    PAYMENT_METHOD_LABEL_KEYS[method]
+      ? t(PAYMENT_METHOD_LABEL_KEYS[method])
+      : method;
   const queryClient = useQueryClient();
   const { width, height } = useWindowDimensions();
   const dockExpandedMaxHeight = Math.min(560, height * 0.72);
@@ -293,7 +303,7 @@ export default function PosScreen() {
     setCartExpanded(false);
     setSelectedLineId(null);
     setSelectedCustomer(null);
-    setSnackbar({ visible: true, message: 'Order parked' });
+    setSnackbar({ visible: true, message: t('toast.orderParked') });
   };
 
   const loadHeldOrder = (order: HeldOrder) => {
@@ -429,10 +439,10 @@ export default function PosScreen() {
       setPaymentMethod('CASH');
       setSnackbar({
         visible: true,
-        message: 'M-Pesa needs internet — switched to Cash.',
+        message: t('toast.mpesaNeedsInternet'),
       });
     }
-  }, [network.isOnline, paymentMethod]);
+  }, [network.isOnline, paymentMethod, t]);
 
   // Reconnecting (including "was offline when the app started, already
   // back online once the queue finishes loading from storage") triggers a
@@ -474,12 +484,12 @@ export default function PosScreen() {
       const status = await salesApi.getMpesaStatus(invoiceId);
       if (status.invoice.status === 'PAID') return;
       if (status.mpesa?.status === 'FAILED') {
-        throw new Error(status.mpesa.resultDesc || 'M-Pesa payment failed');
+        throw new Error(
+          status.mpesa.resultDesc || t('errors.mpesaPaymentFailed'),
+        );
       }
     }
-    throw new Error(
-      'M-Pesa confirmation is still pending. Check payment status shortly.',
-    );
+    throw new Error(t('errors.mpesaStillPending'));
   };
 
   const fetchEtimsQrWithRetry = async (
@@ -498,12 +508,12 @@ export default function PosScreen() {
   const chargeMutation = useMutation({
     mutationFn: async () => {
       if (paymentMethod === 'MOBILE_MONEY' && !isValidKenyaPhone(mpesaPhone)) {
-        throw new Error('Enter a valid M-Pesa number, e.g. 2547XXXXXXXX');
+        throw new Error(t('errors.invalidMpesaNumber'));
       }
       if (paymentMethod === 'MOBILE_MONEY' && network.isOnline === false) {
         // Belt-and-braces: the tile is disabled while offline, but
         // connectivity could have dropped in the gap between render and tap.
-        throw new Error('M-Pesa requires an internet connection.');
+        throw new Error(t('errors.mpesaRequiresInternet'));
       }
 
       // Online: always resolve a fresh walk-in customer, exactly as before.
@@ -516,9 +526,7 @@ export default function PosScreen() {
           ? await resolveWalkInCustomer()
           : cachedWalkInCustomer);
       if (!customer) {
-        throw new Error(
-          'No customer available offline. Reconnect once to load the walk-in customer, or select a customer.',
-        );
+        throw new Error(t('errors.noOfflineCustomer'));
       }
 
       const items = cart.map((line) => ({
@@ -561,7 +569,7 @@ export default function PosScreen() {
         };
       }
 
-      setCheckoutStage('Creating invoice…');
+      setCheckoutStage(t('checkoutStage.creatingInvoice'));
       const invoice = await salesApi.createInvoice({
         customerId: customer.id,
         invoiceDate: new Date().toISOString(),
@@ -573,20 +581,20 @@ export default function PosScreen() {
         })),
       });
 
-      setCheckoutStage('Approving and updating stock…');
+      setCheckoutStage(t('checkoutStage.approvingStock'));
       await salesApi.approveInvoice(invoice.id, {
         warehouseId: activeWarehouseId,
         paymentMethod,
       });
 
       if (paymentMethod === 'MOBILE_MONEY') {
-        setCheckoutStage('Sending M-Pesa prompt…');
+        setCheckoutStage(t('checkoutStage.sendingMpesaPrompt'));
         await salesApi.initiateMpesaStkPush(invoice.id, {
           phoneNumber: mpesaPhone.trim(),
           accountReference: invoice.invoiceNo,
           description: `POS payment for ${invoice.invoiceNo}`,
         });
-        setCheckoutStage('Waiting for M-Pesa confirmation…');
+        setCheckoutStage(t('checkoutStage.waitingMpesaConfirmation'));
         await waitForMpesaSettlement(invoice.id);
       }
 
@@ -630,9 +638,7 @@ export default function PosScreen() {
     onError: (err: any) => {
       setCheckoutStage(null);
       const message =
-        err?.message ??
-        err?.response?.data?.message ??
-        'Failed to complete sale. Please try again.';
+        err?.message ?? err?.response?.data?.message ?? t('errors.saleFailed');
       const text = Array.isArray(message) ? message.join(', ') : message;
       // Shown inline in the payment screen itself — a Snackbar here would
       // render behind the still-open payment Modal and never be seen.
@@ -692,7 +698,7 @@ export default function PosScreen() {
     } catch {
       setSnackbar({
         visible: true,
-        message: 'Could not open print dialog.',
+        message: t('errors.printDialogFailed'),
         isError: true,
       });
     } finally {
@@ -709,7 +715,7 @@ export default function PosScreen() {
     } catch {
       setSnackbar({
         visible: true,
-        message: 'Could not generate the PDF receipt.',
+        message: t('errors.pdfGenerationFailed'),
         isError: true,
       });
     } finally {
@@ -741,14 +747,14 @@ export default function PosScreen() {
       <View style={styles.center}>
         <Text style={styles.errorText}>
           {(error as any)?.response?.data?.message ??
-            'Failed to load POS data.'}
+            t('errors.loadPosDataFailed')}
         </Text>
         <Button
           mode="contained"
           onPress={() => void refetch()}
           style={{ marginTop: 12 }}
         >
-          Retry
+          {t('common:retry')}
         </Button>
       </View>
     );
@@ -793,7 +799,7 @@ export default function PosScreen() {
       <View style={styles.container}>
         <View style={styles.ordersHeader}>
           <IconButton icon="chevron-left" onPress={() => setScreen('main')} />
-          <Text style={styles.ordersTitle}>Orders</Text>
+          <Text style={styles.ordersTitle}>{t('orders')}</Text>
         </View>
         <OrdersList
           heldOrders={heldOrders.orders}
@@ -861,18 +867,16 @@ export default function PosScreen() {
         <View style={styles.ordersHeader}>
           <IconButton icon="chevron-left" onPress={() => setScreen('main')} />
           <Text style={styles.ordersTitle}>
-            {screen === 'registerOpen' ? 'Open Register' : 'Close Register'}
+            {screen === 'registerOpen' ? t('openRegister') : t('closeRegister')}
           </Text>
         </View>
         <ScrollView contentContainerStyle={styles.registerScreenContent}>
           {screen === 'registerOpen' ? (
             <>
-              <Text style={styles.registerHint}>
-                Enter the starting cash float to begin a new shift.
-              </Text>
+              <Text style={styles.registerHint}>{t('registerHints.open')}</Text>
               <TextInput
                 mode="outlined"
-                label="Opening float (KES)"
+                label={t('openingFloatLabel')}
                 keyboardType="numeric"
                 value={openingFloatInput}
                 onChangeText={setOpeningFloatInput}
@@ -887,13 +891,13 @@ export default function PosScreen() {
                     .then(() => setScreen('main'));
                 }}
               >
-                Open Register
+                {t('openRegister')}
               </Button>
             </>
           ) : (
             <>
               <Text style={styles.registerHint}>
-                Today&apos;s sales, for reconciliation against the till.
+                {t('registerHints.close')}
               </Text>
               {dailySummaryLoading ? (
                 <ActivityIndicator
@@ -904,13 +908,13 @@ export default function PosScreen() {
               ) : (
                 <>
                   <View style={styles.summaryRow}>
-                    <Text style={styles.totalsLabel}>Orders</Text>
+                    <Text style={styles.totalsLabel}>{t('orders')}</Text>
                     <Text style={styles.totalsValue}>
                       {dailySummary?.totalOrders ?? 0}
                     </Text>
                   </View>
                   <View style={styles.summaryRow}>
-                    <Text style={styles.totalsLabel}>Total revenue</Text>
+                    <Text style={styles.totalsLabel}>{t('totalRevenue')}</Text>
                     <Text style={styles.totalsValue}>
                       {formatCurrency(dailySummary?.totalRevenue ?? 0)}
                     </Text>
@@ -919,8 +923,7 @@ export default function PosScreen() {
                   {(dailySummary?.byPaymentMethod ?? []).map((row) => (
                     <View key={row.method} style={styles.summaryRow}>
                       <Text style={styles.totalsLabel}>
-                        {PAYMENT_METHOD_LABELS[row.method] ?? row.method} (
-                        {row.orders})
+                        {paymentMethodLabel(row.method)} ({row.orders})
                       </Text>
                       <Text style={styles.totalsValue}>
                         {formatCurrency(row.amount)}
@@ -932,7 +935,7 @@ export default function PosScreen() {
 
               <TextInput
                 mode="outlined"
-                label="Cash counted (KES)"
+                label={t('cashCountedLabel')}
                 keyboardType="numeric"
                 value={cashCountedInput}
                 onChangeText={setCashCountedInput}
@@ -954,9 +957,10 @@ export default function PosScreen() {
                         },
                       ]}
                     >
-                      Expected cash {formatCurrency(expectedCash)} · Variance{' '}
-                      {variance >= 0 ? '+' : ''}
-                      {formatCurrency(variance)}
+                      {t('expectedCashVariance', {
+                        expected: formatCurrency(expectedCash),
+                        variance: `${variance >= 0 ? '+' : ''}${formatCurrency(variance)}`,
+                      })}
                     </Text>
                   );
                 })()}
@@ -967,11 +971,14 @@ export default function PosScreen() {
                 onPress={() => {
                   void register.closeRegister().then(() => {
                     setScreen('main');
-                    setSnackbar({ visible: true, message: 'Register closed' });
+                    setSnackbar({
+                      visible: true,
+                      message: t('toast.registerClosed'),
+                    });
                   });
                 }}
               >
-                Close Register
+                {t('closeRegister')}
               </Button>
             </>
           )}
@@ -985,7 +992,7 @@ export default function PosScreen() {
     <View style={styles.container}>
       <View style={styles.topBar}>
         <Searchbar
-          placeholder="Search name, code, or barcode"
+          placeholder={t('searchPlaceholder')}
           value={search}
           onChangeText={setSearch}
           style={styles.searchbarFlex}
@@ -1038,8 +1045,16 @@ export default function PosScreen() {
             ]}
           >
             {register.isOpen
-              ? `Register open since ${new Date(register.openedAt!).toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' })} · Tap to close`
-              : 'Register closed · Tap to open'}
+              ? t('registerBanner.openSince', {
+                  time: new Date(register.openedAt!).toLocaleTimeString(
+                    'en-KE',
+                    {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    },
+                  ),
+                })
+              : t('registerBanner.closedTapToOpen')}
           </Text>
         </Pressable>
       )}
@@ -1061,7 +1076,7 @@ export default function PosScreen() {
             }
             compact
           >
-            All
+            {t('all')}
           </Chip>
           {categories.map((cat) => (
             <Chip
@@ -1104,7 +1119,7 @@ export default function PosScreen() {
         }
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Text style={styles.errorText}>No products match your search.</Text>
+            <Text style={styles.errorText}>{t('noProductsMatchSearch')}</Text>
           </View>
         }
         renderItem={({ item }) => {
@@ -1131,7 +1146,9 @@ export default function PosScreen() {
                 )}
                 {outOfStock && (
                   <View style={styles.stockRibbon}>
-                    <Text style={styles.stockRibbonText}>Out of stock</Text>
+                    <Text style={styles.stockRibbonText}>
+                      {t('outOfStockBadge')}
+                    </Text>
                   </View>
                 )}
                 {!outOfStock && item.stockQuantity <= 5 && (
@@ -1169,7 +1186,7 @@ export default function PosScreen() {
                 <Text style={styles.cartCountBadgeText}>{itemCount}</Text>
               </View>
               <Text style={styles.cartSummaryLabel}>
-                Cart · {formatCurrency(total)}
+                {t('cartSummary', { total: formatCurrency(total) })}
               </Text>
               <MaterialCommunityIcons
                 name={cartExpanded ? 'chevron-down' : 'chevron-up'}
@@ -1183,7 +1200,7 @@ export default function PosScreen() {
               contentStyle={styles.payShortcutButtonContent}
               onPress={openChargeModal}
             >
-              Pay {formatCurrency(total)}
+              {t('payButton', { total: formatCurrency(total) })}
             </Button>
           </View>
 
@@ -1259,11 +1276,15 @@ export default function PosScreen() {
                         <View style={styles.numpadSection}>
                           <Text style={styles.numpadHint}>
                             {numpadMode === 'qty' &&
-                              `Quantity: ${line.quantity}`}
+                              t('numpadHint.quantity', { qty: line.quantity })}
                             {numpadMode === 'discount' &&
-                              `Discount: ${discountPercent}%`}
+                              t('numpadHint.discount', {
+                                percent: discountPercent,
+                              })}
                             {numpadMode === 'price' &&
-                              `Unit price: ${formatCurrency(line.unitPrice)}`}
+                              t('numpadHint.unitPrice', {
+                                price: formatCurrency(line.unitPrice),
+                              })}
                             {numpadBuffer ? ` → ${numpadBuffer}` : ''}
                           </Text>
                           <Numpad
@@ -1285,13 +1306,13 @@ export default function PosScreen() {
               <Divider style={styles.divider} />
 
               <View style={styles.totalsRow}>
-                <Text style={styles.totalsLabel}>Subtotal</Text>
+                <Text style={styles.totalsLabel}>{t('common:subtotal')}</Text>
                 <Text style={styles.totalsValue}>
                   {formatCurrency(subtotal)}
                 </Text>
               </View>
               <View style={styles.totalsRow}>
-                <Text style={styles.totalsLabel}>Tax</Text>
+                <Text style={styles.totalsLabel}>{t('common:tax')}</Text>
                 <Text style={styles.totalsValue}>
                   {formatCurrency(taxTotal)}
                 </Text>
@@ -1307,8 +1328,8 @@ export default function PosScreen() {
             onPress={openChargeModal}
           >
             {cartExpanded
-              ? `Charge ${formatCurrency(total)}`
-              : `Charge · ${formatCurrency(total)}`}
+              ? t('chargeButton.expanded', { total: formatCurrency(total) })
+              : t('chargeButton.collapsed', { total: formatCurrency(total) })}
           </Button>
         </View>
       )}

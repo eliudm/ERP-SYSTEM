@@ -1,0 +1,9 @@
+{
+  "tabs": {
+    "dashboard": "Tableau de bord",
+    "pos": "POS",
+    "sales": "Ventes",
+    "alerts": "Alertes",
+    "profile": "Profil"
+  }
+}

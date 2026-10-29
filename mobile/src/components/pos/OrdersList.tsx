@@ -2,6 +2,7 @@ import React from 'react';
 import { View, StyleSheet, FlatList, Pressable } from 'react-native';
 import { Text, IconButton, Chip, Button } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { HeldOrder } from '../../hooks/useHeldOrders';
 import { OfflineSale } from '../../hooks/useOfflineSales';
 import { RecentInvoice } from '../../api/mobile.api';
@@ -35,15 +36,22 @@ type Row =
   | { kind: 'held'; order: HeldOrder }
   | { kind: 'invoice'; invoice: RecentInvoice };
 
-const OFFLINE_STATUS_STYLE: Record<
+const getOfflineStatusStyle = (
+  t: (key: string) => string,
+): Record<
   OfflineSale['status'],
   { bg: string; fg: string; label: string }
-> = {
-  pending: { bg: '#fbf1de', fg: '#ad7a14', label: 'Queued' },
-  syncing: { bg: '#fbf1de', fg: '#ad7a14', label: 'Syncing…' },
-  failed: { bg: '#fde3dc', fg: '#d4380d', label: 'Failed · Retry' },
-  synced: { bg: '#d6f3ee', fg: brand.gradientEnd, label: 'Synced' }, // never actually rendered — filtered out above
-};
+> => ({
+  pending: { bg: '#fbf1de', fg: '#ad7a14', label: t('offlineStatus.queued') },
+  syncing: { bg: '#fbf1de', fg: '#ad7a14', label: t('offlineStatus.syncing') },
+  failed: { bg: '#fde3dc', fg: '#d4380d', label: t('offlineStatus.failed') },
+  // never actually rendered — synced sales are filtered out above
+  synced: {
+    bg: '#d6f3ee',
+    fg: brand.gradientEnd,
+    label: t('offlineStatus.synced'),
+  },
+});
 
 export const OrdersList: React.FC<OrdersListProps> = ({
   heldOrders,
@@ -55,6 +63,8 @@ export const OrdersList: React.FC<OrdersListProps> = ({
   onSelectInvoice,
   onRetryOfflineSale,
 }) => {
+  const { t } = useTranslation('pos');
+  const OFFLINE_STATUS_STYLE = getOfflineStatusStyle(t);
   const today = new Date().toDateString();
   const todaysInvoices = recentInvoices.filter(
     (inv) => new Date(inv.invoiceDate).toDateString() === today,
@@ -90,7 +100,7 @@ export const OrdersList: React.FC<OrdersListProps> = ({
       }
       ListEmptyComponent={
         <View style={styles.empty}>
-          <Text style={styles.emptyText}>No orders yet today.</Text>
+          <Text style={styles.emptyText}>{t('noOrdersToday')}</Text>
         </View>
       }
       renderItem={({ item }) => {
@@ -109,8 +119,8 @@ export const OrdersList: React.FC<OrdersListProps> = ({
                 <Text style={styles.rowTime}>{formatTime(sale.createdAt)}</Text>
                 <Text style={styles.rowRef}>{sale.reference}</Text>
                 <Text style={styles.rowCustomer} numberOfLines={1}>
-                  {sale.customerName} · {sale.lines.length} item
-                  {sale.lines.length === 1 ? '' : 's'}
+                  {sale.customerName} ·{' '}
+                  {t('itemCount', { count: sale.lines.length })}
                   {isFailed && sale.error ? ` · ${sale.error}` : ''}
                 </Text>
               </View>
@@ -135,18 +145,18 @@ export const OrdersList: React.FC<OrdersListProps> = ({
                 </Text>
                 <Text style={styles.rowRef}>{order.reference}</Text>
                 <Text style={styles.rowCustomer}>
-                  {order.customerName ?? 'Walk-in Customer'} ·{' '}
-                  {order.lines.length} item{order.lines.length === 1 ? '' : 's'}
+                  {order.customerName ?? t('common:walkInCustomer')} ·{' '}
+                  {t('itemCount', { count: order.lines.length })}
                 </Text>
               </View>
               <Text style={styles.rowTotal}>
                 {formatCurrency(heldOrderTotal(order))}
               </Text>
               <Chip style={styles.statusHeld} textStyle={styles.statusHeldText}>
-                Parked
+                {t('parked')}
               </Chip>
               <Button mode="text" compact onPress={() => onLoadOrder(order)}>
-                Load
+                {t('loadOrder')}
               </Button>
               <IconButton
                 icon="trash-can-outline"
@@ -170,7 +180,7 @@ export const OrdersList: React.FC<OrdersListProps> = ({
               </Text>
               <Text style={styles.rowRef}>{invoice.invoiceNo}</Text>
               <Text style={styles.rowCustomer}>
-                {invoice.customer?.name ?? 'Walk-in Customer'}
+                {invoice.customer?.name ?? t('common:walkInCustomer')}
               </Text>
             </View>
             <Text style={styles.rowTotal}>{formatCurrency(invoice.total)}</Text>

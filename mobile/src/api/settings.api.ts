@@ -14,6 +14,7 @@ export interface SystemSettings {
   posReceiptBranding?: boolean;
   receiptTemplate?: ReceiptTemplate;
   invoiceTemplate?: InvoiceTemplate;
+  defaultLanguage?: string;
 }
 
 export const settingsApi = {

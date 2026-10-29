@@ -1,0 +1,85 @@
+{
+  "paymentMethods": {
+    "cash": "Cash",
+    "card": "Card",
+    "mobileMoney": "M-Pesa",
+    "bankTransfer": "Bank Transfer",
+    "credit": "Credit"
+  },
+  "numpad": {
+    "qty": "Qty",
+    "price": "Price"
+  },
+  "toast": {
+    "orderParked": "Order parked",
+    "mpesaNeedsInternet": "M-Pesa needs internet — switched to Cash.",
+    "registerClosed": "Register closed"
+  },
+  "errors": {
+    "invalidMpesaNumber": "Enter a valid M-Pesa number, e.g. 2547XXXXXXXX",
+    "mpesaRequiresInternet": "M-Pesa requires an internet connection.",
+    "noOfflineCustomer": "No customer available offline. Reconnect once to load the walk-in customer, or select a customer.",
+    "saleFailed": "Failed to complete sale. Please try again.",
+    "mpesaPaymentFailed": "M-Pesa payment failed",
+    "mpesaStillPending": "M-Pesa confirmation is still pending. Check payment status shortly.",
+    "printDialogFailed": "Could not open print dialog.",
+    "pdfGenerationFailed": "Could not generate the PDF receipt.",
+    "loadPosDataFailed": "Failed to load POS data."
+  },
+  "checkoutStage": {
+    "creatingInvoice": "Creating invoice…",
+    "approvingStock": "Approving and updating stock…",
+    "sendingMpesaPrompt": "Sending M-Pesa prompt…",
+    "waitingMpesaConfirmation": "Waiting for M-Pesa confirmation…"
+  },
+  "orders": "Orders",
+  "openRegister": "Open Register",
+  "closeRegister": "Close Register",
+  "registerHints": {
+    "open": "Enter the starting cash float to begin a new shift.",
+    "close": "Today's sales, for reconciliation against the till."
+  },
+  "openingFloatLabel": "Opening float (KES)",
+  "totalRevenue": "Total revenue",
+  "cashCountedLabel": "Cash counted (KES)",
+  "expectedCashVariance": "Expected cash {{expected}} · Variance {{variance}}",
+  "searchPlaceholder": "Search name, code, or barcode",
+  "registerBanner": {
+    "openSince": "Register open since {{time}} · Tap to close",
+    "closedTapToOpen": "Register closed · Tap to open"
+  },
+  "all": "All",
+  "noProductsMatchSearch": "No products match your search.",
+  "outOfStockBadge": "Out of stock",
+  "cartSummary": "Cart · {{total}}",
+  "payButton": "Pay {{total}}",
+  "numpadHint": {
+    "quantity": "Quantity: {{qty}}",
+    "discount": "Discount: {{percent}}%",
+    "unitPrice": "Unit price: {{price}}"
+  },
+  "chargeButton": {
+    "expanded": "Charge {{total}}",
+    "collapsed": "Charge · {{total}}"
+  },
+  "needsInternetCaption": "Needs internet",
+  "mpesaPhoneNumberLabel": "M-Pesa phone number",
+  "placeholder": {
+    "mpesaNumber": "2547XXXXXXXX"
+  },
+  "customerSearchPlaceholder": "Search, or leave blank for Walk-in Customer",
+  "noCustomerMatchesHint": "No matches — will use Walk-in Customer",
+  "selectedCustomerHint": "Selected: {{name}}",
+  "willUseWalkIn": "Will use: Walk-in Customer",
+  "offlineStatus": {
+    "queued": "Queued",
+    "syncing": "Syncing…",
+    "failed": "Failed · Retry",
+    "synced": "Synced"
+  },
+  "noOrdersToday": "No orders yet today.",
+  "itemCount_one": "{{count}} item",
+  "itemCount_other": "{{count}} items",
+  "parked": "Parked",
+  "loadOrder": "Load"
+}

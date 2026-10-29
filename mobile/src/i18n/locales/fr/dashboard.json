@@ -1,0 +1,12 @@
+{
+  "today": "Aujourd'hui",
+  "salesToday": "Ventes du jour",
+  "invoicesToday": "Factures du jour",
+  "thisMonth": "Ce mois-ci",
+  "salesThisMonth": "Ventes du mois",
+  "pendingInvoices": "Factures en attente",
+  "needsAttention": "Nécessite une attention",
+  "pendingApprovals": "Approbations en attente",
+  "lowStockItems": "Articles en stock faible",
+  "unreadNotifications": "notifications non lues"
+}

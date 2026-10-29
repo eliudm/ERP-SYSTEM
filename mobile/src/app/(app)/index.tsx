@@ -2,6 +2,7 @@ import React from 'react';
 import { View, StyleSheet, ScrollView, RefreshControl } from 'react-native';
 import { Text, Card, ActivityIndicator, Badge } from 'react-native-paper';
 import { useQuery } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { mobileApi } from '../../api/mobile.api';
 import { brand } from '../../theme';
 
@@ -32,6 +33,7 @@ const Stat: React.FC<StatProps> = ({ label, value, tone = 'default' }) => (
 );
 
 export default function DashboardScreen() {
+  const { t } = useTranslation('dashboard');
   const { data, isLoading, isRefetching, refetch } = useQuery({
     queryKey: ['mobile-dashboard'],
     queryFn: mobileApi.getDashboard,
@@ -59,39 +61,39 @@ export default function DashboardScreen() {
         />
       }
     >
-      <Text style={styles.heading}>Today</Text>
+      <Text style={styles.heading}>{t('today')}</Text>
       <View style={styles.grid}>
         <Stat
-          label="Sales today"
+          label={t('salesToday')}
           value={formatCurrency(data?.salesToday.amount ?? 0)}
         />
         <Stat
-          label="Invoices today"
+          label={t('invoicesToday')}
           value={String(data?.salesToday.count ?? 0)}
         />
       </View>
 
-      <Text style={styles.heading}>This month</Text>
+      <Text style={styles.heading}>{t('thisMonth')}</Text>
       <View style={styles.grid}>
         <Stat
-          label="Sales this month"
+          label={t('salesThisMonth')}
           value={formatCurrency(data?.salesThisMonth ?? 0)}
         />
         <Stat
-          label="Pending invoices"
+          label={t('pendingInvoices')}
           value={String(data?.pendingInvoices ?? 0)}
         />
       </View>
 
-      <Text style={styles.heading}>Needs attention</Text>
+      <Text style={styles.heading}>{t('needsAttention')}</Text>
       <View style={styles.grid}>
         <Stat
-          label="Pending approvals"
+          label={t('pendingApprovals')}
           value={String(data?.pendingApprovals ?? 0)}
           tone={data?.pendingApprovals ? 'warning' : 'default'}
         />
         <Stat
-          label="Low stock items"
+          label={t('lowStockItems')}
           value={String(data?.lowStockCount ?? 0)}
           tone={data?.lowStockCount ? 'danger' : 'default'}
         />
@@ -101,7 +103,7 @@ export default function DashboardScreen() {
         <Card style={styles.noticeCard} mode="contained">
           <Card.Content style={styles.noticeContent}>
             <Badge style={styles.badge}>{data.unreadNotifications}</Badge>
-            <Text style={styles.noticeText}>unread notifications</Text>
+            <Text style={styles.noticeText}>{t('unreadNotifications')}</Text>
           </Card.Content>
         </Card>
       )}

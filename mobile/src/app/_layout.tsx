@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -11,11 +11,15 @@ import {
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { I18nextProvider, useTranslation } from 'react-i18next';
 import { SessionProvider, useSession } from '../providers/SessionProvider';
 import { settingsApi } from '../api/settings.api';
 import { paperTheme } from '../theme';
 import { SplashScreen } from '../components/SplashScreen';
 import { LockScreen } from '../components/LockScreen';
+import i18n, { bootstrapLanguage } from '../i18n';
+import { localeToLanguage, LANGUAGE_STORAGE_KEY } from '../i18n/languageMap';
+import { storage } from '../utils/storage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -25,6 +29,7 @@ const queryClient = new QueryClient({
 
 function RootNavigator() {
   const { user, isLoading, hasPin, isLocked, lock } = useSession();
+  const { i18n: i18next } = useTranslation();
   const appState = useRef(AppState.currentState);
 
   // Lock the register as soon as the app leaves the foreground (home
@@ -47,6 +52,18 @@ function RootNavigator() {
     queryFn: () => settingsApi.getSystemSettings(),
     enabled: !!user,
   });
+
+  // Once authenticated, the tenant's SystemSetting.defaultLanguage becomes
+  // authoritative and overrides whatever language was locally chosen on the
+  // (pre-login) Login screen — mirrors frontend/src/App.tsx's effect.
+  useEffect(() => {
+    if (!settings?.defaultLanguage) {
+      return;
+    }
+    const language = localeToLanguage(settings.defaultLanguage);
+    void i18next.changeLanguage(language);
+    void storage.setItem(LANGUAGE_STORAGE_KEY, language);
+  }, [settings?.defaultLanguage, i18next]);
 
   if (isLoading) {
     return <SplashScreen />;
@@ -100,22 +117,39 @@ function RootNavigator() {
 }
 
 export default function RootLayout() {
+  // i18next's init() (in ../i18n) runs synchronously at module load with the
+  // 'en' default; this gate withholds the real provider tree until the
+  // async read of the last-chosen language (bootstrapLanguage, backed by
+  // on-device storage) has resolved, so there's no flash of the wrong
+  // language on startup.
+  const [i18nReady, setI18nReady] = useState(false);
+
+  useEffect(() => {
+    void bootstrapLanguage().finally(() => setI18nReady(true));
+  }, []);
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <QueryClientProvider client={queryClient}>
-          <PaperProvider
-            theme={paperTheme}
-            settings={{
-              icon: (props) => <MaterialCommunityIcons {...props} />,
-            }}
-          >
-            <SessionProvider>
-              <StatusBar style="dark" />
-              <RootNavigator />
-            </SessionProvider>
-          </PaperProvider>
-        </QueryClientProvider>
+        {i18nReady ? (
+          <QueryClientProvider client={queryClient}>
+            <I18nextProvider i18n={i18n}>
+              <PaperProvider
+                theme={paperTheme}
+                settings={{
+                  icon: (props) => <MaterialCommunityIcons {...props} />,
+                }}
+              >
+                <SessionProvider>
+                  <StatusBar style="dark" />
+                  <RootNavigator />
+                </SessionProvider>
+              </PaperProvider>
+            </I18nextProvider>
+          </QueryClientProvider>
+        ) : (
+          <SplashScreen />
+        )}
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

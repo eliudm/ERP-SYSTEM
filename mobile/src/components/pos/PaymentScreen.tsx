@@ -9,16 +9,17 @@ import {
   SegmentedButtons,
 } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { Customer } from '../../api/customers.api';
 import { Warehouse } from '../../api/inventory.api';
 import { brand } from '../../theme';
 
-const PAYMENT_METHOD_LABELS: Record<string, string> = {
-  CASH: 'Cash',
-  CARD: 'Card',
-  MOBILE_MONEY: 'M-Pesa',
-  BANK_TRANSFER: 'Bank Transfer',
-  CREDIT: 'Credit',
+const PAYMENT_METHOD_LABEL_KEYS: Record<string, string> = {
+  CASH: 'paymentMethods.cash',
+  CARD: 'paymentMethods.card',
+  MOBILE_MONEY: 'paymentMethods.mobileMoney',
+  BANK_TRANSFER: 'paymentMethods.bankTransfer',
+  CREDIT: 'paymentMethods.credit',
 };
 
 const PAYMENT_METHOD_ICONS: Record<string, string> = {
@@ -79,6 +80,12 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
   onBack,
   onConfirm,
 }) => {
+  const { t } = useTranslation('pos');
+  const paymentMethodLabel = (method: string) =>
+    PAYMENT_METHOD_LABEL_KEYS[method]
+      ? t(PAYMENT_METHOD_LABEL_KEYS[method])
+      : method;
+
   return (
     <View style={styles.container}>
       <Text style={styles.total}>{formatCurrency(total)}</Text>
@@ -118,11 +125,13 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
                     disabled && styles.methodLabelDisabled,
                   ]}
                 >
-                  {PAYMENT_METHOD_LABELS[method] ?? method}
+                  {paymentMethodLabel(method)}
                 </Text>
               </View>
               {disabled && (
-                <Text style={styles.methodCaption}>Needs internet</Text>
+                <Text style={styles.methodCaption}>
+                  {t('needsInternetCaption')}
+                </Text>
               )}
             </Pressable>
           );
@@ -136,8 +145,8 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
         {paymentMethod === 'MOBILE_MONEY' && (
           <TextInput
             mode="outlined"
-            label="M-Pesa phone number"
-            placeholder="2547XXXXXXXX"
+            label={t('mpesaPhoneNumberLabel')}
+            placeholder={t('placeholder.mpesaNumber')}
             keyboardType="phone-pad"
             value={mpesaPhone}
             onChangeText={onMpesaPhoneChange}
@@ -145,10 +154,10 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
           />
         )}
 
-        <Text style={styles.sectionLabel}>Customer</Text>
+        <Text style={styles.sectionLabel}>{t('common:customer')}</Text>
         <TextInput
           mode="outlined"
-          placeholder="Search, or leave blank for Walk-in Customer"
+          placeholder={t('customerSearchPlaceholder')}
           value={customerQuery}
           onChangeText={onCustomerQueryChange}
           dense
@@ -160,9 +169,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
         {!searchingCustomers && customerQuery.trim().length > 0 && (
           <View style={styles.customerResults}>
             {customerResults.length === 0 ? (
-              <Text style={styles.hint}>
-                No matches — will use Walk-in Customer
-              </Text>
+              <Text style={styles.hint}>{t('noCustomerMatchesHint')}</Text>
             ) : (
               customerResults.map((c) => (
                 <Pressable
@@ -181,13 +188,13 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
         )}
         <Text style={styles.hint}>
           {selectedCustomer
-            ? `Selected: ${selectedCustomer.name}`
-            : 'Will use: Walk-in Customer'}
+            ? t('selectedCustomerHint', { name: selectedCustomer.name })
+            : t('willUseWalkIn')}
         </Text>
 
         {warehouses.length > 1 && (
           <>
-            <Text style={styles.sectionLabel}>Warehouse</Text>
+            <Text style={styles.sectionLabel}>{t('common:warehouse')}</Text>
             <SegmentedButtons
               value={warehouseId ?? ''}
               onValueChange={onSelectWarehouse}
@@ -231,7 +238,9 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
           loading={isSubmitting}
           disabled={isSubmitting}
         >
-          {PAYMENT_METHOD_LABELS[paymentMethod] ?? 'Confirm'}
+          {PAYMENT_METHOD_LABEL_KEYS[paymentMethod]
+            ? paymentMethodLabel(paymentMethod)
+            : t('common:confirm')}
         </Button>
       </View>
     </View>

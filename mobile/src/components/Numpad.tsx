@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, StyleSheet, Pressable } from 'react-native';
 import { Text } from 'react-native-paper';
+import { useTranslation } from 'react-i18next';
 import { brand } from '../theme';
 
 export type NumpadMode = 'qty' | 'discount' | 'price';
@@ -21,6 +22,7 @@ export const Numpad: React.FC<NumpadProps> = ({
   onKeyPress,
   onBackspace,
 }) => {
+  const { t } = useTranslation('pos');
   const Key: React.FC<{
     label: string;
     onPress: () => void;
@@ -57,7 +59,7 @@ export const Numpad: React.FC<NumpadProps> = ({
         <Key label="2" onPress={() => onKeyPress('2')} />
         <Key label="3" onPress={() => onKeyPress('3')} />
         <Key
-          label="Qty"
+          label={t('numpad.qty')}
           tone={mode === 'qty' ? 'active' : 'default'}
           onPress={() => onModeChange('qty')}
         />
@@ -77,7 +79,7 @@ export const Numpad: React.FC<NumpadProps> = ({
         <Key label="8" onPress={() => onKeyPress('8')} />
         <Key label="9" onPress={() => onKeyPress('9')} />
         <Key
-          label="Price"
+          label={t('numpad.price')}
           tone={mode === 'price' ? 'active' : 'default'}
           onPress={() => onModeChange('price')}
         />

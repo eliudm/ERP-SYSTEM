@@ -1,0 +1,12 @@
+{
+  "today": "Today",
+  "salesToday": "Sales today",
+  "invoicesToday": "Invoices today",
+  "thisMonth": "This month",
+  "salesThisMonth": "Sales this month",
+  "pendingInvoices": "Pending invoices",
+  "needsAttention": "Needs attention",
+  "pendingApprovals": "Pending approvals",
+  "lowStockItems": "Low stock items",
+  "unreadNotifications": "unread notifications"
+}

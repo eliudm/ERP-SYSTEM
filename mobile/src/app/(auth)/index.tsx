@@ -6,12 +6,26 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
-import { Text, TextInput, Button, HelperText } from 'react-native-paper';
+import {
+  Text,
+  TextInput,
+  Button,
+  HelperText,
+  SegmentedButtons,
+} from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTranslation } from 'react-i18next';
 import { useSession } from '../../providers/SessionProvider';
 import { brand } from '../../theme';
+import {
+  localeToLanguage,
+  LANGUAGE_STORAGE_KEY,
+  SUPPORTED_LANGUAGES,
+} from '../../i18n/languageMap';
+import { storage } from '../../utils/storage';
 
 export default function LoginScreen() {
+  const { t, i18n } = useTranslation('auth');
   const { signIn } = useSession();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -19,9 +33,15 @@ export default function LoginScreen() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  const handleChangeLanguage = (value: string) => {
+    const language = localeToLanguage(value);
+    void i18n.changeLanguage(language);
+    void storage.setItem(LANGUAGE_STORAGE_KEY, language);
+  };
+
   const handleSubmit = async () => {
     if (!email || !password) {
-      setError('Enter both email and password');
+      setError(t('enterBothFields'));
       return;
     }
     setError(null);
@@ -29,8 +49,7 @@ export default function LoginScreen() {
     try {
       await signIn(email.trim(), password);
     } catch (err: any) {
-      const message =
-        err?.response?.data?.message ?? 'Invalid email or password';
+      const message = err?.response?.data?.message ?? t('invalidCredentials');
       setError(Array.isArray(message) ? message.join(', ') : message);
     } finally {
       setSubmitting(false);
@@ -57,20 +76,29 @@ export default function LoginScreen() {
               <View style={styles.logo}>
                 <Text style={styles.logoLetter}>N</Text>
               </View>
-              <Text style={styles.brandName}>Nexora ERP</Text>
-              <Text style={styles.brandTagline}>
-                Streamlined operations, everywhere you work
-              </Text>
+              <Text style={styles.brandName}>{t('title')}</Text>
+              <Text style={styles.brandTagline}>{t('tagline')}</Text>
             </View>
 
             <View style={styles.card}>
-              <Text style={styles.title}>Welcome back</Text>
-              <Text style={styles.subtitle}>Sign in to your workspace</Text>
+              <Text style={styles.title}>{t('welcomeBack')}</Text>
+              <Text style={styles.subtitle}>{t('subtitle')}</Text>
+
+              <Text style={styles.languageLabel}>{t('language')}</Text>
+              <SegmentedButtons
+                value={i18n.language}
+                onValueChange={handleChangeLanguage}
+                style={styles.languageSwitcher}
+                buttons={SUPPORTED_LANGUAGES.map((lang) => ({
+                  value: lang,
+                  label: t(`languageOptions.${lang}`),
+                }))}
+              />
 
               <View style={styles.form}>
                 <TextInput
                   mode="outlined"
-                  label="Email"
+                  label={t('emailLabel')}
                   autoCapitalize="none"
                   autoCorrect={false}
                   keyboardType="email-address"
@@ -82,7 +110,7 @@ export default function LoginScreen() {
                 />
                 <TextInput
                   mode="outlined"
-                  label="Password"
+                  label={t('passwordLabel')}
                   secureTextEntry={secure}
                   value={password}
                   onChangeText={setPassword}
@@ -116,14 +144,12 @@ export default function LoginScreen() {
                   labelStyle={styles.submitLabel}
                   buttonColor={brand.gradientEnd}
                 >
-                  Sign In
+                  {t('signIn')}
                 </Button>
               </View>
             </View>
 
-            <Text style={styles.footerNote}>
-              Staff access only · Contact your administrator for an account
-            </Text>
+            <Text style={styles.footerNote}>{t('staffAccessOnly')}</Text>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -206,8 +232,19 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     color: brand.textMuted,
     marginTop: 4,
-    marginBottom: 24,
+    marginBottom: 20,
     textAlign: 'center',
+  },
+  languageLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    color: brand.textMuted,
+    marginBottom: 8,
+  },
+  languageSwitcher: {
+    marginBottom: 20,
   },
   form: {
     width: '100%',

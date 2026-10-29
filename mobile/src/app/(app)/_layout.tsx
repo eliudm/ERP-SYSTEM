@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { Tabs, usePathname, router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { brand } from '../../theme';
 import { useSession } from '../../providers/SessionProvider';
 
@@ -12,6 +13,7 @@ const POS_ONLY_ALLOWED_PATHS = ['/pos', '/profile'];
 
 export default function AppTabsLayout() {
   const { user } = useSession();
+  const { t } = useTranslation('nav');
   const isPosOnly = user?.posOnly === true;
   const pathname = usePathname();
 
@@ -32,7 +34,7 @@ export default function AppTabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Dashboard',
+          title: t('tabs.dashboard'),
           href: isPosOnly ? null : undefined,
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons
@@ -46,7 +48,7 @@ export default function AppTabsLayout() {
       <Tabs.Screen
         name="pos"
         options={{
-          title: 'POS',
+          title: t('tabs.pos'),
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons
               name="cart"
@@ -59,7 +61,7 @@ export default function AppTabsLayout() {
       <Tabs.Screen
         name="sales"
         options={{
-          title: 'Sales',
+          title: t('tabs.sales'),
           href: isPosOnly ? null : undefined,
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons
@@ -73,7 +75,7 @@ export default function AppTabsLayout() {
       <Tabs.Screen
         name="notifications"
         options={{
-          title: 'Alerts',
+          title: t('tabs.alerts'),
           href: isPosOnly ? null : undefined,
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons
@@ -87,7 +89,7 @@ export default function AppTabsLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profile',
+          title: t('tabs.profile'),
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons
               name="account-circle"

@@ -1,0 +1,85 @@
+{
+  "paymentMethods": {
+    "cash": "Espèces",
+    "card": "Carte",
+    "mobileMoney": "M-Pesa",
+    "bankTransfer": "Virement bancaire",
+    "credit": "Crédit"
+  },
+  "numpad": {
+    "qty": "Qté",
+    "price": "Prix"
+  },
+  "toast": {
+    "orderParked": "Commande mise de côté",
+    "mpesaNeedsInternet": "M-Pesa nécessite une connexion internet — basculé sur Espèces.",
+    "registerClosed": "Caisse fermée"
+  },
+  "errors": {
+    "invalidMpesaNumber": "Saisissez un numéro M-Pesa valide, ex. 2547XXXXXXXX",
+    "mpesaRequiresInternet": "M-Pesa nécessite une connexion internet.",
+    "noOfflineCustomer": "Aucun client disponible hors ligne. Reconnectez-vous une fois pour charger le client de passage, ou sélectionnez un client.",
+    "saleFailed": "Impossible de finaliser la vente. Veuillez réessayer.",
+    "mpesaPaymentFailed": "Le paiement M-Pesa a échoué",
+    "mpesaStillPending": "La confirmation M-Pesa est toujours en attente. Vérifiez le statut du paiement dans quelques instants.",
+    "printDialogFailed": "Impossible d'ouvrir la fenêtre d'impression.",
+    "pdfGenerationFailed": "Impossible de générer le reçu PDF.",
+    "loadPosDataFailed": "Échec du chargement des données du point de vente."
+  },
+  "checkoutStage": {
+    "creatingInvoice": "Création de la facture…",
+    "approvingStock": "Validation et mise à jour du stock…",
+    "sendingMpesaPrompt": "Envoi de l'invite M-Pesa…",
+    "waitingMpesaConfirmation": "En attente de confirmation M-Pesa…"
+  },
+  "orders": "Commandes",
+  "openRegister": "Ouvrir la caisse",
+  "closeRegister": "Fermer la caisse",
+  "registerHints": {
+    "open": "Saisissez le fonds de caisse initial pour commencer une nouvelle session.",
+    "close": "Ventes du jour, pour le rapprochement avec la caisse."
+  },
+  "openingFloatLabel": "Fonds de caisse initial (KES)",
+  "totalRevenue": "Revenu total",
+  "cashCountedLabel": "Espèces comptées (KES)",
+  "expectedCashVariance": "Espèces attendues {{expected}} · Écart {{variance}}",
+  "searchPlaceholder": "Rechercher un nom, code ou code-barres",
+  "registerBanner": {
+    "openSince": "Caisse ouverte depuis {{time}} · Appuyez pour fermer",
+    "closedTapToOpen": "Caisse fermée · Appuyez pour ouvrir"
+  },
+  "all": "Tous",
+  "noProductsMatchSearch": "Aucun produit ne correspond à votre recherche.",
+  "outOfStockBadge": "Rupture de stock",
+  "cartSummary": "Panier · {{total}}",
+  "payButton": "Payer {{total}}",
+  "numpadHint": {
+    "quantity": "Quantité : {{qty}}",
+    "discount": "Remise : {{percent}}%",
+    "unitPrice": "Prix unitaire : {{price}}"
+  },
+  "chargeButton": {
+    "expanded": "Encaisser {{total}}",
+    "collapsed": "Encaisser · {{total}}"
+  },
+  "needsInternetCaption": "Nécessite internet",
+  "mpesaPhoneNumberLabel": "Numéro de téléphone M-Pesa",
+  "placeholder": {
+    "mpesaNumber": "2547XXXXXXXX"
+  },
+  "customerSearchPlaceholder": "Rechercher, ou laisser vide pour le client de passage",
+  "noCustomerMatchesHint": "Aucune correspondance — le client de passage sera utilisé",
+  "selectedCustomerHint": "Sélectionné : {{name}}",
+  "willUseWalkIn": "Utilisera : Client de passage",
+  "offlineStatus": {
+    "queued": "En file d'attente",
+    "syncing": "Synchronisation…",
+    "failed": "Échoué · Réessayer",
+    "synced": "Synchronisé"
+  },
+  "noOrdersToday": "Aucune commande pour le moment aujourd'hui.",
+  "itemCount_one": "{{count}} article",
+  "itemCount_other": "{{count}} articles",
+  "parked": "Mise de côté",
+  "loadOrder": "Charger"
+}

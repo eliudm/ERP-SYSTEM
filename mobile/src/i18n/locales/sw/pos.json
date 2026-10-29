@@ -1,0 +1,85 @@
+{
+  "paymentMethods": {
+    "cash": "Pesa Taslimu",
+    "card": "Kadi",
+    "mobileMoney": "M-Pesa",
+    "bankTransfer": "Uhamisho wa Benki",
+    "credit": "Mkopo"
+  },
+  "numpad": {
+    "qty": "Idadi",
+    "price": "Bei"
+  },
+  "toast": {
+    "orderParked": "Agizo limehifadhiwa",
+    "mpesaNeedsInternet": "M-Pesa inahitaji mtandao — imebadilishwa kuwa Pesa Taslimu.",
+    "registerClosed": "Rejista imefungwa"
+  },
+  "errors": {
+    "invalidMpesaNumber": "Weka namba sahihi ya M-Pesa, mfano 2547XXXXXXXX",
+    "mpesaRequiresInternet": "M-Pesa inahitaji muunganisho wa mtandao.",
+    "noOfflineCustomer": "Hakuna mteja aliyepo nje ya mtandao. Unganisha mara moja kupakia mteja wa papo hapo, au chagua mteja.",
+    "saleFailed": "Imeshindwa kukamilisha mauzo. Tafadhali jaribu tena.",
+    "mpesaPaymentFailed": "Malipo ya M-Pesa hayakufanikiwa",
+    "mpesaStillPending": "Uthibitisho wa M-Pesa unasubiri. Angalia hali ya malipo baadaye kidogo.",
+    "printDialogFailed": "Imeshindwa kufungua dirisha la kuchapisha.",
+    "pdfGenerationFailed": "Imeshindwa kuunda risiti ya PDF.",
+    "loadPosDataFailed": "Imeshindwa kupakia data ya POS."
+  },
+  "checkoutStage": {
+    "creatingInvoice": "Inaunda ankara…",
+    "approvingStock": "Inaidhinisha na kusasisha stoo…",
+    "sendingMpesaPrompt": "Inatuma ombi la M-Pesa…",
+    "waitingMpesaConfirmation": "Inasubiri uthibitisho wa M-Pesa…"
+  },
+  "orders": "Maagizo",
+  "openRegister": "Fungua Rejista",
+  "closeRegister": "Funga Rejista",
+  "registerHints": {
+    "open": "Weka pesa ya kuanzia kufungua kipindi kipya.",
+    "close": "Mauzo ya leo, kwa ulinganishaji na pesa za rejista."
+  },
+  "openingFloatLabel": "Pesa ya kufungulia (KES)",
+  "totalRevenue": "Jumla ya mapato",
+  "cashCountedLabel": "Pesa iliyohesabiwa (KES)",
+  "expectedCashVariance": "Pesa inayotarajiwa {{expected}} · Tofauti {{variance}}",
+  "searchPlaceholder": "Tafuta jina, namba, au bakodi",
+  "registerBanner": {
+    "openSince": "Rejista wazi tangu {{time}} · Bofya kufunga",
+    "closedTapToOpen": "Rejista imefungwa · Bofya kufungua"
+  },
+  "all": "Zote",
+  "noProductsMatchSearch": "Hakuna bidhaa zinazofanana na utafutaji wako.",
+  "outOfStockBadge": "Haipo stoo",
+  "cartSummary": "Kikapu · {{total}}",
+  "payButton": "Lipa {{total}}",
+  "numpadHint": {
+    "quantity": "Idadi: {{qty}}",
+    "discount": "Punguzo: {{percent}}%",
+    "unitPrice": "Bei ya kipimo: {{price}}"
+  },
+  "chargeButton": {
+    "expanded": "Tuza {{total}}",
+    "collapsed": "Tuza · {{total}}"
+  },
+  "needsInternetCaption": "Inahitaji mtandao",
+  "mpesaPhoneNumberLabel": "Namba ya simu ya M-Pesa",
+  "placeholder": {
+    "mpesaNumber": "2547XXXXXXXX"
+  },
+  "customerSearchPlaceholder": "Tafuta, au acha wazi kwa Mteja wa Papo Hapo",
+  "noCustomerMatchesHint": "Hakuna linalofanana — Mteja wa Papo Hapo atatumika",
+  "selectedCustomerHint": "Aliyechaguliwa: {{name}}",
+  "willUseWalkIn": "Itatumia: Mteja wa Papo Hapo",
+  "offlineStatus": {
+    "queued": "Inasubiri",
+    "syncing": "Inasawazisha…",
+    "failed": "Imeshindwa · Jaribu Tena",
+    "synced": "Imesawazishwa"
+  },
+  "noOrdersToday": "Hakuna maagizo bado leo.",
+  "itemCount_one": "bidhaa {{count}}",
+  "itemCount_other": "bidhaa {{count}}",
+  "parked": "Limehifadhiwa",
+  "loadOrder": "Pakia"
+}
