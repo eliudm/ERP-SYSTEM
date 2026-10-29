@@ -125,6 +125,9 @@ export interface Invoice {
   subtotal: number;
   taxAmount: number;
   total: number;
+  // Cost of goods sold at approval time — null until approved, or for
+  // invoices approved before this field existed and not yet backfilled.
+  cogsAmount?: number | null;
   notes?: string;
   paymentMethod?: PaymentMethod;
   paidAt?: string;

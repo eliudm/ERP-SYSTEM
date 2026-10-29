@@ -156,13 +156,18 @@ export const salesApi = {
     return res.data as { year: number; months: { month: string; revenue: number; paid: number; invoices: number }[] };
   },
 
-  getDailySummary: async (date: string): Promise<{
+  getDailySummary: async (date: string, fromTime?: string, toTime?: string): Promise<{
     date: string;
+    fromTime: string | null;
+    toTime: string | null;
     totalOrders: number;
     totalRevenue: number;
+    totalCogs: number;
+    grossProfit: number;
+    invoicesMissingCostData: number;
     byPaymentMethod: { method: string; amount: number; orders: number }[];
   }> => {
-    const res = await apiClient.get('/sales/invoices/daily-summary', { params: { date } });
+    const res = await apiClient.get('/sales/invoices/daily-summary', { params: { date, fromTime, toTime } });
     return res.data;
   },
 

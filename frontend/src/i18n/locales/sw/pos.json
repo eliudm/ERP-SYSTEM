@@ -90,6 +90,7 @@
   "closingOrdersSummary": "Maagizo {{count}}: {{amount}}",
   "totalOrdersLabel": "Jumla ya Maagizo: {{count}}",
   "totalRevenueLabel": "Jumla ya Mapato: {{amount}}",
+  "grossProfitLabel": "Faida Jumla: {{amount}}",
   "closingNoteLabel": "Ujumbe wa Kufunga: {{note}}",
   "dailySaleReportTitle": "Ripoti ya Mauzo ya Siku — {{date}}",
   "receiptQrAlt": "Msimbo wa QR wa Risiti",
@@ -195,7 +196,8 @@
       "pointOfSale": "Sehemu ya Mauzo",
       "receiptNo": "Namba ya Risiti",
       "cashier": "Mkusanya Pesa",
-      "etimsStatus": "Hali ya ETims"
+      "etimsStatus": "Hali ya ETims",
+      "profit": "Faida"
     }
   }
 }

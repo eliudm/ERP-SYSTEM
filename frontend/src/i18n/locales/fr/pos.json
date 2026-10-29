@@ -90,6 +90,7 @@
   "closingOrdersSummary": "{{count}} commande(s) : {{amount}}",
   "totalOrdersLabel": "Total des commandes : {{count}}",
   "totalRevenueLabel": "Revenu total : {{amount}}",
+  "grossProfitLabel": "Bénéfice brut : {{amount}}",
   "closingNoteLabel": "Note de clôture : {{note}}",
   "dailySaleReportTitle": "Rapport de vente du jour — {{date}}",
   "receiptQrAlt": "Code QR du reçu",
@@ -195,7 +196,8 @@
       "pointOfSale": "Point de vente",
       "receiptNo": "N° de reçu",
       "cashier": "Caissier",
-      "etimsStatus": "Statut ETims"
+      "etimsStatus": "Statut ETims",
+      "profit": "Bénéfice"
     }
   }
 }

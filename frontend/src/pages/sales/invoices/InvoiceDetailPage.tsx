@@ -243,6 +243,20 @@ export const InvoiceDetailPage: React.FC = () => {
               <Text strong>Total</Text>
               <Text strong style={{ color: '#1677ff', fontSize: 16 }}>{formatCurrency(Number(invoice.total))}</Text>
             </div>
+            {invoice.cogsAmount != null && (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', marginTop: 8 }}>
+                  <Text type="secondary">Cost of Goods Sold</Text>
+                  <Text>{formatCurrency(Number(invoice.cogsAmount))}</Text>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+                  <Text strong>Gross Profit</Text>
+                  <Text strong style={{ color: '#52c41a' }}>
+                    {formatCurrency(Number(invoice.subtotal) - Number(invoice.cogsAmount))}
+                  </Text>
+                </div>
+              </>
+            )}
           </Space>
         </div>
       </Card>

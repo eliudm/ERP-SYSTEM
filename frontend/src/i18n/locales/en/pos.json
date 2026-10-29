@@ -90,6 +90,7 @@
   "closingOrdersSummary": "{{count}} order(s): {{amount}}",
   "totalOrdersLabel": "Total Orders: {{count}}",
   "totalRevenueLabel": "Total Revenue: {{amount}}",
+  "grossProfitLabel": "Gross Profit: {{amount}}",
   "closingNoteLabel": "Closing Note: {{note}}",
   "dailySaleReportTitle": "Daily Sale Report — {{date}}",
   "receiptQrAlt": "Receipt QR Code",
@@ -195,7 +196,8 @@
       "pointOfSale": "Point of Sale",
       "receiptNo": "Receipt No",
       "cashier": "Cashier",
-      "etimsStatus": "ETims status"
+      "etimsStatus": "ETims status",
+      "profit": "Profit"
     }
   }
 }

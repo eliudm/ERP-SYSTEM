@@ -36,7 +36,7 @@ const ETIMS_STATUS_COLOR: Record<string, string> = {
 // exists in this app, same convention as useHeldOrders/useRegister).
 const COLUMN_KEYS = [
   'invoiceNo', 'session', 'date', 'pointOfSale', 'receiptNo',
-  'customer', 'cashier', 'total', 'etimsStatus', 'status',
+  'customer', 'cashier', 'total', 'profit', 'etimsStatus', 'status',
 ];
 // Maps each column key to its i18n key (namespace-prefixed where it lives
 // in a different namespace than 'pos').
@@ -49,6 +49,7 @@ const COLUMN_LABEL_KEYS: Record<string, string> = {
   customer: 'common:customer',
   cashier: 'ordersPage.columns.cashier',
   total: 'common:total',
+  profit: 'ordersPage.columns.profit',
   etimsStatus: 'ordersPage.columns.etimsStatus',
   status: 'common:status',
 };
@@ -184,6 +185,18 @@ export const POSOrdersPage: React.FC = () => {
       key: 'total',
       align: 'right' as const,
       render: (v: number) => <Text strong style={{ color: '#1677ff' }}>{formatCurrency(Number(v))}</Text>,
+    },
+    {
+      title: t('ordersPage.columns.profit'),
+      key: 'profit',
+      align: 'right' as const,
+      // cogsAmount is only set once an invoice is approved — null means
+      // "not computed yet" (e.g. a draft, or an older sale pending the
+      // one-off COGS backfill), not a real zero.
+      render: (_: unknown, row: Invoice) =>
+        row.cogsAmount != null
+          ? <Text style={{ color: '#52c41a' }}>{formatCurrency(Number(row.subtotal) - Number(row.cogsAmount))}</Text>
+          : <Text type="secondary">—</Text>,
     },
     {
       title: t('ordersPage.columns.etimsStatus'),

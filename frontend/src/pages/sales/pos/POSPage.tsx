@@ -1594,7 +1594,7 @@ export const POSPage: React.FC = () => {
         title={null}
       >
         {/* Header row */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
           <Title level={4} style={{ margin: 0 }}>{t('closingRegister')}</Title>
           {dailySummary && (
             <Text strong style={{ fontSize: 15 }}>
@@ -1602,6 +1602,13 @@ export const POSPage: React.FC = () => {
             </Text>
           )}
         </div>
+        {dailySummary && (
+          <div style={{ textAlign: 'right', marginBottom: 16 }}>
+            <Text type="secondary" style={{ fontSize: 13 }}>
+              {t('grossProfitLabel', { amount: formatCurrency(dailySummary.grossProfit) })}
+            </Text>
+          </div>
+        )}
 
         {dailySummaryLoading ? (
           <div style={{ textAlign: 'center', padding: 40 }}><Spin size="large" /></div>

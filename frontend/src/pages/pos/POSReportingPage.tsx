@@ -1,16 +1,17 @@
 import React from 'react';
-import { Card, Col, DatePicker, Row, Space, Statistic, Typography } from 'antd';
+import { Alert, Card, Col, DatePicker, Row, Space, Statistic, Table, TimePicker, Typography } from 'antd';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
   ResponsiveContainer, LineChart, Line, Legend,
 } from 'recharts';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import dayjs from 'dayjs';
+import dayjs, { Dayjs } from 'dayjs';
 import { salesApi } from '../../api/sales.api';
 import { formatCurrency } from '../../utils/format';
 
 const { Title, Text } = Typography;
+const { RangePicker: TimeRangePicker } = TimePicker;
 
 export const POSReportingPage: React.FC = () => {
   const thisYear = dayjs().year();
@@ -37,6 +38,17 @@ export const POSReportingPage: React.FC = () => {
   const { data: monthSummary } = useQuery({
     queryKey: ['summary-month', monthStart, today],
     queryFn: () => salesApi.getSalesSummary(monthStart, today),
+  });
+
+  const [reportDate, setReportDate] = useState<Dayjs>(dayjs());
+  const [timeWindow, setTimeWindow] = useState<[Dayjs, Dayjs] | null>(null);
+  const reportDateStr = reportDate.format('YYYY-MM-DD');
+  const fromTime = timeWindow?.[0]?.format('HH:mm');
+  const toTime = timeWindow?.[1]?.format('HH:mm');
+
+  const { data: dailyReport, isFetching: dailyReportLoading } = useQuery({
+    queryKey: ['daily-report', reportDateStr, fromTime, toTime],
+    queryFn: () => salesApi.getDailySummary(reportDateStr, fromTime, toTime),
   });
 
   const monthlyData = (monthly?.months ?? []).map((m: any) => ({
@@ -133,6 +145,90 @@ export const POSReportingPage: React.FC = () => {
             <Line type="monotone" dataKey="Orders" stroke="#722ed1" strokeWidth={2} dot={{ r: 3 }} />
           </LineChart>
         </ResponsiveContainer>
+      </Card>
+
+      {/* Daily report: any date, optional time-of-day window, incl. profit */}
+      <Card
+        title="Daily Report"
+        bordered={false}
+        style={{ borderRadius: 12 }}
+        extra={
+          <Space wrap>
+            <DatePicker
+              value={reportDate}
+              onChange={(d) => d && setReportDate(d)}
+              allowClear={false}
+            />
+            <TimeRangePicker
+              value={timeWindow ?? undefined}
+              onChange={(v) => setTimeWindow(v && v[0] && v[1] ? [v[0], v[1]] : null)}
+              format="HH:mm"
+              placeholder={['From', 'To']}
+              allowClear
+            />
+          </Space>
+        }
+      >
+        <Space direction="vertical" style={{ width: '100%' }} size="middle">
+          <Row gutter={[16, 16]}>
+            <Col xs={12} sm={6}>
+              <Statistic title="Orders" value={dailyReport?.totalOrders ?? 0} loading={dailyReportLoading} />
+            </Col>
+            <Col xs={12} sm={6}>
+              <Statistic
+                title="Revenue"
+                value={dailyReport?.totalRevenue ?? 0}
+                formatter={(v) => formatCurrency(Number(v))}
+                loading={dailyReportLoading}
+              />
+            </Col>
+            <Col xs={12} sm={6}>
+              <Statistic
+                title="Cost of Goods Sold"
+                value={dailyReport?.totalCogs ?? 0}
+                formatter={(v) => formatCurrency(Number(v))}
+                loading={dailyReportLoading}
+              />
+            </Col>
+            <Col xs={12} sm={6}>
+              <Statistic
+                title="Gross Profit"
+                value={dailyReport?.grossProfit ?? 0}
+                formatter={(v) => formatCurrency(Number(v))}
+                valueStyle={{ color: '#389e0d' }}
+                loading={dailyReportLoading}
+              />
+            </Col>
+          </Row>
+
+          {!!dailyReport?.invoicesMissingCostData && (
+            <Alert
+              type="warning"
+              showIcon
+              message={`Profit may be understated — ${dailyReport.invoicesMissingCostData} sale(s) in this window have no cost data yet.`}
+            />
+          )}
+
+          {!!dailyReport?.byPaymentMethod?.length && (
+            <Table
+              size="small"
+              pagination={false}
+              dataSource={dailyReport.byPaymentMethod}
+              rowKey="method"
+              columns={[
+                { title: 'Payment Method', dataIndex: 'method', key: 'method' },
+                { title: 'Orders', dataIndex: 'orders', key: 'orders', align: 'right' as const },
+                {
+                  title: 'Amount',
+                  dataIndex: 'amount',
+                  key: 'amount',
+                  align: 'right' as const,
+                  render: (v: number) => formatCurrency(v),
+                },
+              ]}
+            />
+          )}
+        </Space>
       </Card>
     </Space>
   );
