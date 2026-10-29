@@ -141,7 +141,12 @@ export const POSOrdersPage: React.FC = () => {
     {
       title: 'Receipt No',
       key: 'receiptNo',
-      render: (_: unknown, row: Invoice) => row.etimsInvoice?.etimsInvoiceNo ?? '—',
+      // Government-assigned eTIMS number when KRA has accepted the
+      // submission; otherwise fall back to our own invoice number so this
+      // column always shows something, matching Odoo's own receipt column
+      // (which is never blank — it's generated locally, not by the tax
+      // authority).
+      render: (_: unknown, row: Invoice) => row.etimsInvoice?.etimsInvoiceNo ?? row.invoiceNo,
     },
     {
       title: 'Customer',
