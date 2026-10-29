@@ -13,6 +13,7 @@ import {
   FileTextOutlined, PlusOutlined, UserOutlined, UpOutlined, DownOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../../store/auth.store';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { AxiosError } from 'axios';
@@ -25,7 +26,7 @@ import { authApi } from '../../../api/auth.api';
 import { formatCurrency } from '../../../utils/format';
 import { buildReceiptHtml, openReceiptPrintWindow } from '../../../utils/receiptHtml';
 import type { Customer, Product, ProductCategory, PaymentMethod } from '../../../types';
-import { PAYMENT_METHOD_LABELS, PAYMENT_METHOD_ICONS } from '../../../types';
+import { PAYMENT_METHOD_ICONS } from '../../../types';
 
 const { Title, Text } = Typography;
 const { Search } = Input;
@@ -89,13 +90,28 @@ interface PendingMpesaPanelRow extends PendingMpesaTransaction {
 }
 
 export const POSPage: React.FC = () => {
+  const { t } = useTranslation('pos');
   const WALK_IN_VALUE = '__walk_in__';
   const defaultBusinessInfo = {
-    name: 'Nexora ERP',
+    name: t('common:appName'),
     pin: 'P051234567X',
-    address: 'Moi Avenue, Nairobi, Kenya',
-    slogan: 'Streamlined operations. Compliant receipts. Better business.',
+    address: t('business.address'),
+    slogan: t('business.slogan'),
   };
+  // Payment method display: icons stay as imported (PAYMENT_METHOD_ICONS),
+  // but labels are now translated via pos.json's paymentMethods group
+  // instead of the hardcoded PAYMENT_METHOD_LABELS map.
+  const PAYMENT_METHOD_I18N_KEYS: Record<PaymentMethod, string> = {
+    CASH: 'paymentMethods.cash',
+    CARD: 'paymentMethods.card',
+    MOBILE_MONEY: 'paymentMethods.mobileMoney',
+    BANK_TRANSFER: 'paymentMethods.bankTransfer',
+    CREDIT: 'paymentMethods.credit',
+  };
+  const paymentMethodLabel = (method: string): string =>
+    PAYMENT_METHOD_I18N_KEYS[method as PaymentMethod]
+      ? t(PAYMENT_METHOD_I18N_KEYS[method as PaymentMethod])
+      : method;
 
   const [search, setSearch] = useState('');
   const [categoryId, setCategoryId] = useState<string>();
@@ -156,7 +172,7 @@ export const POSPage: React.FC = () => {
   const posSessionId = useAuthStore((s) => s.posSessionId);
   const setPosSessionId = useAuthStore((s) => s.setPosSessionId);
   const currentUser = useAuthStore((s) => s.user);
-  const servedByName = currentUser?.firstName || currentUser?.email || 'Unknown';
+  const servedByName = currentUser?.firstName || currentUser?.email || t('unknown');
   const queryClient = useQueryClient();
 
   // ── Idle timeout ─────────────────────────────────────────
@@ -188,7 +204,7 @@ export const POSPage: React.FC = () => {
       const isAxiosError = (e: unknown): e is { response?: { status?: number } } =>
         typeof e === 'object' && e !== null && 'response' in e;
       if (isAxiosError(err) && err.response?.status === 401) {
-        message.error('Incorrect password');
+        message.error(t('toast.incorrectPassword'));
       }
     } finally {
       setLockLoading(false);
@@ -346,14 +362,14 @@ export const POSPage: React.FC = () => {
   const activeWarehouseId = warehouseId || defaultWarehouseId;
 
   const selectedCustomerName = customerId === WALK_IN_VALUE
-    ? 'Walk-in Customer'
-    : (customers || []).find((customer: Customer) => customer.id === customerId)?.name || 'N/A';
+    ? t('common:walkInCustomer')
+    : (customers || []).find((customer: Customer) => customer.id === customerId)?.name || t('notAvailable');
 
   const selectedCustomer = customerId === WALK_IN_VALUE
     ? null
     : (customers || []).find((customer: Customer) => customer.id === customerId);
 
-  const customerPin = selectedCustomer?.taxPin || 'N/A';
+  const customerPin = selectedCustomer?.taxPin || t('notAvailable');
   const receiptNo = `POS-${new Date().getTime()}`;
 
   const sleep = (ms: number) => new Promise((resolve) => {
@@ -413,14 +429,14 @@ export const POSPage: React.FC = () => {
 
         message.loading({
           key: 'mpesa-payment',
-          content: 'M-Pesa prompt sent. Waiting for payment confirmation...',
+          content: t('toast.mpesaPromptSent'),
           duration: 0,
         });
 
         await waitForMpesaSettlement(invoice.id);
         message.success({
           key: 'mpesa-payment',
-          content: 'M-Pesa payment confirmed',
+          content: t('toast.mpesaConfirmed'),
           duration: 2,
         });
       } else {
@@ -429,9 +445,9 @@ export const POSPage: React.FC = () => {
 
       const qrDetails = await fetchEtimsQrCode(invoice.id);
       if (qrDetails?.provisional) {
-        message.warning(qrDetails.message || 'eTIMS QR unavailable. Showing provisional receipt QR.');
+        message.warning(qrDetails.message || t('toast.etimsQrUnavailable'));
       } else {
-        message.success(`Sale completed - Invoice ${invoice.invoiceNo}`);
+        message.success(t('toast.saleCompleted', { invoiceNo: invoice.invoiceNo }));
       }
       if (pendingReceipt) {
         setValidatedReceipt({
@@ -458,7 +474,7 @@ export const POSPage: React.FC = () => {
     onError: (error: unknown) => {
       const apiError = error as AxiosError<{ message?: string }>;
       message.destroy('mpesa-payment');
-      message.error(apiError.response?.data?.message || 'Sale failed');
+      message.error(apiError.response?.data?.message || t('toast.saleFailed'));
       setPendingReceipt(null);
     },
   });
@@ -466,12 +482,12 @@ export const POSPage: React.FC = () => {
   const retryMpesaMutation = useMutation({
     mutationFn: (transactionId: string) => salesApi.retryMpesaTransaction(transactionId),
     onSuccess: () => {
-      message.success('M-Pesa retry request sent');
+      message.success(t('toast.mpesaRetrySent'));
       queryClient.invalidateQueries({ queryKey: ['mpesa-pending-transactions'] });
     },
     onError: (error: unknown) => {
       const apiError = error as AxiosError<{ message?: string }>;
-      message.error(apiError.response?.data?.message || 'Retry failed');
+      message.error(apiError.response?.data?.message || t('toast.retryFailed'));
     },
   });
 
@@ -489,7 +505,7 @@ export const POSPage: React.FC = () => {
       notes: payload.notes,
     }),
     onSuccess: () => {
-      message.success('Transaction reconciled and invoice updated');
+      message.success(t('toast.reconciled'));
       setReconcileModalOpen(false);
       setSelectedPendingTx(null);
       setReconcileReceiptNumber('');
@@ -501,7 +517,7 @@ export const POSPage: React.FC = () => {
     },
     onError: (error: unknown) => {
       const apiError = error as AxiosError<{ message?: string }>;
-      message.error(apiError.response?.data?.message || 'Reconciliation failed');
+      message.error(apiError.response?.data?.message || t('toast.reconciliationFailed'));
     },
   });
 
@@ -509,7 +525,7 @@ export const POSPage: React.FC = () => {
     mutationFn: (data: { name: string; phone?: string; email?: string; taxPin?: string }) =>
       salesApi.createCustomer(data),
     onSuccess: (newCustomer) => {
-      message.success(`Customer "${newCustomer.name}" created`);
+      message.success(t('toast.customerCreated', { name: newCustomer.name }));
       queryClient.invalidateQueries({ queryKey: ['customers'] });
       setCustomerId(newCustomer.id);
       createCustomerForm.resetFields();
@@ -517,7 +533,7 @@ export const POSPage: React.FC = () => {
     },
     onError: (error: unknown) => {
       const apiError = error as AxiosError<{ message?: string }>;
-      message.error(apiError.response?.data?.message || 'Failed to create customer');
+      message.error(apiError.response?.data?.message || t('toast.customerCreateFailed'));
     },
   });
 
@@ -568,15 +584,15 @@ export const POSPage: React.FC = () => {
 
   const openPayment = () => {
     if (!customerId) {
-      message.warning('Please select a customer');
+      message.warning(t('toast.selectCustomer'));
       return;
     }
     if (cart.length === 0) {
-      message.warning('Cart is empty');
+      message.warning(t('toast.cartEmpty'));
       return;
     }
     if (!activeWarehouseId) {
-      message.warning('Please select a warehouse');
+      message.warning(t('toast.selectWarehouse'));
       return;
     }
     const selected = (customers || []).find((customer: Customer) => customer.id === customerId);
@@ -617,7 +633,7 @@ export const POSPage: React.FC = () => {
 
   const resolveCustomerId = async (): Promise<string> => {
     if (!customerId) {
-      throw new Error('Customer is required');
+      throw new Error(t('toast.selectCustomer'));
     }
 
     if (customerId !== WALK_IN_VALUE) {
@@ -669,7 +685,7 @@ export const POSPage: React.FC = () => {
       });
     } catch (error: unknown) {
 	  const apiError = error as Error;
-	  message.error(apiError.message || 'Unable to complete sale');
+	  message.error(apiError.message || t('toast.unableToCompleteSale'));
     }
   };
 
@@ -688,7 +704,7 @@ export const POSPage: React.FC = () => {
     }
 
     if (!reconcileReceiptNumber.trim()) {
-      message.warning('Receipt number is required for reconciliation');
+      message.warning(t('toast.receiptNumberRequired'));
       return;
     }
 
@@ -731,7 +747,7 @@ export const POSPage: React.FC = () => {
       systemSettings?.receiptTemplate,
     );
     if (!openReceiptPrintWindow(html)) {
-      message.error('Unable to open print window. Please allow pop-ups.');
+      message.error(t('toast.unableToOpenPrintWindow'));
     }
   };
 
@@ -766,7 +782,7 @@ export const POSPage: React.FC = () => {
             {BUSINESS_INFO.name}
           </div>
           <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: 14, marginTop: 6 }}>
-            Session locked after 5 minutes of inactivity
+            {t('sessionLockNotice')}
           </div>
         </div>
 
@@ -779,13 +795,13 @@ export const POSPage: React.FC = () => {
         }}>
           <div style={{ color: 'rgba(255,255,255,0.8)', marginBottom: 20, textAlign: 'center', fontSize: 14 }}>
             <LockOutlined style={{ marginRight: 6 }} />
-            Signed in as <strong style={{ color: '#fff' }}>{currentUser?.firstName || currentUser?.email}</strong>
+            {t('signedInAs')} <strong style={{ color: '#fff' }}>{currentUser?.firstName || currentUser?.email}</strong>
           </div>
           <Form form={lockForm} onFinish={handleUnlock}>
-            <Form.Item name="password" rules={[{ required: true, message: 'Enter your password' }]} style={{ marginBottom: 16 }}>
+            <Form.Item name="password" rules={[{ required: true, message: t('auth:passwordRequired') }]} style={{ marginBottom: 16 }}>
               <Input.Password
                 prefix={<LockOutlined style={{ color: 'rgba(0,0,0,0.45)' }} />}
-                placeholder="Enter password to unlock"
+                placeholder={t('placeholder.enterPasswordToUnlock')}
                 size="large"
                 autoFocus
               />
@@ -798,7 +814,7 @@ export const POSPage: React.FC = () => {
               loading={lockLoading}
               style={{ background: '#fff', color: '#4a2560', borderColor: '#fff', fontWeight: 700 }}
             >
-              Unlock Terminal
+              {t('unlockTerminal')}
             </Button>
           </Form>
           <div style={{ textAlign: 'center', marginTop: 16 }}>
@@ -807,7 +823,7 @@ export const POSPage: React.FC = () => {
               style={{ color: 'rgba(255,255,255,0.55)', fontSize: 12 }}
               onClick={() => { setPosVerified(false); navigate('/pos/dashboard'); }}
             >
-              Exit to Dashboard
+              {t('exitToDashboard')}
             </Button>
           </div>
         </div>
@@ -824,27 +840,27 @@ export const POSPage: React.FC = () => {
 
       {/* Top toolbar */}
       <div style={{ display: 'flex', alignItems: 'center', background: '#fff', borderBottom: '1px solid #e0e0e0', padding: '0 12px', height: 50, gap: 8, flexShrink: 0 }}>
-        <Button icon={<ArrowLeftOutlined />} size="small" type="text" onClick={() => { setPosVerified(false); navigate('/pos/dashboard'); }} title="Dashboard" />
+        <Button icon={<ArrowLeftOutlined />} size="small" type="text" onClick={() => { setPosVerified(false); navigate('/pos/dashboard'); }} title={t('exitToDashboard')} />
         <div style={{ display: 'flex' }}>
-          <Button type="primary" size="small" style={{ borderRadius: '4px 0 0 4px', background: '#4a2560', borderColor: '#4a2560', fontWeight: 600 }}>Register</Button>
-          <Button size="small" style={{ borderRadius: '0 4px 4px 0' }} onClick={() => navigate('/pos/orders')}>Orders</Button>
+          <Button type="primary" size="small" style={{ borderRadius: '4px 0 0 4px', background: '#4a2560', borderColor: '#4a2560', fontWeight: 600 }}>{t('register')}</Button>
+          <Button size="small" style={{ borderRadius: '0 4px 4px 0' }} onClick={() => navigate('/pos/orders')}>{t('orders')}</Button>
         </div>
-        <Button size="small" icon={<PlusOutlined />} onClick={() => { setCart([]); setCustomerId(undefined); setSelectedCartId(null); setNumpadBuffer(''); }}>New</Button>
+        <Button size="small" icon={<PlusOutlined />} onClick={() => { setCart([]); setCustomerId(undefined); setSelectedCartId(null); setNumpadBuffer(''); }}>{t('new')}</Button>
         {cart.length > 0 && (
           <div style={{ background: '#f5f5f5', borderRadius: 4, padding: '2px 10px', fontSize: 12, fontWeight: 600, border: '1px solid #ddd', whiteSpace: 'nowrap' }}>
-            {cart.reduce((s, i) => s + i.quantity, 0)} item{cart.reduce((s, i) => s + i.quantity, 0) !== 1 ? 's' : ''} — {formatCurrency(total)}
+            {t('cartItemCount', { count: cart.reduce((s, i) => s + i.quantity, 0) })} — {formatCurrency(total)}
           </div>
         )}
         <div style={{ flex: 1 }} />
         <Search
-          placeholder="Search products..."
+          placeholder={t('placeholder.searchProducts')}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           allowClear
           style={{ width: 220 }}
           size="small"
         />
-        <Switch size="small" checked={darkMode} onChange={setDarkMode} checkedChildren={<BulbOutlined />} unCheckedChildren={<BulbOutlined />} title="Dark mode" />
+        <Switch size="small" checked={darkMode} onChange={setDarkMode} checkedChildren={<BulbOutlined />} unCheckedChildren={<BulbOutlined />} title={t('darkMode')} />
         <Dropdown
           trigger={['click']}
           dropdownRender={() => (
@@ -853,21 +869,21 @@ export const POSPage: React.FC = () => {
                 <MonitorOutlined style={{ fontSize: 28, color: '#555' }} />
               </div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 16px', cursor: 'pointer' }} onClick={() => setDarkMode((d) => !d)}>
-                <Space><BulbOutlined />Dark Mode</Space>
+                <Space><BulbOutlined />{t('darkMode')}</Space>
                 <Switch size="small" checked={darkMode} onChange={setDarkMode} onClick={(_, e) => e.stopPropagation()} />
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', cursor: 'pointer' }} onClick={() => { setCashDirection('in'); cashForm.resetFields(); setCashModalOpen(true); }}>
-                <SwapOutlined />Cash In/Out
+                <SwapOutlined />{t('modal.cashInOut')}
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', cursor: 'pointer' }} onClick={() => { queryClient.invalidateQueries(); message.success('Data reloaded'); }}>
-                <ReloadOutlined />Reload Data
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', cursor: 'pointer' }} onClick={() => { queryClient.invalidateQueries(); message.success(t('toast.dataReloaded')); }}>
+                <ReloadOutlined />{t('reloadData')}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', cursor: 'pointer' }} onClick={() => window.open('http://localhost:3000/api', '_blank')}>
-                <LinkOutlined />Backend
+                <LinkOutlined />{t('backend')}
               </div>
               <div style={{ borderTop: '1px solid #f0f0f0', marginTop: 4 }} />
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', cursor: 'pointer', color: '#ff4d4f' }} onClick={() => setCloseRegisterOpen(true)}>
-                <CloseCircleOutlined />Close Register
+                <CloseCircleOutlined />{t('closeRegister')}
               </div>
             </div>
           )}
@@ -888,7 +904,7 @@ export const POSPage: React.FC = () => {
               onClick={() => setCategoryId(undefined)}
               style={{ padding: '6px 16px', borderRadius: 6, border: '2px solid ' + (!categoryId ? '#4a2560' : '#e0e0e0'), background: !categoryId ? '#4a2560' : '#fff', color: !categoryId ? '#fff' : '#444', fontWeight: 600, cursor: 'pointer', fontSize: 13, whiteSpace: 'nowrap' }}
             >
-              All
+              {t('all')}
             </button>
             {(categories || []).map((cat: ProductCategory) => {
               const isActive = categoryId === cat.id;
@@ -913,11 +929,11 @@ export const POSPage: React.FC = () => {
               showIcon
               message={
                 <span>
-                  <strong>{lowStockProducts.length} item{lowStockProducts.length > 1 ? 's' : ''} low on stock:</strong>{' '}
+                  <strong>{t('lowStockAlert', { count: lowStockProducts.length })}</strong>{' '}
                   {lowStockProducts.slice(0, 4).map((p: any) => (
                     <Tag key={p.id} color="orange" style={{ marginRight: 4 }}>{p.name} ({p.stockQuantity})</Tag>
                   ))}
-                  {lowStockProducts.length > 4 && <Tag>+{lowStockProducts.length - 4} more</Tag>}
+                  {lowStockProducts.length > 4 && <Tag>{t('moreCount', { count: lowStockProducts.length - 4 })}</Tag>}
                 </span>
               }
               style={{ margin: 0, borderRadius: 0 }}
@@ -927,7 +943,7 @@ export const POSPage: React.FC = () => {
           {/* Product grid */}
           <div style={{ flex: 1, overflowY: 'auto', padding: 12 }}>
             {(products || []).length === 0 ? (
-              <Empty description="No products found" style={{ marginTop: 60 }} />
+              <Empty description={t('noProductsFound')} style={{ marginTop: 60 }} />
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 10 }}>
                 {(products || []).map((product: Product) => {
@@ -961,7 +977,7 @@ export const POSPage: React.FC = () => {
                         )}
                         {!inStock && (
                           <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.5)', color: '#fff', fontSize: 10, textAlign: 'center', padding: '2px 0' }}>
-                            OUT OF STOCK
+                            {t('outOfStockBadge')}
                           </div>
                         )}
                       </div>
@@ -973,7 +989,7 @@ export const POSPage: React.FC = () => {
                           {formatCurrency(Number(product.unitPrice))}
                         </div>
                         {inStock && (
-                          <div style={{ fontSize: 10, color: '#8c8c8c', marginTop: 1 }}>Stock: {Number(product.stockQuantity)}</div>
+                          <div style={{ fontSize: 10, color: '#8c8c8c', marginTop: 1 }}>{t('stockCount', { count: Number(product.stockQuantity) })}</div>
                         )}
                       </div>
                     </div>
@@ -991,7 +1007,7 @@ export const POSPage: React.FC = () => {
           <div style={{ padding: '8px 10px', borderBottom: '1px solid #f0f0f0' }}>
             <Select
               size="small"
-              placeholder="Warehouse..."
+              placeholder={t('placeholder.warehouse')}
               style={{ width: '100%' }}
               value={activeWarehouseId}
               onChange={setWarehouseId}
@@ -1004,7 +1020,7 @@ export const POSPage: React.FC = () => {
             {cart.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '60px 20px', color: '#bbb' }}>
                 <ShoppingCartOutlined style={{ fontSize: 40 }} />
-                <div style={{ marginTop: 10, fontSize: 13 }}>Click products to add them</div>
+                <div style={{ marginTop: 10, fontSize: 13 }}>{t('clickProductsToAdd')}</div>
               </div>
             ) : (
               cart.map((item, idx) => (
@@ -1020,7 +1036,7 @@ export const POSPage: React.FC = () => {
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.name}</div>
-                    <div style={{ fontSize: 11, color: '#888' }}>{formatCurrency(item.unitPrice)} / unit</div>
+                    <div style={{ fontSize: 11, color: '#888' }}>{formatCurrency(item.unitPrice)} {t('perUnit')}</div>
                   </div>
                   <div style={{ textAlign: 'right', marginRight: 8, flexShrink: 0 }}>
                     <div style={{ fontWeight: 700, fontSize: 13 }}>{formatCurrency(item.unitPrice * item.quantity)}</div>
@@ -1039,11 +1055,11 @@ export const POSPage: React.FC = () => {
           {cart.length > 0 && (
             <div style={{ padding: '6px 12px', borderTop: '1px solid #f0f0f0', background: '#fafafa', fontSize: 12 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', color: '#888', marginBottom: 2 }}>
-                <span>Taxes (16%)</span>
+                <span>{t('taxes16')}</span>
                 <span style={{ color: '#52c41a' }}>{formatCurrency(taxTotal)} ✓</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 16 }}>
-                <span>Total</span>
+                <span>{t('common:total')}</span>
                 <span>{formatCurrency(total)}</span>
               </div>
             </div>
@@ -1052,7 +1068,7 @@ export const POSPage: React.FC = () => {
           {/* Customer + Note */}
           <div style={{ display: 'flex', gap: 6, padding: '8px 10px', borderTop: '1px solid #f0f0f0' }}>
             <Select
-              placeholder={<span><UserOutlined style={{ marginRight: 4 }} />Customer</span>}
+              placeholder={<span><UserOutlined style={{ marginRight: 4 }} />{t('placeholder.customer')}</span>}
               style={{ flex: 1 }}
               size="middle"
               showSearch
@@ -1061,30 +1077,30 @@ export const POSPage: React.FC = () => {
               onChange={setCustomerId}
               filterOption={(i, o) => String(o?.label ?? '').toLowerCase().includes(i.toLowerCase())}
               options={[
-                { value: WALK_IN_VALUE, label: 'Walk-in Customer' },
+                { value: WALK_IN_VALUE, label: t('common:walkInCustomer') },
                 ...((customers || []).map((c: Customer) => ({ value: c.id, label: c.name }))),
               ]}
             />
             <Button
               size="middle"
               icon={<PlusOutlined />}
-              title="New customer"
+              title={t('modal.newCustomer')}
               onClick={() => setCreateCustomerOpen(true)}
             />
-            <Button size="middle" icon={<FileTextOutlined />} title="Note" />
+            <Button size="middle" icon={<FileTextOutlined />} title={t('common:notes')} />
           </div>
 
           {/* Numpad */}
           <div style={{ padding: isCompactCalculator ? '6px 8px' : '8px 10px', borderTop: '1px solid #f0f0f0', background: '#fafafa' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: showCalculator ? (isCompactCalculator ? 6 : 8) : 0 }}>
-              <div style={{ fontSize: 12, color: '#666', fontWeight: 600 }}>Calculator</div>
+              <div style={{ fontSize: 12, color: '#666', fontWeight: 600 }}>{t('calculator')}</div>
               <Button
                 size="small"
                 type="text"
                 icon={showCalculator ? <UpOutlined /> : <DownOutlined />}
                 onClick={() => setShowCalculator((prev) => !prev)}
               >
-                {showCalculator ? 'Hide' : 'Show'}
+                {showCalculator ? t('hide') : t('show')}
               </Button>
             </div>
 
@@ -1095,7 +1111,7 @@ export const POSPage: React.FC = () => {
                     ? (numpadMode === 'qty'
                       ? String(cart.find(i => i.productId === selectedCartId)?.quantity ?? '')
                       : String(cart.find(i => i.productId === selectedCartId)?.unitPrice ?? ''))
-                    : 'select an item'
+                    : t('selectAnItem')
                   )}
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: isCompactCalculator ? 3 : 4 }}>
@@ -1130,7 +1146,7 @@ export const POSPage: React.FC = () => {
                           boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
                         }}
                       >
-                        {key}
+                        {key === 'Qty' ? t('numpad.qty') : key === 'Price' ? t('numpad.price') : key}
                       </button>
                     );
                   })}
@@ -1143,7 +1159,7 @@ export const POSPage: React.FC = () => {
           {totalMpesaQueueCount === 0 ? (
             <div style={{ padding: '4px 8px', borderTop: '1px solid #f0f0f0', background: '#fffdf7', display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: 30 }}>
               <div style={{ fontSize: 11, color: '#7a7a7a' }}>
-                M-Pesa queue: <strong>0 pending</strong>
+                {t('mpesaQueue', { count: 0 })}
               </div>
               <Button
                 size="small"
@@ -1153,14 +1169,14 @@ export const POSPage: React.FC = () => {
                 loading={pendingMpesaFetching}
                 style={{ height: 22, paddingInline: 6 }}
               >
-                Refresh
+                {t('common:refresh')}
               </Button>
             </div>
           ) : (
             <div style={{ padding: '8px 10px', borderTop: '1px solid #f0f0f0', background: '#fffdf7' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: '#6f4e00' }}>
-                  M-Pesa Pending Transactions
+                  {t('mpesaPending')}
                 </div>
                 <Space size={6}>
                   <Select
@@ -1171,15 +1187,15 @@ export const POSPage: React.FC = () => {
                     options={[
                       {
                         value: 'ALL',
-                        label: `All (${totalMpesaQueueCount})`,
+                        label: t('mpesaFilterAll', { count: totalMpesaQueueCount }),
                       },
                       {
                         value: 'PENDING',
-                        label: `Pending (${mpesaFilterCounts.pending})`,
+                        label: t('mpesaFilterPending', { count: mpesaFilterCounts.pending }),
                       },
                       {
                         value: 'FAILED',
-                        label: `Failed (${mpesaFilterCounts.failed})`,
+                        label: t('mpesaFilterFailed', { count: mpesaFilterCounts.failed }),
                       },
                     ]}
                   />
@@ -1189,14 +1205,14 @@ export const POSPage: React.FC = () => {
                     onClick={() => refetchPendingMpesaTransactions()}
                     loading={pendingMpesaFetching}
                   >
-                    Refresh
+                    {t('common:refresh')}
                   </Button>
                   {pendingMpesaFetching && <Spin size="small" />}
                 </Space>
               </div>
 
               {filteredPanelTransactions.length === 0 ? (
-                <div style={{ fontSize: 11, color: '#8c8c8c' }}>No transactions for selected filter</div>
+                <div style={{ fontSize: 11, color: '#8c8c8c' }}>{t('noTransactionsFiltered')}</div>
               ) : (
                 <div style={{ maxHeight: isCompactCalculator ? 110 : 150, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {filteredPanelTransactions.map((tx) => (
@@ -1227,14 +1243,14 @@ export const POSPage: React.FC = () => {
                           onClick={() => retryMpesaMutation.mutate(tx.id)}
                           loading={retryMpesaMutation.isPending}
                         >
-                          Retry
+                          {t('common:retry')}
                         </Button>
                         <Button
                           size="small"
                           type="primary"
                           onClick={() => openReconcileModal(tx)}
                         >
-                          Reconcile
+                          {t('reconcile')}
                         </Button>
                       </div>
                     </div>
@@ -1257,7 +1273,7 @@ export const POSPage: React.FC = () => {
                 cursor: cart.length === 0 ? 'not-allowed' : 'pointer',
               }}
             >
-              {cart.length > 0 ? `Payment   ${formatCurrency(total)}` : 'Payment'}
+              {cart.length > 0 ? t('modal.payment', { total: formatCurrency(total) }) : t('payment')}
             </button>
           </div>
 
@@ -1268,7 +1284,7 @@ export const POSPage: React.FC = () => {
 
     {/* ── Payment Modal ─────────────────────────────────── */}
     <Modal
-      title={<span style={{ fontWeight: 700, fontSize: 16 }}>Payment — {formatCurrency(total)}</span>}
+      title={<span style={{ fontWeight: 700, fontSize: 16 }}>{t('modal.payment', { total: formatCurrency(total) })}</span>}
       open={paymentOpen}
       onCancel={() => setPaymentOpen(false)}
       footer={null}
@@ -1276,7 +1292,7 @@ export const POSPage: React.FC = () => {
       destroyOnClose
     >
       <div style={{ marginBottom: 20 }}>
-        <div style={{ fontSize: 12, color: '#888', marginBottom: 8 }}>Select Payment Method</div>
+        <div style={{ fontSize: 12, color: '#888', marginBottom: 8 }}>{t('selectPaymentMethod')}</div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
           {(['CASH', 'CARD', 'MOBILE_MONEY', 'BANK_TRANSFER', 'CREDIT'] as PaymentMethod[]).map((m) => (
             <Button
@@ -1286,67 +1302,67 @@ export const POSPage: React.FC = () => {
               style={{ flex: '1 1 120px', height: 48, fontWeight: 600 }}
               onClick={() => setPaymentMethod(m)}
             >
-              {PAYMENT_METHOD_ICONS[m]} {PAYMENT_METHOD_LABELS[m]}
+              {PAYMENT_METHOD_ICONS[m]} {paymentMethodLabel(m)}
             </Button>
           ))}
         </div>
       </div>
       {paymentMethod === 'CASH' && (
         <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 12, color: '#888', marginBottom: 6 }}>Cash Tendered</div>
+          <div style={{ fontSize: 12, color: '#888', marginBottom: 6 }}>{t('cashTendered')}</div>
           <InputNumber
             style={{ width: '100%' }} size="large" min={0} precision={2}
             value={cashTendered ? parseFloat(cashTendered) : undefined}
             onChange={(v) => setCashTendered(v != null ? String(v) : '')}
-            placeholder={`Min: ${formatCurrency(total)}`}
+            placeholder={t('minAmountPlaceholder', { amount: formatCurrency(total) })}
             autoFocus
           />
           {cashTendered !== '' && parseFloat(cashTendered) >= total && (
             <div style={{ marginTop: 8, padding: '8px 12px', background: '#f6ffed', border: '1px solid #b7eb8f', borderRadius: 6, fontWeight: 600 }}>
-              Change: {formatCurrency(parseFloat(cashTendered) - total)}
+              {t('changeAmount', { amount: formatCurrency(parseFloat(cashTendered) - total) })}
             </div>
           )}
           {cashTendered !== '' && parseFloat(cashTendered) < total && (
             <div style={{ marginTop: 8, padding: '8px 12px', background: '#fff1f0', border: '1px solid #ffa39e', borderRadius: 6, color: '#cf1322' }}>
-              Short: {formatCurrency(total - parseFloat(cashTendered))}
+              {t('shortAmount', { amount: formatCurrency(total - parseFloat(cashTendered)) })}
             </div>
           )}
         </div>
       )}
       {paymentMethod === 'MOBILE_MONEY' && (
         <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 12, color: '#888', marginBottom: 6 }}>M-Pesa Phone Number</div>
+          <div style={{ fontSize: 12, color: '#888', marginBottom: 6 }}>{t('mpesaPhoneNumber')}</div>
           <Input
             size="large"
-            placeholder="e.g. 2547XXXXXXXX"
+            placeholder={t('placeholder.mpesaNumber')}
             value={mpesaPhoneNumber}
             onChange={(event) => setMpesaPhoneNumber(event.target.value)}
           />
           <div style={{ marginTop: 8, fontSize: 12, color: '#8c8c8c' }}>
-            Customer will receive an STK push prompt on this number.
+            {t('stkPushNotice')}
           </div>
           {mpesaPhoneNumber.trim() !== '' && !isValidKenyaPhone(mpesaPhoneNumber) && (
             <div style={{ marginTop: 8, color: '#cf1322', fontSize: 12 }}>
-              Enter a valid Kenyan phone number: 07XXXXXXXX or 2547XXXXXXXX.
+              {t('invalidKenyanPhone')}
             </div>
           )}
         </div>
       )}
       <div style={{ background: '#fafafa', borderRadius: 8, padding: '10px 14px', marginBottom: 16, border: '1px solid #f0f0f0' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4, color: '#888' }}>
-          <span>Customer</span><span style={{ color: '#262626', fontWeight: 500 }}>{selectedCustomerName}</span>
+          <span>{t('common:customer')}</span><span style={{ color: '#262626', fontWeight: 500 }}>{selectedCustomerName}</span>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4, color: '#888' }}>
-          <span>Items</span><span style={{ color: '#262626' }}>{cart.reduce((s, i) => s + i.quantity, 0)}</span>
+          <span>{t('items')}</span><span style={{ color: '#262626' }}>{cart.reduce((s, i) => s + i.quantity, 0)}</span>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4, color: '#888' }}>
-          <span>Subtotal</span><span>{formatCurrency(subtotal)}</span>
+          <span>{t('common:subtotal')}</span><span>{formatCurrency(subtotal)}</span>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 6, color: '#888' }}>
-          <span>VAT 16%</span><span>{formatCurrency(taxTotal)}</span>
+          <span>{t('vat16')}</span><span>{formatCurrency(taxTotal)}</span>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 17, borderTop: '1px solid #e8e8e8', paddingTop: 6 }}>
-          <span>Total</span><span style={{ color: '#1677ff' }}>{formatCurrency(total)}</span>
+          <span>{t('common:total')}</span><span style={{ color: '#1677ff' }}>{formatCurrency(total)}</span>
         </div>
       </div>
       <Button
@@ -1359,16 +1375,16 @@ export const POSPage: React.FC = () => {
           || (paymentMethod === 'MOBILE_MONEY' && !isValidKenyaPhone(mpesaPhoneNumber))
         }
       >
-        Validate Payment
+        {t('validatePayment')}
       </Button>
     </Modal>
 
     <Modal
-      title="Reconcile M-Pesa Transaction"
+      title={t('modal.reconcileMpesa')}
       open={reconcileModalOpen}
       onCancel={() => setReconcileModalOpen(false)}
       onOk={submitReconciliation}
-      okText="Reconcile"
+      okText={t('reconcile')}
       confirmLoading={reconcileMpesaMutation.isPending}
       destroyOnClose
     >
@@ -1376,29 +1392,29 @@ export const POSPage: React.FC = () => {
         <Text type="secondary" style={{ fontSize: 12 }}>
           {selectedPendingTx
             ? `${selectedPendingTx.invoice.invoiceNo} - ${selectedPendingTx.invoice.customerName}`
-            : 'Select transaction'}
+            : t('selectTransaction')}
         </Text>
 
         <div>
-          <Text style={{ fontSize: 12 }}>M-Pesa Receipt Number</Text>
+          <Text style={{ fontSize: 12 }}>{t('mpesaReceiptNumber')}</Text>
           <Input
             value={reconcileReceiptNumber}
             onChange={(event) => setReconcileReceiptNumber(event.target.value)}
-            placeholder="e.g. QGH7X9LMN2"
+            placeholder={t('placeholder.mpesaReceipt')}
           />
         </div>
 
         <div>
-          <Text style={{ fontSize: 12 }}>Phone Number</Text>
+          <Text style={{ fontSize: 12 }}>{t('phoneNumber')}</Text>
           <Input
             value={reconcilePhoneNumber}
             onChange={(event) => setReconcilePhoneNumber(event.target.value)}
-            placeholder="2547XXXXXXXX"
+            placeholder={t('placeholder.mpesaNumber')}
           />
         </div>
 
         <div>
-          <Text style={{ fontSize: 12 }}>Amount</Text>
+          <Text style={{ fontSize: 12 }}>{t('common:amount')}</Text>
           <InputNumber
             style={{ width: '100%' }}
             min={0.01}
@@ -1409,31 +1425,31 @@ export const POSPage: React.FC = () => {
         </div>
 
         <div>
-          <Text style={{ fontSize: 12 }}>Notes</Text>
+          <Text style={{ fontSize: 12 }}>{t('common:notes')}</Text>
           <Input.TextArea
             rows={3}
             value={reconcileNotes}
             onChange={(event) => setReconcileNotes(event.target.value)}
-            placeholder="Optional reconciliation notes"
+            placeholder={t('placeholder.optionalNotes')}
           />
         </div>
       </Space>
     </Modal>
 
       <Modal
-        title="Sale Validated"
+        title={t('modal.saleValidated')}
         open={!!validatedReceipt}
         onCancel={() => setValidatedReceipt(null)}
         footer={[
           <Button key="close" onClick={() => setValidatedReceipt(null)}>
-            Close
+            {t('common:close')}
           </Button>,
           <Button
             key="print"
             type="primary"
             onClick={() => validatedReceipt && printReceipt(validatedReceipt)}
           >
-            Print Receipt
+            {t('printReceipt')}
           </Button>,
         ]}
         width={420}
@@ -1462,20 +1478,20 @@ export const POSPage: React.FC = () => {
                   <div style={{ fontSize: 11, color: '#444', lineHeight: 1.5 }}>
                     {BUSINESS_INFO.logo && <div style={{ fontWeight: 700 }}>{BUSINESS_INFO.name}</div>}
                     {BUSINESS_INFO.address && <div>{BUSINESS_INFO.address}</div>}
-                    {BUSINESS_INFO.pin && <div>PIN: {BUSINESS_INFO.pin}</div>}
+                    {BUSINESS_INFO.pin && <div>{t('receipt.pinLabel')} {BUSINESS_INFO.pin}</div>}
                   </div>
                 )}
               </div>
               {/* Ticket header */}
               <div style={{ textAlign: 'center', fontSize: 11, color: '#555', borderTop: '1px dashed #ddd', borderBottom: '1px dashed #ddd', padding: '6px 0', marginBottom: 10 }}>
-                <div>Receipt: {validatedReceipt.receiptNo}</div>
+                <div>{t('receipt.receiptLabel')} {validatedReceipt.receiptNo}</div>
                 <div>{new Date(validatedReceipt.createdAt).toLocaleString()}</div>
-                <div>Served by: {validatedReceipt.servedBy}</div>
-                {validatedReceipt.customerName && validatedReceipt.customerName !== 'Walk-in Customer' && (
-                  <div>Customer: {validatedReceipt.customerName}</div>
+                <div>{t('receipt.servedBy')} {validatedReceipt.servedBy}</div>
+                {validatedReceipt.customerName && validatedReceipt.customerName !== t('common:walkInCustomer') && (
+                  <div>{t('receipt.customerLabel')} {validatedReceipt.customerName}</div>
                 )}
-                {validatedReceipt.customerPin && validatedReceipt.customerPin !== 'N/A' && (
-                  <div>PIN: {validatedReceipt.customerPin}</div>
+                {validatedReceipt.customerPin && validatedReceipt.customerPin !== t('notAvailable') && (
+                  <div>{t('receipt.pinLabel')} {validatedReceipt.customerPin}</div>
                 )}
               </div>
 
@@ -1488,23 +1504,23 @@ export const POSPage: React.FC = () => {
                 showHeader={false}
                 columns={[
                   {
-                    title: 'Qty',
+                    title: t('receipt.qty'),
                     key: 'qty',
                     width: 28,
                     render: (_: unknown, r: CartItem) => <strong>{r.quantity}</strong>,
                   },
                   {
-                    title: 'Item',
+                    title: t('receipt.item'),
                     key: 'item',
                     render: (_: unknown, r: CartItem) => (
                       <div>
                         <div>{r.name}</div>
-                        <div style={{ fontSize: 10, color: '#888' }}>{formatCurrency(r.unitPrice)} / Unit</div>
+                        <div style={{ fontSize: 10, color: '#888' }}>{formatCurrency(r.unitPrice)} {t('perUnit')}</div>
                       </div>
                     ),
                   },
                   {
-                    title: 'Amount',
+                    title: t('common:amount'),
                     key: 'amount',
                     align: 'right' as const,
                     render: (_: unknown, r: CartItem) => formatCurrency(r.unitPrice * r.quantity),
@@ -1514,19 +1530,19 @@ export const POSPage: React.FC = () => {
 
               <Divider style={{ margin: '8px 0' }} />
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <Text type="secondary">Subtotal</Text>
+                <Text type="secondary">{t('common:subtotal')}</Text>
                 <Text>{formatCurrency(validatedReceipt.subtotal)}</Text>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <Text type="secondary">VAT 16%</Text>
+                <Text type="secondary">{t('vat16')}</Text>
                 <Text>{formatCurrency(validatedReceipt.taxTotal)}</Text>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #111', borderBottom: '1px solid #111', padding: '4px 0', margin: '4px 0' }}>
-                <Text strong style={{ fontSize: 14 }}>Total</Text>
+                <Text strong style={{ fontSize: 14 }}>{t('common:total')}</Text>
                 <Text strong style={{ fontSize: 14 }}>{formatCurrency(validatedReceipt.total)}</Text>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <Text type="secondary">{PAYMENT_METHOD_ICONS[validatedReceipt.paymentMethod]} {PAYMENT_METHOD_LABELS[validatedReceipt.paymentMethod]}</Text>
+                <Text type="secondary">{PAYMENT_METHOD_ICONS[validatedReceipt.paymentMethod]} {paymentMethodLabel(validatedReceipt.paymentMethod)}</Text>
                 <Text>{formatCurrency(validatedReceipt.total)}</Text>
               </div>
 
@@ -1535,17 +1551,17 @@ export const POSPage: React.FC = () => {
                   <>
                     <img
                       src={validatedReceipt.qrCode}
-                      alt={validatedReceipt.provisionalQr ? 'Receipt QR Code' : 'eTIMS QR Code'}
+                      alt={validatedReceipt.provisionalQr ? t('receiptQrAlt') : t('etimsQrCode')}
                       style={{ width: 120, height: 120 }}
                     />
                     <div style={{ marginTop: 4 }}>
                       <Text type="secondary" style={{ fontSize: 11 }}>
-                        {validatedReceipt.provisionalQr ? 'Provisional Receipt QR' : 'eTIMS QR Code'}
+                        {validatedReceipt.provisionalQr ? t('provisionalReceiptQr') : t('etimsQrCode')}
                       </Text>
                     </div>
                   </>
                 ) : (
-                  <Text type="secondary" style={{ fontSize: 11 }}>eTIMS QR code pending</Text>
+                  <Text type="secondary" style={{ fontSize: 11 }}>{t('etimsQrPending')}</Text>
                 )}
               </div>
               {validatedReceipt.qrMessage && (
@@ -1561,7 +1577,7 @@ export const POSPage: React.FC = () => {
                 </div>
               )}
               <div style={{ textAlign: 'center', marginTop: 10, fontSize: 10, color: '#aaa', borderTop: '1px dashed #eee', paddingTop: 6 }}>
-                Powered by: Nexora ERP
+                {t('poweredBy', { appName: t('common:appName') })}
               </div>
             </div>
           </Space>
@@ -1579,10 +1595,10 @@ export const POSPage: React.FC = () => {
       >
         {/* Header row */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <Title level={4} style={{ margin: 0 }}>Closing Register</Title>
+          <Title level={4} style={{ margin: 0 }}>{t('closingRegister')}</Title>
           {dailySummary && (
             <Text strong style={{ fontSize: 15 }}>
-              {dailySummary.totalOrders} order{dailySummary.totalOrders !== 1 ? 's' : ''}: {formatCurrency(dailySummary.totalRevenue)}
+              {t('closingOrdersSummary', { count: dailySummary.totalOrders, amount: formatCurrency(dailySummary.totalRevenue) })}
             </Text>
           )}
         </div>
@@ -1599,16 +1615,16 @@ export const POSPage: React.FC = () => {
                 <div key={row.method} style={{ marginBottom: 20, borderBottom: '1px solid #f0f0f0', paddingBottom: 16 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                     <Text strong style={{ fontSize: 15 }}>
-                      {PAYMENT_METHOD_ICONS[row.method as PaymentMethod]} {PAYMENT_METHOD_LABELS[row.method as PaymentMethod] ?? row.method}
+                      {PAYMENT_METHOD_ICONS[row.method as PaymentMethod]} {paymentMethodLabel(row.method)}
                     </Text>
                     <Text strong style={{ fontSize: 15 }}>{formatCurrency(counted)}</Text>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', color: '#888', fontSize: 13, marginLeft: 16 }}>
-                    <span>▸ Payments</span>
+                    <span>{t('payments')}</span>
                     <span>+ {formatCurrency(row.amount)}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', color: diff === 0 ? '#888' : '#ff4d4f', fontSize: 13, marginLeft: 16 }}>
-                    <span>Difference</span>
+                    <span>{t('difference')}</span>
                     <span>{formatCurrency(diff)}</span>
                   </div>
                 </div>
@@ -1616,7 +1632,7 @@ export const POSPage: React.FC = () => {
             })}
 
             {(!dailySummary || dailySummary.byPaymentMethod.length === 0) && (
-              <div style={{ textAlign: 'center', padding: 20, color: '#aaa' }}>No sales today</div>
+              <div style={{ textAlign: 'center', padding: 20, color: '#aaa' }}>{t('noSalesToday')}</div>
             )}
 
             <Divider />
@@ -1626,7 +1642,7 @@ export const POSPage: React.FC = () => {
               {(dailySummary?.byPaymentMethod ?? []).map((row) => (
                 <div key={row.method} style={{ flex: '1 1 180px' }}>
                   <div style={{ marginBottom: 4, fontSize: 13 }}>
-                    {PAYMENT_METHOD_LABELS[row.method as PaymentMethod] ?? row.method} Count
+                    {t('countLabel', { label: paymentMethodLabel(row.method) })}
                   </div>
                   <InputNumber
                     style={{ width: '100%' }}
@@ -1641,10 +1657,10 @@ export const POSPage: React.FC = () => {
 
             {/* Closing note */}
             <div style={{ marginBottom: 20 }}>
-              <div style={{ marginBottom: 4, fontSize: 13 }}>Closing note</div>
+              <div style={{ marginBottom: 4, fontSize: 13 }}>{t('closingNote')}</div>
               <Input.TextArea
                 rows={3}
-                placeholder="Add a closing note..."
+                placeholder={t('placeholder.addClosingNote')}
                 value={closingNote}
                 onChange={(e) => setClosingNote(e.target.value)}
               />
@@ -1671,7 +1687,7 @@ export const POSPage: React.FC = () => {
                         // swallow — register still closes locally below
                       }
                     }
-                    message.success('Register closed');
+                    message.success(t('toast.registerClosed'));
                     setCloseRegisterOpen(false);
                     setClosingNote('');
                     setClosingCounts({});
@@ -1681,10 +1697,10 @@ export const POSPage: React.FC = () => {
                     navigate('/pos/dashboard');
                   }}
                 >
-                  Close Register
+                  {t('closeRegister')}
                 </Button>
                 <Button onClick={() => { setCloseRegisterOpen(false); setClosingNote(''); setClosingCounts({}); }}>
-                  Discard
+                  {t('discard')}
                 </Button>
               </Space>
               <Space>
@@ -1692,16 +1708,16 @@ export const POSPage: React.FC = () => {
                   icon={<SwapOutlined />}
                   onClick={() => { setCloseRegisterOpen(false); setCashDirection('in'); cashForm.resetFields(); setCashModalOpen(true); }}
                 >
-                  Cash In/Out
+                  {t('modal.cashInOut')}
                 </Button>
                 <Button
                   icon={<DownloadOutlined />}
                   onClick={() => {
                     if (!dailySummary) return;
                     const rows = (dailySummary.byPaymentMethod).map((r) =>
-                      `${PAYMENT_METHOD_LABELS[r.method as PaymentMethod] ?? r.method}\t${formatCurrency(r.amount)}\t${r.orders} orders`
+                      `${paymentMethodLabel(r.method)}\t${formatCurrency(r.amount)}\t${t('ordersPage.ordersCount', { count: r.orders })}`
                     ).join('\n');
-                    const content = `Daily Sale Report — ${today}\n\nTotal Orders: ${dailySummary.totalOrders}\nTotal Revenue: ${formatCurrency(dailySummary.totalRevenue)}\n\n${rows}\n\nClosing Note: ${closingNote || 'N/A'}`;
+                    const content = `${t('dailySaleReportTitle', { date: today })}\n\n${t('totalOrdersLabel', { count: dailySummary.totalOrders })}\n${t('totalRevenueLabel', { amount: formatCurrency(dailySummary.totalRevenue) })}\n\n${rows}\n\n${t('closingNoteLabel', { note: closingNote || t('notAvailable') })}`;
                     const blob = new Blob([content], { type: 'text/plain' });
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
@@ -1709,7 +1725,7 @@ export const POSPage: React.FC = () => {
                     URL.revokeObjectURL(url);
                   }}
                 >
-                  Daily Sale
+                  {t('dailySale')}
                 </Button>
               </Space>
             </div>
@@ -1723,20 +1739,24 @@ export const POSPage: React.FC = () => {
         title={
           <Space>
             <SwapOutlined />
-            Cash In / Out
+            {t('modal.cashInOut')}
           </Space>
         }
         onCancel={() => setCashModalOpen(false)}
         onOk={async () => {
           try {
             const values = await cashForm.validateFields();
-            const label = cashDirection === 'in' ? 'Cash In' : 'Cash Out';
-            message.success(`${label}: KES ${Number(values.amount).toLocaleString()} recorded — ${values.reason || 'No reason given'}`);
+            const label = cashDirection === 'in' ? t('cashIn') : t('cashOut');
+            message.success(t('toast.cashRecorded', {
+              label,
+              amount: Number(values.amount).toLocaleString(),
+              reason: values.reason || t('toast.noReasonGiven'),
+            }));
             setCashModalOpen(false);
             cashForm.resetFields();
           } catch { /* validation */ }
         }}
-        okText={cashDirection === 'in' ? 'Record Cash In' : 'Record Cash Out'}
+        okText={cashDirection === 'in' ? t('recordCashIn') : t('recordCashOut')}
         width={400}
         destroyOnClose
       >
@@ -1748,7 +1768,7 @@ export const POSPage: React.FC = () => {
               onClick={() => setCashDirection('in')}
               style={cashDirection === 'in' ? { background: '#52c41a', borderColor: '#52c41a' } : {}}
             >
-              Cash In
+              {t('cashIn')}
             </Button>
             <Button
               type={cashDirection === 'out' ? 'primary' : 'default'}
@@ -1756,30 +1776,30 @@ export const POSPage: React.FC = () => {
               onClick={() => setCashDirection('out')}
               danger={cashDirection === 'out'}
             >
-              Cash Out
+              {t('cashOut')}
             </Button>
           </div>
           <Form form={cashForm} layout="vertical">
             <Form.Item
               name="amount"
-              label="Amount (KES)"
-              rules={[{ required: true, message: 'Enter an amount' }, { type: 'number', min: 1, transform: Number, message: 'Must be greater than 0' }]}
+              label={t('form.amountKes')}
+              rules={[{ required: true, message: t('form.enterAmount') }, { type: 'number', min: 1, transform: Number, message: t('form.mustBeGreaterThanZero') }]}
             >
               <InputNumber style={{ width: '100%' }} min={1} placeholder="0.00" />
             </Form.Item>
-            <Form.Item name="reason" label="Reason / Note">
-              <Input placeholder="e.g. Opening float, petty cash..." />
+            <Form.Item name="reason" label={t('form.reasonNote')}>
+              <Input placeholder={t('placeholder.openingFloat')} />
             </Form.Item>
           </Form>
         </Space>
       </Modal>
 
       <Modal
-        title="New Customer"
+        title={t('modal.newCustomer')}
         open={createCustomerOpen}
         onCancel={() => { createCustomerForm.resetFields(); setCreateCustomerOpen(false); }}
         onOk={() => createCustomerForm.submit()}
-        okText="Create"
+        okText={t('create')}
         confirmLoading={createCustomerMutation.isPending}
         destroyOnClose
       >
@@ -1790,19 +1810,19 @@ export const POSPage: React.FC = () => {
         >
           <Form.Item
             name="name"
-            label="Name"
-            rules={[{ required: true, message: 'Customer name is required' }]}
+            label={t('common:name')}
+            rules={[{ required: true, message: t('customerNameRequired') }]}
           >
-            <Input placeholder="e.g. Jane Mwangi" autoFocus />
+            <Input placeholder={t('placeholder.customerName')} autoFocus />
           </Form.Item>
-          <Form.Item name="phone" label="Phone">
-            <Input placeholder="e.g. 0712345678" />
+          <Form.Item name="phone" label={t('common:phone')}>
+            <Input placeholder={t('placeholder.customerPhone')} />
           </Form.Item>
-          <Form.Item name="email" label="Email">
-            <Input placeholder="e.g. jane@example.com" />
+          <Form.Item name="email" label={t('common:email')}>
+            <Input placeholder={t('placeholder.customerEmail')} />
           </Form.Item>
-          <Form.Item name="taxPin" label="Tax PIN (KRA)">
-            <Input placeholder="e.g. A012345678Z" />
+          <Form.Item name="taxPin" label={t('form.taxPin')}>
+            <Input placeholder={t('placeholder.customerPin')} />
           </Form.Item>
         </Form>
       </Modal>

@@ -6,6 +6,7 @@ import {
 import { SearchOutlined, PrinterOutlined, EyeOutlined, UserOutlined, SettingOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import dayjs from 'dayjs';
 import { salesApi } from '../../api/sales.api';
 import { settingsApi } from '../../api/settings.api';
@@ -33,19 +34,25 @@ const ETIMS_STATUS_COLOR: Record<string, string> = {
 // Which columns can be shown/hidden via the picker, and their display
 // order — persisted per-device (no backend "user preference" concept
 // exists in this app, same convention as useHeldOrders/useRegister).
-const COLUMN_OPTIONS: { key: string; label: string }[] = [
-  { key: 'invoiceNo', label: 'Order Ref' },
-  { key: 'session', label: 'Session' },
-  { key: 'date', label: 'Date' },
-  { key: 'pointOfSale', label: 'Point of Sale' },
-  { key: 'receiptNo', label: 'Receipt No' },
-  { key: 'customer', label: 'Customer' },
-  { key: 'cashier', label: 'Cashier' },
-  { key: 'total', label: 'Total' },
-  { key: 'etimsStatus', label: 'ETims status' },
-  { key: 'status', label: 'Status' },
+const COLUMN_KEYS = [
+  'invoiceNo', 'session', 'date', 'pointOfSale', 'receiptNo',
+  'customer', 'cashier', 'total', 'etimsStatus', 'status',
 ];
-const ALL_COLUMN_KEYS = COLUMN_OPTIONS.map((c) => c.key);
+// Maps each column key to its i18n key (namespace-prefixed where it lives
+// in a different namespace than 'pos').
+const COLUMN_LABEL_KEYS: Record<string, string> = {
+  invoiceNo: 'ordersPage.columns.orderRef',
+  session: 'ordersPage.columns.session',
+  date: 'common:date',
+  pointOfSale: 'ordersPage.columns.pointOfSale',
+  receiptNo: 'ordersPage.columns.receiptNo',
+  customer: 'common:customer',
+  cashier: 'ordersPage.columns.cashier',
+  total: 'common:total',
+  etimsStatus: 'ordersPage.columns.etimsStatus',
+  status: 'common:status',
+};
+const ALL_COLUMN_KEYS = COLUMN_KEYS;
 const COLUMNS_STORAGE_KEY = 'nexora-orders-columns';
 
 const loadVisibleColumns = (): string[] => {
@@ -63,6 +70,7 @@ const loadVisibleColumns = (): string[] => {
 };
 
 export const POSOrdersPage: React.FC = () => {
+  const { t } = useTranslation('pos');
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
@@ -90,6 +98,8 @@ export const POSOrdersPage: React.FC = () => {
     queryFn: () => settingsApi.getSystemSettings(),
   });
 
+  const columnOptions = COLUMN_KEYS.map((key) => ({ key, label: t(COLUMN_LABEL_KEYS[key]) }));
+
   const invoices: Invoice[] = data?.data ?? [];
   const total: number = data?.meta?.total ?? 0;
 
@@ -109,7 +119,7 @@ export const POSOrdersPage: React.FC = () => {
 
   const allColumns = [
     {
-      title: 'Order Ref',
+      title: t('ordersPage.columns.orderRef'),
       dataIndex: 'invoiceNo',
       key: 'invoiceNo',
       render: (v: string, row: Invoice) => (
@@ -123,18 +133,18 @@ export const POSOrdersPage: React.FC = () => {
       ),
     },
     {
-      title: 'Session',
+      title: t('ordersPage.columns.session'),
       key: 'session',
       render: (_: unknown, row: Invoice) => row.posSession?.sessionRef ?? '—',
     },
     {
-      title: 'Date',
+      title: t('common:date'),
       dataIndex: 'invoiceDate',
       key: 'date',
       render: (v: string) => dayjs(v).format('DD MMM YYYY HH:mm'),
     },
     {
-      title: 'Point of Sale',
+      title: t('ordersPage.columns.pointOfSale'),
       key: 'pointOfSale',
       // Prefer the session's branch (the cashier's own assigned outlet,
       // Settings > Users) since it's reliably set once a cashier has one —
@@ -143,7 +153,7 @@ export const POSOrdersPage: React.FC = () => {
       render: (_: unknown, row: Invoice) => row.posSession?.branch?.name ?? row.branch?.name ?? '—',
     },
     {
-      title: 'Receipt No',
+      title: t('ordersPage.columns.receiptNo'),
       key: 'receiptNo',
       // Government-assigned eTIMS number when KRA has accepted the
       // submission; otherwise fall back to our own invoice number so this
@@ -153,12 +163,12 @@ export const POSOrdersPage: React.FC = () => {
       render: (_: unknown, row: Invoice) => row.etimsInvoice?.etimsInvoiceNo ?? row.invoiceNo,
     },
     {
-      title: 'Customer',
+      title: t('common:customer'),
       key: 'customer',
       render: (_: unknown, row: Invoice) => row.customer?.name ?? '—',
     },
     {
-      title: 'Cashier',
+      title: t('ordersPage.columns.cashier'),
       key: 'cashier',
       render: (_: unknown, row: Invoice) =>
         row.cashier ? (
@@ -169,24 +179,24 @@ export const POSOrdersPage: React.FC = () => {
         ) : '—',
     },
     {
-      title: 'Total',
+      title: t('common:total'),
       dataIndex: 'total',
       key: 'total',
       align: 'right' as const,
       render: (v: number) => <Text strong style={{ color: '#1677ff' }}>{formatCurrency(Number(v))}</Text>,
     },
     {
-      title: 'ETims status',
+      title: t('ordersPage.columns.etimsStatus'),
       key: 'etimsStatus',
       render: (_: unknown, row: Invoice) =>
         row.etimsInvoice ? (
           <Tag color={ETIMS_STATUS_COLOR[row.etimsInvoice.status] ?? 'default'}>
             {row.etimsInvoice.status}
           </Tag>
-        ) : <Tag>NOT SENT</Tag>,
+        ) : <Tag>{t('ordersPage.notSent')}</Tag>,
     },
     {
-      title: 'Status',
+      title: t('common:status'),
       dataIndex: 'status',
       key: 'status',
       render: (v: string) => <Badge status={v === 'PAID' ? 'success' : v === 'VOID' ? 'error' : 'processing'} text={<Tag color={STATUS_COLOR[v] ?? 'default'}>{v}</Tag>} />,
@@ -201,14 +211,14 @@ export const POSOrdersPage: React.FC = () => {
             type="text"
             size="small"
             icon={<EyeOutlined />}
-            title="View particulars"
+            title={t('ordersPage.viewParticulars')}
             onClick={(e) => { e.stopPropagation(); navigate(`/sales/invoices/${row.id}`); }}
           />
           <Button
             type="text"
             size="small"
             icon={<PrinterOutlined />}
-            title="Reprint receipt"
+            title={t('ordersPage.reprintReceipt')}
             onClick={(e) => { e.stopPropagation(); handleReprint(row); }}
           />
         </Space>
@@ -225,7 +235,7 @@ export const POSOrdersPage: React.FC = () => {
       {
         receiptNo: inv.invoiceNo,
         createdAt: inv.invoiceDate,
-        customerName: inv.customer?.name ?? 'Walk-in Customer',
+        customerName: inv.customer?.name ?? t('common:walkInCustomer'),
         customerPin: inv.customer?.taxPin ?? null,
         paymentMethod: inv.paymentMethod,
         subtotal: Number(inv.subtotal),
@@ -238,7 +248,7 @@ export const POSOrdersPage: React.FC = () => {
         })),
         qrCode: inv.etimsInvoice?.qrCode ?? null,
         reprint: true,
-        businessName: settings?.companyName || 'Nexora ERP',
+        businessName: settings?.companyName || t('common:appName'),
         businessLogo: settings?.companyLogo ?? null,
         businessAddress: settings?.companyAddress ?? null,
         businessPin: settings?.companyPin ?? null,
@@ -253,7 +263,7 @@ export const POSOrdersPage: React.FC = () => {
   const columnPickerMenu = (
     <div style={{ background: '#fff', padding: 12, borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.12)', minWidth: 200 }}>
       <Space direction="vertical" size={4} style={{ width: '100%' }}>
-        {COLUMN_OPTIONS.map((col) => (
+        {columnOptions.map((col) => (
           <Checkbox
             key={col.key}
             checked={visibleColumns.includes(col.key)}
@@ -270,9 +280,9 @@ export const POSOrdersPage: React.FC = () => {
     <Space direction="vertical" style={{ width: '100%' }} size="large">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Space>
-          <Title level={3} style={{ margin: 0 }}>Orders</Title>
+          <Title level={3} style={{ margin: 0 }}>{t('ordersPage.title')}</Title>
           <Dropdown popupRender={() => columnPickerMenu} trigger={['click']} placement="bottomRight">
-            <Button type="text" icon={<SettingOutlined />} title="Customize columns" />
+            <Button type="text" icon={<SettingOutlined />} title={t('ordersPage.customizeColumns')} />
           </Dropdown>
         </Space>
       </div>
@@ -282,22 +292,22 @@ export const POSOrdersPage: React.FC = () => {
         <Space wrap style={{ width: '100%' }}>
           <Input
             prefix={<SearchOutlined />}
-            placeholder="Search order # or customer…"
+            placeholder={t('ordersPage.searchPlaceholder')}
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             style={{ width: 260 }}
             allowClear
           />
           <Select
-            placeholder="Status"
+            placeholder={t('ordersPage.statusPlaceholder')}
             allowClear
             style={{ width: 140 }}
             value={statusFilter}
             onChange={(v) => { setStatusFilter(v); setPage(1); }}
             options={[
-              { value: 'APPROVED', label: 'Approved' },
-              { value: 'PAID', label: 'Paid' },
-              { value: 'VOID', label: 'Void' },
+              { value: 'APPROVED', label: t('ordersPage.approved') },
+              { value: 'PAID', label: t('ordersPage.paid') },
+              { value: 'VOID', label: t('ordersPage.void') },
             ]}
           />
           <RangePicker
@@ -325,7 +335,7 @@ export const POSOrdersPage: React.FC = () => {
             pageSize: 20,
             onChange: setPage,
             showSizeChanger: false,
-            showTotal: (t) => `${t} orders`,
+            showTotal: (totalCount) => t('ordersPage.ordersCount', { count: totalCount }),
           }}
           size="middle"
         />

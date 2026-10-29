@@ -1,5 +1,12 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { ConfigProvider } from 'antd';
+import enUS from 'antd/locale/en_US';
+import frFR from 'antd/locale/fr_FR';
+import { useTranslation } from 'react-i18next';
+import { useQuery } from '@tanstack/react-query';
+import { settingsApi } from './api/settings.api';
+import { localeToLanguage, LANGUAGE_STORAGE_KEY } from './i18n/languageMap';
 import { useAuthStore } from './store/auth.store';
 import { AppLayout } from './components/layout/AppLayout';
 import { LoginPage } from './pages/auth/LoginPage';
@@ -76,8 +83,41 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />;
 };
 
+const ANTD_LOCALES: Record<string, typeof enUS> = { en: enUS, fr: frFR };
+
 const App: React.FC = () => {
+  const { i18n } = useTranslation();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+
+  const { data: settings } = useQuery({
+    queryKey: ['system-settings'],
+    queryFn: () => settingsApi.getSystemSettings(),
+    enabled: isAuthenticated,
+  });
+
+  useEffect(() => {
+    if (!settings?.defaultLanguage) {
+      return;
+    }
+    const language = localeToLanguage(settings.defaultLanguage);
+    i18n.changeLanguage(language);
+    try {
+      localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
+    } catch {
+      // storage unavailable (private mode, etc.) — language still applies for this session
+    }
+  }, [settings?.defaultLanguage, i18n]);
+
   return (
+    <ConfigProvider
+      theme={{
+        token: {
+          colorPrimary: '#1677ff',
+          borderRadius: 8,
+        },
+      }}
+      locale={ANTD_LOCALES[i18n.language]}
+    >
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
@@ -168,6 +208,7 @@ const App: React.FC = () => {
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </BrowserRouter>
+    </ConfigProvider>
   );
 };
 

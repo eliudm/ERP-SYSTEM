@@ -20,6 +20,7 @@ import {
   PieChart, Pie, Cell, Legend,
 } from 'recharts';
 import { useQuery } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { salesApi } from '../../api/sales.api';
 import { formatCurrency, formatDate, getStatusColor } from '../../utils/format';
 import dayjs from 'dayjs';
@@ -32,6 +33,7 @@ const { RangePicker } = DatePicker;
 const COLORS = ['#1677ff', '#52c41a', '#fa8c16', '#f5222d'];
 
 export const DashboardPage: React.FC = () => {
+  const { t } = useTranslation('dashboard');
   const navigate = useNavigate();
   const currentYear = dayjs().year();
   const startDate = `${currentYear}-01-01`;
@@ -40,71 +42,71 @@ export const DashboardPage: React.FC = () => {
   const appTiles = [
     {
       key: '/sales/pos',
-      title: 'Point of Sale',
-      description: 'Sell, print receipts, validate invoices',
+      title: t('tiles.pos.title'),
+      description: t('tiles.pos.description'),
       icon: <ShoppingCartOutlined />,
       accent: 'linear-gradient(135deg, #ff9966 0%, #ff5e62 100%)',
     },
     {
       key: '/sales/invoices',
-      title: 'Sales',
-      description: 'Track invoices, collections, receivables',
+      title: t('tiles.sales.title'),
+      description: t('tiles.sales.description'),
       icon: <BarChartOutlined />,
       accent: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
     },
     {
       key: '/inventory/products',
-      title: 'Inventory',
-      description: 'Monitor stock, products, and availability',
+      title: t('tiles.inventory.title'),
+      description: t('tiles.inventory.description'),
       icon: <InboxOutlined />,
       accent: 'linear-gradient(135deg, #6a11cb 0%, #2575fc 100%)',
     },
     {
       key: '/procurement/purchase-orders',
-      title: 'Purchase',
-      description: 'Manage purchase orders and receiving',
+      title: t('tiles.purchase.title'),
+      description: t('tiles.purchase.description'),
       icon: <ShoppingOutlined />,
       accent: 'linear-gradient(135deg, #f7971e 0%, #ffd200 100%)',
     },
     {
       key: '/accounting/accounts',
-      title: 'Accounting',
-      description: 'Books, journals, balances, reporting',
+      title: t('tiles.accounting.title'),
+      description: t('tiles.accounting.description'),
       icon: <AccountBookOutlined />,
       accent: 'linear-gradient(135deg, #a044ff 0%, #6a3093 100%)',
     },
     {
       key: '/hr/employees',
-      title: 'Employees',
-      description: 'People records, payroll, leave tracking',
+      title: t('tiles.employees.title'),
+      description: t('tiles.employees.description'),
       icon: <TeamOutlined />,
       accent: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)',
     },
     {
       key: '/sales/customers',
-      title: 'Customers',
-      description: 'Profiles, statements, and billing history',
+      title: t('tiles.customers.title'),
+      description: t('tiles.customers.description'),
       icon: <UserOutlined />,
       accent: 'linear-gradient(135deg, #fc5c7d 0%, #6a82fb 100%)',
     },
     {
       key: '/inventory/movements',
-      title: 'Stock Flow',
-      description: 'Transfers, adjustments, and movements',
+      title: t('tiles.stockFlow.title'),
+      description: t('tiles.stockFlow.description'),
       icon: <ClusterOutlined />,
       accent: 'linear-gradient(135deg, #00c6ff 0%, #0072ff 100%)',
     },
     {
       key: '/etims/config',
-      title: 'eTIMS',
-      description: 'Compliance status and tax device setup',
+      title: t('tiles.etims.title'),
+      description: t('tiles.etims.description'),
       icon: <SafetyCertificateOutlined />,
       accent: 'linear-gradient(135deg, #f953c6 0%, #b91d73 100%)',
     },
     {
       key: '/settings/general',
-      title: 'Settings',
-      description: 'Business identity and system preferences',
+      title: t('tiles.settings.title'),
+      description: t('tiles.settings.description'),
       icon: <SettingOutlined />,
       accent: 'linear-gradient(135deg, #43cea2 0%, #185a9d 100%)',
     },
@@ -132,13 +134,13 @@ export const DashboardPage: React.FC = () => {
   }));
 
   const pieData = [
-    { name: 'Paid', value: Number(summary?.totalPaid || 0) },
-    { name: 'Outstanding', value: Number(summary?.outstanding || 0) },
+    { name: t('paid'), value: Number(summary?.totalPaid || 0) },
+    { name: t('outstanding'), value: Number(summary?.outstanding || 0) },
   ];
 
   const recentColumns = [
     {
-      title: 'Invoice No',
+      title: t('invoiceNo'),
       dataIndex: 'invoiceNo',
       key: 'invoiceNo',
       render: (v: string) => (
@@ -146,24 +148,24 @@ export const DashboardPage: React.FC = () => {
       ),
     },
     {
-      title: 'Customer',
+      title: t('common:customer'),
       dataIndex: ['customer', 'name'],
       key: 'customer',
     },
     {
-      title: 'Amount',
+      title: t('common:amount'),
       dataIndex: 'total',
       key: 'total',
       render: (v: number) => formatCurrency(Number(v)),
     },
     {
-      title: 'Date',
+      title: t('common:date'),
       dataIndex: 'invoiceDate',
       key: 'invoiceDate',
       render: (v: string) => formatDate(v),
     },
     {
-      title: 'Status',
+      title: t('common:status'),
       dataIndex: 'status',
       key: 'status',
       render: (v: string) => (
@@ -186,11 +188,11 @@ export const DashboardPage: React.FC = () => {
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
           <div>
             <Tag color="gold" style={{ borderRadius: 999, padding: '4px 12px', marginBottom: 12 }}>
-              Workspace Overview
+              {t('workspaceOverview')}
             </Tag>
-            <Title level={2} style={{ margin: 0, color: '#2f2749' }}>Nexora ERP</Title>
+            <Title level={2} style={{ margin: 0, color: '#2f2749' }}>{t('common:appName')}</Title>
             <Text type="secondary" style={{ fontSize: 15 }}>
-              Launch any module from a single workspace and keep operations in one flow.
+              {t('tagline')}
             </Text>
           </div>
 
@@ -210,7 +212,7 @@ export const DashboardPage: React.FC = () => {
               }}
               onClick={() => navigate('/sales/pos')}
             >
-              Open POS
+              {t('openPos')}
             </Button>
           </Space>
         </div>
@@ -219,40 +221,40 @@ export const DashboardPage: React.FC = () => {
           <Col xs={24} md={8}>
             <Card bordered={false} style={{ borderRadius: 24, background: 'rgba(255,255,255,0.82)' }}>
               <Statistic
-                title="Revenue This Year"
+                title={t('revenueThisYear')}
                 value={Number(summary?.totalRevenue || 0)}
                 formatter={(v) => formatCurrency(Number(v))}
                 prefix={<DollarOutlined />}
                 valueStyle={{ color: '#2b8a5a' }}
               />
               <Text type="secondary">
-                <ArrowUpOutlined style={{ color: '#2b8a5a' }} /> Collected and billed across all sales
+                <ArrowUpOutlined style={{ color: '#2b8a5a' }} /> {t('revenueThisYearDesc')}
               </Text>
             </Card>
           </Col>
           <Col xs={24} md={8}>
             <Card bordered={false} style={{ borderRadius: 24, background: 'rgba(255,255,255,0.82)' }}>
               <Statistic
-                title="Outstanding"
+                title={t('outstanding')}
                 value={Number(summary?.outstanding || 0)}
                 formatter={(v) => formatCurrency(Number(v))}
                 prefix={<ClockCircleOutlined />}
                 valueStyle={{ color: '#d48806' }}
               />
               <Text type="secondary">
-                <ArrowDownOutlined style={{ color: '#d48806' }} /> Pending customer collections
+                <ArrowDownOutlined style={{ color: '#d48806' }} /> {t('outstandingDesc')}
               </Text>
             </Card>
           </Col>
           <Col xs={24} md={8}>
             <Card bordered={false} style={{ borderRadius: 24, background: 'rgba(255,255,255,0.82)' }}>
               <Statistic
-                title="Invoices"
+                title={t('invoicesStat')}
                 value={summary?.totalInvoices || 0}
                 prefix={<FileTextOutlined />}
                 valueStyle={{ color: '#5b54f3' }}
               />
-              <Text type="secondary">Current year invoicing activity</Text>
+              <Text type="secondary">{t('invoicesStatDesc')}</Text>
             </Card>
           </Col>
         </Row>
@@ -269,11 +271,11 @@ export const DashboardPage: React.FC = () => {
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, gap: 16, flexWrap: 'wrap' }}>
           <div>
-            <Title level={4} style={{ margin: 0, color: '#2f2749' }}>Apps</Title>
-            <Text type="secondary">A launcher view inspired by the interface you shared, adapted for the ERP modules already in this system.</Text>
+            <Title level={4} style={{ margin: 0, color: '#2f2749' }}>{t('apps')}</Title>
+            <Text type="secondary">{t('appsSubtitle')}</Text>
           </div>
           <Tag color="blue" style={{ borderRadius: 999, padding: '4px 12px' }}>
-            {appTiles.length} modules ready
+            {t('modulesReady', { count: appTiles.length })}
           </Tag>
         </div>
 
@@ -327,14 +329,14 @@ export const DashboardPage: React.FC = () => {
         <Col xs={24} sm={12} lg={6}>
           <Card bordered={false} style={{ borderRadius: 24, background: 'rgba(255,255,255,0.72)' }}>
             <Statistic
-              title="Total Revenue"
+              title={t('totalRevenue')}
               value={Number(summary?.totalRevenue || 0)}
               formatter={(v) => formatCurrency(Number(v))}
               prefix={<DollarOutlined />}
               valueStyle={{ color: '#52c41a' }}
             />
             <Text type="secondary" style={{ fontSize: 12 }}>
-              <ArrowUpOutlined style={{ color: '#52c41a' }} /> YTD {currentYear}
+              <ArrowUpOutlined style={{ color: '#52c41a' }} /> {t('ytd', { year: currentYear })}
             </Text>
           </Card>
         </Col>
@@ -342,13 +344,13 @@ export const DashboardPage: React.FC = () => {
         <Col xs={24} sm={12} lg={6}>
           <Card bordered={false} style={{ borderRadius: 24, background: 'rgba(255,255,255,0.72)' }}>
             <Statistic
-              title="Total Invoices"
+              title={t('totalInvoices')}
               value={summary?.totalInvoices || 0}
               prefix={<FileTextOutlined />}
               valueStyle={{ color: '#1677ff' }}
             />
             <Text type="secondary" style={{ fontSize: 12 }}>
-              All statuses this year
+              {t('totalInvoicesDesc')}
             </Text>
           </Card>
         </Col>
@@ -356,14 +358,14 @@ export const DashboardPage: React.FC = () => {
         <Col xs={24} sm={12} lg={6}>
           <Card bordered={false} style={{ borderRadius: 24, background: 'rgba(255,255,255,0.72)' }}>
             <Statistic
-              title="Outstanding"
+              title={t('outstanding')}
               value={Number(summary?.outstanding || 0)}
               formatter={(v) => formatCurrency(Number(v))}
               prefix={<ClockCircleOutlined />}
               valueStyle={{ color: '#fa8c16' }}
             />
             <Text type="secondary" style={{ fontSize: 12 }}>
-              <ArrowDownOutlined style={{ color: '#fa8c16' }} /> Unpaid invoices
+              <ArrowDownOutlined style={{ color: '#fa8c16' }} /> {t('outstandingDesc2')}
             </Text>
           </Card>
         </Col>
@@ -371,14 +373,14 @@ export const DashboardPage: React.FC = () => {
         <Col xs={24} sm={12} lg={6}>
           <Card bordered={false} style={{ borderRadius: 24, background: 'rgba(255,255,255,0.72)' }}>
             <Statistic
-              title="Total Collected"
+              title={t('totalCollected')}
               value={Number(summary?.totalPaid || 0)}
               formatter={(v) => formatCurrency(Number(v))}
               prefix={<CheckCircleOutlined />}
               valueStyle={{ color: '#52c41a' }}
             />
             <Text type="secondary" style={{ fontSize: 12 }}>
-              Paid invoices YTD
+              {t('totalCollectedDesc')}
             </Text>
           </Card>
         </Col>
@@ -386,7 +388,7 @@ export const DashboardPage: React.FC = () => {
 
       <Row gutter={[16, 16]}>
         <Col xs={24} lg={16}>
-          <Card bordered={false} title="Revenue vs Paid (Monthly)" style={{ height: 360, borderRadius: 28, background: 'rgba(255,255,255,0.72)' }}>
+          <Card bordered={false} title={t('revenueVsPaid')} style={{ height: 360, borderRadius: 28, background: 'rgba(255,255,255,0.72)' }}>
             <ResponsiveContainer width="100%" height={270}>
               <AreaChart data={monthlyData}>
                 <defs>
@@ -414,14 +416,14 @@ export const DashboardPage: React.FC = () => {
                   dataKey="revenue"
                   stroke="#1677ff"
                   fill="url(#revenue)"
-                  name="Revenue"
+                  name={t('revenueSeries')}
                 />
                 <Area
                   type="monotone"
                   dataKey="paid"
                   stroke="#52c41a"
                   fill="url(#expenses)"
-                  name="Paid"
+                  name={t('paidSeries')}
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -429,7 +431,7 @@ export const DashboardPage: React.FC = () => {
         </Col>
 
         <Col xs={24} lg={8}>
-          <Card bordered={false} title="Invoice Collection" style={{ height: 360, borderRadius: 28, background: 'rgba(255,255,255,0.72)' }}>
+          <Card bordered={false} title={t('invoiceCollection')} style={{ height: 360, borderRadius: 28, background: 'rgba(255,255,255,0.72)' }}>
             <ResponsiveContainer width="100%" height={270}>
               <PieChart>
                 <Pie
@@ -456,7 +458,7 @@ export const DashboardPage: React.FC = () => {
         </Col>
       </Row>
 
-      <Card bordered={false} title="Recent Invoices" style={{ borderRadius: 28, background: 'rgba(255,255,255,0.72)' }}>
+      <Card bordered={false} title={t('recentInvoices')} style={{ borderRadius: 28, background: 'rgba(255,255,255,0.72)' }}>
         <Table
           columns={recentColumns}
           dataSource={invoicesData?.data || []}

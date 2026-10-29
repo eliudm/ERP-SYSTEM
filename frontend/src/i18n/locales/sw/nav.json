@@ -1,0 +1,97 @@
+{
+  "dashboard": "Dashibodi",
+  "pos": {
+    "title": "Mauzo (POS)",
+    "dashboard": "Dashibodi",
+    "terminal": "🛒 Terminali",
+    "orders": "Maagizo",
+    "products": "Bidhaa",
+    "reporting": "Ripoti",
+    "configuration": "Mipangilio"
+  },
+  "sales": {
+    "title": "Mauzo",
+    "quotations": "Nukuu za Bei",
+    "invoices": "Ankara",
+    "customers": "Wateja",
+    "creditNotes": "Hati za Mkopo",
+    "priceLists": "Orodha za Bei"
+  },
+  "accounting": {
+    "title": "Uhasibu",
+    "chartOfAccounts": "Chati ya Akaunti",
+    "journalEntries": "Maingizo ya Jarida",
+    "trialBalance": "Mizani ya Majaribio",
+    "profitLoss": "Faida na Hasara",
+    "balanceSheet": "Taarifa ya Mizani",
+    "cashFlow": "Mtiririko wa Fedha",
+    "generalLedger": "Kitabu Kikuu",
+    "agedReceivables": "Madeni ya Wateja Yaliyochelewa",
+    "agedPayables": "Madeni ya Wauzaji Yaliyochelewa",
+    "paymentModes": "Njia za Malipo",
+    "bankAccounts": "Akaunti za Benki",
+    "budgets": "Bajeti",
+    "taxReports": "Ripoti za Kodi"
+  },
+  "inventory": {
+    "title": "Hesabu ya Bidhaa",
+    "products": "Bidhaa",
+    "warehouses": "Maghala",
+    "stockMovements": "Mwendo wa Bidhaa Ghalani",
+    "stockTransfers": "Uhamishaji wa Bidhaa",
+    "stockCounts": "Hesabu ya Bidhaa Ghalani",
+    "lots": "Makundi",
+    "serialNumbers": "Namba za Mfululizo"
+  },
+  "purchase": {
+    "title": "Ununuzi",
+    "orders": "Maagizo",
+    "vendorBills": "Ankara za Wauzaji",
+    "vendors": "Wauzaji",
+    "purchaseReturns": "Marejesho ya Ununuzi"
+  },
+  "hr": {
+    "title": "Rasilimali Watu na Mishahara",
+    "employees": "Wafanyakazi",
+    "payroll": "Mishahara",
+    "leave": "Likizo",
+    "attendance": "Mahudhurio",
+    "recruitment": "Uajiri",
+    "appraisals": "Tathmini",
+    "allowancesLoans": "Posho na Mikopo"
+  },
+  "etims": {
+    "title": "eTIMS",
+    "configuration": "Mipangilio"
+  },
+  "contacts": "Mawasiliano",
+  "crm": "CRM",
+  "manufacturing": {
+    "title": "Uzalishaji",
+    "billsOfMaterials": "Orodha ya Malighafi",
+    "workOrders": "Maagizo ya Kazi"
+  },
+  "analytics": "Uchambuzi",
+  "aiInsights": "Maarifa ya AI",
+  "approvals": "Uidhinishaji",
+  "notifications": "Arifa",
+  "settings": "Mipangilio",
+  "logoText": "Nexora ERP",
+  "topbar": {
+    "workspace": "Mahali pa Kazi pa Nexora",
+    "notifications": "Arifa",
+    "markAllRead": "Weka zote kama zimesomwa",
+    "noUnreadNotifications": "Hakuna arifa mpya",
+    "outOfStock": "Haipo Stoo",
+    "lowStock": "Stoo Inapungua",
+    "profile": "Wasifu",
+    "logout": "Toka"
+  },
+  "tabs": {
+    "dashboard": "Dashibodi",
+    "pos": "POS",
+    "sales": "Mauzo",
+    "alerts": "Tahadhari",
+    "profile": "Wasifu"
+  }
+}

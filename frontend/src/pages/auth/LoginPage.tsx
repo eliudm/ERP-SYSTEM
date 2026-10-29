@@ -1,20 +1,38 @@
 import React, { useState } from 'react';
 import {
   Form, Input, Button, Card,
-  Typography, Alert, Space,
+  Typography, Alert, Space, Select,
 } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { authApi } from '../../api/auth.api';
 import { useAuthStore } from '../../store/auth.store';
+import { LANGUAGE_STORAGE_KEY } from '../../i18n/languageMap';
 
 const { Title, Text } = Typography;
 
+const LANGUAGE_SWITCHER_OPTIONS = [
+  { value: 'en', label: 'English' },
+  { value: 'sw', label: 'Kiswahili' },
+  { value: 'fr', label: 'Français' },
+];
+
 export const LoginPage: React.FC = () => {
+  const { t, i18n } = useTranslation('auth');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
   const setAuth = useAuthStore((s) => s.setAuth);
+
+  const changeLanguage = (language: string) => {
+    i18n.changeLanguage(language);
+    try {
+      localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
+    } catch {
+      // storage unavailable (private mode, etc.) — language still applies for this session
+    }
+  };
 
   const onFinish = async (values: { email: string; password: string }) => {
     setLoading(true);
@@ -26,7 +44,7 @@ export const LoginPage: React.FC = () => {
       navigate(res.user.posOnly ? '/pos/session' : '/dashboard');
     } catch (err: any) {
       setError(
-        err.response?.data?.message || 'Login failed. Please try again.',
+        err.response?.data?.message || t('loginFailed'),
       );
     } finally {
       setLoading(false);
@@ -41,8 +59,17 @@ export const LoginPage: React.FC = () => {
         alignItems: 'center',
         justifyContent: 'center',
         background: 'linear-gradient(135deg, #1677ff 0%, #0958d9 100%)',
+        position: 'relative',
       }}
     >
+      <Select
+        value={i18n.language}
+        onChange={changeLanguage}
+        options={LANGUAGE_SWITCHER_OPTIONS}
+        style={{ position: 'absolute', top: 24, right: 24, width: 140 }}
+        aria-label={t('language')}
+      />
+
       <Card style={{ width: 420, boxShadow: '0 8px 32px rgba(0,0,0,0.15)' }}>
         <Space direction="vertical" style={{ width: '100%' }} size="large">
           {/* Logo */}
@@ -64,9 +91,9 @@ export const LoginPage: React.FC = () => {
               </Text>
             </div>
             <Title level={3} style={{ margin: 0 }}>
-              Nexora ERP
+              {t('title')}
             </Title>
-            <Text type="secondary">Sign in to your account</Text>
+            <Text type="secondary">{t('subtitle')}</Text>
           </div>
 
           {error && (
@@ -80,26 +107,26 @@ export const LoginPage: React.FC = () => {
           >
             <Form.Item
               name="email"
-              label="Email"
+              label={t('emailLabel')}
               rules={[
-                { required: true, message: 'Please enter your email' },
-                { type: 'email', message: 'Invalid email format' },
+                { required: true, message: t('emailRequired') },
+                { type: 'email', message: t('emailInvalid') },
               ]}
             >
               <Input
                 prefix={<UserOutlined />}
-                placeholder="Enter your email"
+                placeholder={t('emailPlaceholder')}
               />
             </Form.Item>
 
             <Form.Item
               name="password"
-              label="Password"
-              rules={[{ required: true, message: 'Please enter your password' }]}
+              label={t('passwordLabel')}
+              rules={[{ required: true, message: t('passwordRequired') }]}
             >
               <Input.Password
                 prefix={<LockOutlined />}
-                placeholder="Enter your password"
+                placeholder={t('passwordPlaceholder')}
               />
             </Form.Item>
 
@@ -110,7 +137,7 @@ export const LoginPage: React.FC = () => {
                 loading={loading}
                 block
               >
-                Sign In
+                {t('signIn')}
               </Button>
             </Form.Item>
           </Form>

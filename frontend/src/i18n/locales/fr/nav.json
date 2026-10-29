@@ -1,0 +1,97 @@
+{
+  "dashboard": "Tableau de bord",
+  "pos": {
+    "title": "Point de vente",
+    "dashboard": "Tableau de bord",
+    "terminal": "🛒 Terminal",
+    "orders": "Commandes",
+    "products": "Produits",
+    "reporting": "Rapports",
+    "configuration": "Configuration"
+  },
+  "sales": {
+    "title": "Ventes",
+    "quotations": "Devis",
+    "invoices": "Factures",
+    "customers": "Clients",
+    "creditNotes": "Avoirs",
+    "priceLists": "Listes de prix"
+  },
+  "accounting": {
+    "title": "Comptabilité",
+    "chartOfAccounts": "Plan comptable",
+    "journalEntries": "Écritures de journal",
+    "trialBalance": "Balance de vérification",
+    "profitLoss": "Profits et pertes",
+    "balanceSheet": "Bilan",
+    "cashFlow": "Flux de trésorerie",
+    "generalLedger": "Grand livre",
+    "agedReceivables": "Créances échues",
+    "agedPayables": "Dettes échues",
+    "paymentModes": "Modes de paiement",
+    "bankAccounts": "Comptes bancaires",
+    "budgets": "Budgets",
+    "taxReports": "Rapports fiscaux"
+  },
+  "inventory": {
+    "title": "Inventaire",
+    "products": "Produits",
+    "warehouses": "Entrepôts",
+    "stockMovements": "Mouvements de stock",
+    "stockTransfers": "Transferts de stock",
+    "stockCounts": "Inventaires physiques",
+    "lots": "Lots",
+    "serialNumbers": "Numéros de série"
+  },
+  "purchase": {
+    "title": "Achats",
+    "orders": "Commandes",
+    "vendorBills": "Factures fournisseurs",
+    "vendors": "Fournisseurs",
+    "purchaseReturns": "Retours d'achat"
+  },
+  "hr": {
+    "title": "RH et Paie",
+    "employees": "Employés",
+    "payroll": "Paie",
+    "leave": "Congés",
+    "attendance": "Présence",
+    "recruitment": "Recrutement",
+    "appraisals": "Évaluations",
+    "allowancesLoans": "Indemnités et prêts"
+  },
+  "etims": {
+    "title": "eTIMS",
+    "configuration": "Configuration"
+  },
+  "contacts": "Contacts",
+  "crm": "CRM",
+  "manufacturing": {
+    "title": "Fabrication",
+    "billsOfMaterials": "Nomenclatures",
+    "workOrders": "Ordres de fabrication"
+  },
+  "analytics": "Analytique",
+  "aiInsights": "Analyses IA",
+  "approvals": "Approbations",
+  "notifications": "Notifications",
+  "settings": "Paramètres",
+  "logoText": "Nexora ERP",
+  "topbar": {
+    "workspace": "Espace de travail Nexora",
+    "notifications": "Notifications",
+    "markAllRead": "Tout marquer comme lu",
+    "noUnreadNotifications": "Aucune notification non lue",
+    "outOfStock": "Rupture de stock",
+    "lowStock": "Stock faible",
+    "profile": "Profil",
+    "logout": "Déconnexion"
+  },
+  "tabs": {
+    "dashboard": "Tableau de bord",
+    "pos": "POS",
+    "sales": "Ventes",
+    "alerts": "Alertes",
+    "profile": "Profil"
+  }
+}

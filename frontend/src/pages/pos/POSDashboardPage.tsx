@@ -8,6 +8,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import dayjs from 'dayjs';
+import { useTranslation } from 'react-i18next';
 import { salesApi } from '../../api/sales.api';
 import { settingsApi } from '../../api/settings.api';
 import { authApi } from '../../api/auth.api';
@@ -17,6 +18,7 @@ import { formatCurrency } from '../../utils/format';
 const { Title, Text } = Typography;
 
 export const POSDashboardPage: React.FC = () => {
+  const { t } = useTranslation('pos');
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const setPosVerified = useAuthStore((s) => s.setPosVerified);
@@ -65,7 +67,7 @@ export const POSDashboardPage: React.FC = () => {
       const isAxiosError = (e: unknown): e is { response?: { status?: number } } =>
         typeof e === 'object' && e !== null && 'response' in e;
       if (isAxiosError(err) && err.response?.status === 401) {
-        message.error('Incorrect password');
+        message.error(t('toast.incorrectPassword'));
       }
       // validation errors are handled by Form — no action needed
     } finally {
@@ -84,7 +86,7 @@ export const POSDashboardPage: React.FC = () => {
     queryFn: () => settingsApi.getSystemSettings(),
   });
 
-  const shopName = systemSettings?.companyName || 'Nexora ERP';
+  const shopName = systemSettings?.companyName || t('common:appName');
   const totalSold: number = (summary as any)?.totalRevenue ?? 0;
   const invoiceCount: number = (summary as any)?.totalInvoices ?? 0;
   // Has unclosed sales since last close
@@ -97,14 +99,14 @@ export const POSDashboardPage: React.FC = () => {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Title level={3} style={{ margin: 0 }}>
           <ShoppingCartOutlined style={{ marginRight: 10 }} />
-          Point of Sale
+          {t('dashboard.title')}
         </Title>
         <Button
           type="primary"
           icon={<PlusOutlined />}
           onClick={openTerminal}
         >
-          New Session
+          {t('dashboard.newSession')}
         </Button>
       </div>
 
@@ -144,14 +146,14 @@ export const POSDashboardPage: React.FC = () => {
                     color={isOverdue && hasOpenSales ? 'red' : hasOpenSales ? 'orange' : 'green'}
                     style={{ marginTop: 6, fontWeight: 600 }}
                   >
-                    {isOverdue && hasOpenSales ? '⚠ Overdue – Must Close' : hasOpenSales ? 'To Close' : 'Open'}
+                    {isOverdue && hasOpenSales ? t('dashboard.overdueMustClose') : hasOpenSales ? t('dashboard.toClose') : t('dashboard.open')}
                   </Tag>
                 </div>
                 <Dropdown
                   menu={{
                     items: [
-                      { key: 'open', label: 'Open POS', icon: <PlayCircleOutlined />, onClick: openTerminal },
-                      { key: 'orders', label: 'View Orders', icon: <ShoppingCartOutlined />, onClick: () => navigate('/pos/orders') },
+                      { key: 'open', label: t('dashboard.openPosMenu'), icon: <PlayCircleOutlined />, onClick: openTerminal },
+                      { key: 'orders', label: t('dashboard.viewOrders'), icon: <ShoppingCartOutlined />, onClick: () => navigate('/pos/orders') },
                     ],
                   }}
                   trigger={['click']}
@@ -174,7 +176,7 @@ export const POSDashboardPage: React.FC = () => {
                   marginBottom: isOverdue && hasOpenSales ? 10 : 16,
                 }}
               >
-                Continue Selling
+                {t('dashboard.continueSelling')}
               </Button>
 
               {/* Overdue reminder banner */}
@@ -185,10 +187,7 @@ export const POSDashboardPage: React.FC = () => {
                   icon={<WarningOutlined />}
                   style={{ marginBottom: 16, borderRadius: 6 }}
                   message={
-                    <span>
-                      Register not closed for <strong>{daysSinceClose} day{daysSinceClose !== 1 ? 's' : ''}</strong>.
-                      Please close the register to reconcile sales.
-                    </span>
+                    <span>{t('dashboard.registerOverdueAlert', { days: daysSinceClose })}</span>
                   }
                 />
               )}
@@ -197,32 +196,32 @@ export const POSDashboardPage: React.FC = () => {
               <Space direction="vertical" style={{ width: '100%' }} size={6}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <Text type="secondary">
-                    <CalendarOutlined style={{ marginRight: 6 }} />Date
+                    <CalendarOutlined style={{ marginRight: 6 }} />{t('common:date')}
                   </Text>
                   <Text strong>{dayjs().format('MMM D')}</Text>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <Text type="secondary">
-                    <DollarOutlined style={{ marginRight: 6 }} />Opening
+                    <DollarOutlined style={{ marginRight: 6 }} />{t('dashboard.opening')}
                   </Text>
                   <Text strong>{formatCurrency(0)}</Text>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <Text type="secondary">
-                    <ShoppingCartOutlined style={{ marginRight: 6 }} />Sold
+                    <ShoppingCartOutlined style={{ marginRight: 6 }} />{t('dashboard.sold')}
                   </Text>
                   <Text strong style={{ color: '#1677ff' }}>
                     {formatCurrency(totalSold)}{' '}
-                    <Text type="secondary" style={{ fontSize: 11 }}>({invoiceCount} order{invoiceCount !== 1 ? 's' : ''})</Text>
+                    <Text type="secondary" style={{ fontSize: 11 }}>{t('dashboard.orderCount', { count: invoiceCount })}</Text>
                   </Text>
                 </div>
                 {daysSinceClose !== null && daysSinceClose > 0 && hasOpenSales && (
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <Text type="secondary" style={{ fontSize: 11 }}>
-                      Since {dayjs(queryFrom).format('MMM D')} — {dayjs(today).format('MMM D')}
+                      {t('dashboard.sinceDateRange', { from: dayjs(queryFrom).format('MMM D'), to: dayjs(today).format('MMM D') })}
                     </Text>
                     <Text type={isOverdue ? 'danger' : 'warning'} style={{ fontSize: 11 }}>
-                      {daysSinceClose} day{daysSinceClose !== 1 ? 's' : ''} unclosed
+                      {t('dashboard.daysUnclosed', { count: daysSinceClose })}
                     </Text>
                   </div>
                 )}
@@ -237,7 +236,7 @@ export const POSDashboardPage: React.FC = () => {
         <Col xs={24} sm={8}>
           <Card bordered={false} style={{ borderRadius: 12, background: '#f6ffed', border: '1px solid #b7eb8f' }}>
             <Statistic
-              title="Today's Revenue"
+              title={t('dashboard.todaysRevenue')}
               value={totalSold}
               formatter={(v) => formatCurrency(Number(v))}
               prefix={<DollarOutlined />}
@@ -248,7 +247,7 @@ export const POSDashboardPage: React.FC = () => {
         <Col xs={24} sm={8}>
           <Card bordered={false} style={{ borderRadius: 12, background: '#e6f7ff', border: '1px solid #91d5ff' }}>
             <Statistic
-              title="Orders Today"
+              title={t('dashboard.ordersToday')}
               value={invoiceCount}
               prefix={<ShoppingCartOutlined />}
               valueStyle={{ color: '#1677ff' }}
@@ -258,7 +257,7 @@ export const POSDashboardPage: React.FC = () => {
         <Col xs={24} sm={8}>
           <Card bordered={false} style={{ borderRadius: 12, background: '#fff7e6', border: '1px solid #ffd591' }}>
             <Statistic
-              title="Avg. Order Value"
+              title={t('dashboard.avgOrderValue')}
               value={invoiceCount > 0 ? totalSold / invoiceCount : 0}
               formatter={(v) => formatCurrency(Number(v))}
               valueStyle={{ color: '#d46b08' }}
@@ -274,27 +273,27 @@ export const POSDashboardPage: React.FC = () => {
         title={
           <Space>
             <LockOutlined />
-            Enter Password to Open Terminal
+            {t('dashboard.enterPasswordToOpen')}
           </Space>
         }
         onCancel={() => setPinModalOpen(false)}
         onOk={handleVerifyPassword}
-        okText="Open Terminal"
+        okText={t('dashboard.openTerminal')}
         confirmLoading={pinLoading}
         width={380}
         destroyOnClose
       >
         <div style={{ marginBottom: 16, color: '#666', fontSize: 13 }}>
-          Logged in as <strong>{user?.email}</strong>
+          {t('dashboard.loggedInAs')} <strong>{user?.email}</strong>
         </div>
         <Form form={form} layout="vertical" onFinish={handleVerifyPassword}>
           <Form.Item
             name="password"
-            rules={[{ required: true, message: 'Please enter your password' }]}
+            rules={[{ required: true, message: t('auth:passwordRequired') }]}
           >
             <Input.Password
               prefix={<LockOutlined />}
-              placeholder="Password"
+              placeholder={t('form.password')}
               autoFocus
               onPressEnter={handleVerifyPassword}
             />

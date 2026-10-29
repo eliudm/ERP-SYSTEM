@@ -6,9 +6,9 @@ import type { SettingsOutletContext } from './SettingsPage';
 
 const { Title, Text } = Typography;
 
-// Stored as company-profile metadata only — it does not translate the
-// app's own screens (no i18n system exists here) or change any date/
-// currency formatting, which stays hardcoded to en-KE throughout the app.
+// Drives the app's i18next language (see src/i18n) for the app shell,
+// login, dashboard, and POS terminal. Other screens are not yet translated
+// and date/currency formatting stays hardcoded to en-KE throughout.
 const LANGUAGE_OPTIONS = [
   { value: 'en-KE', label: 'English (Kenya)' },
   { value: 'sw-KE', label: 'Kiswahili (Kenya)' },

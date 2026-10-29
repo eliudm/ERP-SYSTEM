@@ -1,0 +1,97 @@
+{
+  "dashboard": "Dashboard",
+  "pos": {
+    "title": "Point of Sale",
+    "dashboard": "Dashboard",
+    "terminal": "🛒 Terminal",
+    "orders": "Orders",
+    "products": "Products",
+    "reporting": "Reporting",
+    "configuration": "Configuration"
+  },
+  "sales": {
+    "title": "Sales",
+    "quotations": "Quotations",
+    "invoices": "Invoices",
+    "customers": "Customers",
+    "creditNotes": "Credit Notes",
+    "priceLists": "Price Lists"
+  },
+  "accounting": {
+    "title": "Accounting",
+    "chartOfAccounts": "Chart of Accounts",
+    "journalEntries": "Journal Entries",
+    "trialBalance": "Trial Balance",
+    "profitLoss": "Profit & Loss",
+    "balanceSheet": "Balance Sheet",
+    "cashFlow": "Cash Flow",
+    "generalLedger": "General Ledger",
+    "agedReceivables": "Aged Receivables",
+    "agedPayables": "Aged Payables",
+    "paymentModes": "Payment Modes",
+    "bankAccounts": "Bank Accounts",
+    "budgets": "Budgets",
+    "taxReports": "Tax Reports"
+  },
+  "inventory": {
+    "title": "Inventory",
+    "products": "Products",
+    "warehouses": "Warehouses",
+    "stockMovements": "Stock Movements",
+    "stockTransfers": "Stock Transfers",
+    "stockCounts": "Stock Counts",
+    "lots": "Lots",
+    "serialNumbers": "Serial Numbers"
+  },
+  "purchase": {
+    "title": "Purchase",
+    "orders": "Orders",
+    "vendorBills": "Vendor Bills",
+    "vendors": "Vendors",
+    "purchaseReturns": "Purchase Returns"
+  },
+  "hr": {
+    "title": "HR & Payroll",
+    "employees": "Employees",
+    "payroll": "Payroll",
+    "leave": "Leave",
+    "attendance": "Attendance",
+    "recruitment": "Recruitment",
+    "appraisals": "Appraisals",
+    "allowancesLoans": "Allowances & Loans"
+  },
+  "etims": {
+    "title": "eTIMS",
+    "configuration": "Configuration"
+  },
+  "contacts": "Contacts",
+  "crm": "CRM",
+  "manufacturing": {
+    "title": "Manufacturing",
+    "billsOfMaterials": "Bills of Materials",
+    "workOrders": "Work Orders"
+  },
+  "analytics": "Analytics",
+  "aiInsights": "AI Insights",
+  "approvals": "Approvals",
+  "notifications": "Notifications",
+  "settings": "Settings",
+  "logoText": "Nexora ERP",
+  "topbar": {
+    "workspace": "Nexora Workspace",
+    "notifications": "Notifications",
+    "markAllRead": "Mark all read",
+    "noUnreadNotifications": "No unread notifications",
+    "outOfStock": "Out of stock",
+    "lowStock": "Low stock",
+    "profile": "Profile",
+    "logout": "Logout"
+  },
+  "tabs": {
+    "dashboard": "Dashboard",
+    "pos": "POS",
+    "sales": "Sales",
+    "alerts": "Alerts",
+    "profile": "Profile"
+  }
+}
