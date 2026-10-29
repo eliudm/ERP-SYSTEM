@@ -153,6 +153,8 @@ export const POSPage: React.FC = () => {
   const posVerified = useAuthStore((s) => s.posVerified);
   const setPosVerified = useAuthStore((s) => s.setPosVerified);
   const setPosLastClosedDate = useAuthStore((s) => s.setPosLastClosedDate);
+  const posSessionId = useAuthStore((s) => s.posSessionId);
+  const setPosSessionId = useAuthStore((s) => s.setPosSessionId);
   const currentUser = useAuthStore((s) => s.user);
   const servedByName = currentUser?.firstName || currentUser?.email || 'Unknown';
   const queryClient = useQueryClient();
@@ -1654,14 +1656,28 @@ export const POSPage: React.FC = () => {
                 <Button
                   type="primary"
                   style={{ background: '#4a2560', borderColor: '#4a2560', fontWeight: 600 }}
-                  onClick={() => {
+                  onClick={async () => {
                     const closeDate = new Date().toISOString().split('T')[0];
+                    // Best effort — the reconciliation note/counts are worth
+                    // persisting, but a failed request here must never trap
+                    // the cashier in the close-register screen.
+                    if (posSessionId) {
+                      try {
+                        await salesApi.closePosSession(posSessionId, {
+                          closingNote: closingNote || undefined,
+                          closingCounts: closingCounts,
+                        });
+                      } catch {
+                        // swallow — register still closes locally below
+                      }
+                    }
                     message.success('Register closed');
                     setCloseRegisterOpen(false);
                     setClosingNote('');
                     setClosingCounts({});
                     setPosLastClosedDate(closeDate);
                     setPosVerified(false);
+                    setPosSessionId(null);
                     navigate('/pos/dashboard');
                   }}
                 >

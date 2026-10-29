@@ -258,4 +258,21 @@ export const salesApi = {
   removePriceListItem: async (listId: string, itemId: string) => {
     await apiClient.delete(`/sales/price-lists/${listId}/items/${itemId}`);
   },
+
+  // POS Sessions
+  openPosSession: async (branchId?: string) => {
+    const res = await apiClient.post('/sales/pos-sessions/open', { branchId });
+    return res.data;
+  },
+  closePosSession: async (
+    id: string,
+    data: { closingNote?: string; closingCounts?: Record<string, number> },
+  ) => {
+    const res = await apiClient.post(`/sales/pos-sessions/${id}/close`, data);
+    return res.data;
+  },
+  getCurrentPosSession: async () => {
+    const res = await apiClient.get('/sales/pos-sessions/current');
+    return res.data;
+  },
 };

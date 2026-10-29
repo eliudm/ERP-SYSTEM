@@ -9,10 +9,12 @@ interface AuthState {
   isAuthenticated: boolean;
   posVerified: boolean;
   posLastClosedDate: string | null;
+  posSessionId: string | null;
   setAuth: (token: string, user: any) => void;
   setProfile: (profile: User) => void;
   setPosVerified: (verified: boolean) => void;
   setPosLastClosedDate: (date: string) => void;
+  setPosSessionId: (id: string | null) => void;
   logout: () => void;
 }
 
@@ -25,6 +27,7 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
       posVerified: false,
       posLastClosedDate: null,
+      posSessionId: null,
 
       setAuth: (token, user) =>
         set({ token, user, isAuthenticated: true }),
@@ -35,6 +38,8 @@ export const useAuthStore = create<AuthState>()(
 
       setPosLastClosedDate: (date) => set({ posLastClosedDate: date }),
 
+      setPosSessionId: (id) => set({ posSessionId: id }),
+
       logout: () =>
         set({
           token: null,
@@ -42,6 +47,7 @@ export const useAuthStore = create<AuthState>()(
           profile: null,
           isAuthenticated: false,
           posVerified: false,
+          posSessionId: null,
         }),
     }),
     {

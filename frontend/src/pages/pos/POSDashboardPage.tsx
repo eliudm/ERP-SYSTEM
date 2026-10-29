@@ -20,6 +20,7 @@ export const POSDashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const setPosVerified = useAuthStore((s) => s.setPosVerified);
+  const setPosSessionId = useAuthStore((s) => s.setPosSessionId);
   const posLastClosedDate = useAuthStore((s) => s.posLastClosedDate);
   const today = dayjs().format('YYYY-MM-DD');
 
@@ -49,6 +50,15 @@ export const POSDashboardPage: React.FC = () => {
       setPinLoading(true);
       await authApi.login(user.email, values.password);
       setPosVerified(true);
+      // Opens (or resumes, if one's already open) a backend-tracked POS
+      // session so sales made this shift can be attributed to it — best
+      // effort, never blocks entering the till if it fails.
+      try {
+        const session = await salesApi.openPosSession();
+        setPosSessionId(session?.id ?? null);
+      } catch {
+        setPosSessionId(null);
+      }
       setPinModalOpen(false);
       navigate('/pos/session');
     } catch (err: unknown) {

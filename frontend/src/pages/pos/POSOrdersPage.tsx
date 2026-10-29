@@ -1,16 +1,17 @@
-import React from 'react';
-import { Badge, Button, Card, DatePicker, Input, Select, Space, Table, Tag, Typography } from 'antd';
-import { SearchOutlined, PrinterOutlined, EyeOutlined } from '@ant-design/icons';
+import React, { useEffect, useState } from 'react';
+import {
+  Avatar, Badge, Button, Card, Checkbox, DatePicker, Dropdown,
+  Input, Select, Space, Table, Tag, Typography,
+} from 'antd';
+import { SearchOutlined, PrinterOutlined, EyeOutlined, UserOutlined, SettingOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { salesApi } from '../../api/sales.api';
 import { settingsApi } from '../../api/settings.api';
 import { formatCurrency } from '../../utils/format';
 import { buildReceiptHtml, openReceiptPrintWindow } from '../../utils/receiptHtml';
-import type { Invoice, PaymentMethod } from '../../types';
-import { PAYMENT_METHOD_LABELS, PAYMENT_METHOD_ICONS } from '../../types';
+import type { Invoice } from '../../types';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -22,12 +23,62 @@ const STATUS_COLOR: Record<string, string> = {
   DRAFT: 'default',
 };
 
+const ETIMS_STATUS_COLOR: Record<string, string> = {
+  PENDING: 'default',
+  SUBMITTED: 'processing',
+  SUCCESS: 'green',
+  FAILED: 'red',
+};
+
+// Which columns can be shown/hidden via the picker, and their display
+// order — persisted per-device (no backend "user preference" concept
+// exists in this app, same convention as useHeldOrders/useRegister).
+const COLUMN_OPTIONS: { key: string; label: string }[] = [
+  { key: 'invoiceNo', label: 'Order Ref' },
+  { key: 'session', label: 'Session' },
+  { key: 'date', label: 'Date' },
+  { key: 'pointOfSale', label: 'Point of Sale' },
+  { key: 'receiptNo', label: 'Receipt No' },
+  { key: 'customer', label: 'Customer' },
+  { key: 'cashier', label: 'Cashier' },
+  { key: 'total', label: 'Total' },
+  { key: 'etimsStatus', label: 'ETims status' },
+  { key: 'status', label: 'Status' },
+];
+const ALL_COLUMN_KEYS = COLUMN_OPTIONS.map((c) => c.key);
+const COLUMNS_STORAGE_KEY = 'nexora-orders-columns';
+
+const loadVisibleColumns = (): string[] => {
+  try {
+    const raw = localStorage.getItem(COLUMNS_STORAGE_KEY);
+    if (!raw) return ALL_COLUMN_KEYS;
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed) && parsed.every((k) => typeof k === 'string')) {
+      return parsed;
+    }
+  } catch {
+    // corrupt/old value — fall back to showing everything
+  }
+  return ALL_COLUMN_KEYS;
+};
+
 export const POSOrdersPage: React.FC = () => {
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>();
   const [dateRange, setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(null);
+  const [visibleColumns, setVisibleColumns] = useState<string[]>(loadVisibleColumns);
+
+  useEffect(() => {
+    localStorage.setItem(COLUMNS_STORAGE_KEY, JSON.stringify(visibleColumns));
+  }, [visibleColumns]);
+
+  const toggleColumn = (key: string) => {
+    setVisibleColumns((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
+    );
+  };
 
   const { data, isLoading } = useQuery({
     queryKey: ['pos-orders', page, statusFilter],
@@ -56,9 +107,9 @@ export const POSOrdersPage: React.FC = () => {
     return matchSearch && matchDate;
   });
 
-  const columns = [
+  const allColumns = [
     {
-      title: 'Order',
+      title: 'Order Ref',
       dataIndex: 'invoiceNo',
       key: 'invoiceNo',
       render: (v: string, row: Invoice) => (
@@ -72,9 +123,9 @@ export const POSOrdersPage: React.FC = () => {
       ),
     },
     {
-      title: 'Customer',
-      key: 'customer',
-      render: (_: unknown, row: Invoice) => row.customer?.name ?? '—',
+      title: 'Session',
+      key: 'session',
+      render: (_: unknown, row: Invoice) => row.posSession?.sessionRef ?? '—',
     },
     {
       title: 'Date',
@@ -83,21 +134,30 @@ export const POSOrdersPage: React.FC = () => {
       render: (v: string) => dayjs(v).format('DD MMM YYYY HH:mm'),
     },
     {
-      title: 'Payment',
-      dataIndex: 'paymentMethod',
-      key: 'payment',
-      render: (v: PaymentMethod) =>
-        v ? (
-          <Tag>
-            {PAYMENT_METHOD_ICONS[v]} {PAYMENT_METHOD_LABELS[v]}
-          </Tag>
-        ) : '—',
+      title: 'Point of Sale',
+      key: 'pointOfSale',
+      render: (_: unknown, row: Invoice) => row.branch?.name ?? '—',
     },
     {
-      title: 'Status',
-      dataIndex: 'status',
-      key: 'status',
-      render: (v: string) => <Badge status={v === 'PAID' ? 'success' : v === 'VOID' ? 'error' : 'processing'} text={<Tag color={STATUS_COLOR[v] ?? 'default'}>{v}</Tag>} />,
+      title: 'Receipt No',
+      key: 'receiptNo',
+      render: (_: unknown, row: Invoice) => row.etimsInvoice?.etimsInvoiceNo ?? '—',
+    },
+    {
+      title: 'Customer',
+      key: 'customer',
+      render: (_: unknown, row: Invoice) => row.customer?.name ?? '—',
+    },
+    {
+      title: 'Cashier',
+      key: 'cashier',
+      render: (_: unknown, row: Invoice) =>
+        row.cashier ? (
+          <Space size={6}>
+            <Avatar size="small" icon={<UserOutlined />} style={{ background: '#1677ff22', color: '#1677ff' }} />
+            <Text>{row.cashier.firstName}</Text>
+          </Space>
+        ) : '—',
     },
     {
       title: 'Total',
@@ -105,6 +165,22 @@ export const POSOrdersPage: React.FC = () => {
       key: 'total',
       align: 'right' as const,
       render: (v: number) => <Text strong style={{ color: '#1677ff' }}>{formatCurrency(Number(v))}</Text>,
+    },
+    {
+      title: 'ETims status',
+      key: 'etimsStatus',
+      render: (_: unknown, row: Invoice) =>
+        row.etimsInvoice ? (
+          <Tag color={ETIMS_STATUS_COLOR[row.etimsInvoice.status] ?? 'default'}>
+            {row.etimsInvoice.status}
+          </Tag>
+        ) : <Tag>NOT SENT</Tag>,
+    },
+    {
+      title: 'Status',
+      dataIndex: 'status',
+      key: 'status',
+      render: (v: string) => <Badge status={v === 'PAID' ? 'success' : v === 'VOID' ? 'error' : 'processing'} text={<Tag color={STATUS_COLOR[v] ?? 'default'}>{v}</Tag>} />,
     },
     {
       title: '',
@@ -130,6 +206,10 @@ export const POSOrdersPage: React.FC = () => {
       ),
     },
   ];
+
+  const columns = allColumns.filter(
+    (col) => col.key === 'actions' || visibleColumns.includes(col.key),
+  );
 
   const handleReprint = (inv: Invoice) => {
     const html = buildReceiptHtml(
@@ -161,10 +241,31 @@ export const POSOrdersPage: React.FC = () => {
     openReceiptPrintWindow(html);
   };
 
+  const columnPickerMenu = (
+    <div style={{ background: '#fff', padding: 12, borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.12)', minWidth: 200 }}>
+      <Space direction="vertical" size={4} style={{ width: '100%' }}>
+        {COLUMN_OPTIONS.map((col) => (
+          <Checkbox
+            key={col.key}
+            checked={visibleColumns.includes(col.key)}
+            onChange={() => toggleColumn(col.key)}
+          >
+            {col.label}
+          </Checkbox>
+        ))}
+      </Space>
+    </div>
+  );
+
   return (
     <Space direction="vertical" style={{ width: '100%' }} size="large">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Title level={3} style={{ margin: 0 }}>Orders</Title>
+        <Space>
+          <Title level={3} style={{ margin: 0 }}>Orders</Title>
+          <Dropdown popupRender={() => columnPickerMenu} trigger={['click']} placement="bottomRight">
+            <Button type="text" icon={<SettingOutlined />} title="Customize columns" />
+          </Dropdown>
+        </Space>
       </div>
 
       {/* Filters */}
@@ -204,6 +305,7 @@ export const POSOrdersPage: React.FC = () => {
           dataSource={filtered}
           rowKey="id"
           loading={isLoading}
+          scroll={{ x: 'max-content' }}
           onRow={(row) => ({
             onClick: () => navigate(`/sales/invoices/${row.id}`),
             style: { cursor: 'pointer' },
