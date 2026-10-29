@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Row, Col, Card, Statistic, Table,
   Tag, Typography, Space, DatePicker, Button,
   Avatar,
 } from 'antd';
+import type { Dayjs } from 'dayjs';
 import {
   ArrowUpOutlined, ArrowDownOutlined,
   DollarOutlined, FileTextOutlined,
@@ -36,8 +37,18 @@ export const DashboardPage: React.FC = () => {
   const { t } = useTranslation('dashboard');
   const navigate = useNavigate();
   const currentYear = dayjs().year();
-  const startDate = `${currentYear}-01-01`;
-  const endDate = `${currentYear}-12-31`;
+  const defaultRange: [Dayjs, Dayjs] = [dayjs().startOf('year'), dayjs()];
+  const [dateRange, setDateRange] = useState<[Dayjs, Dayjs]>(defaultRange);
+  const startDate = dateRange[0].format('YYYY-MM-DD');
+  const endDate = dateRange[1].format('YYYY-MM-DD');
+
+  const handleDateRangeChange = (values: [Dayjs | null, Dayjs | null] | null) => {
+    if (values && values[0] && values[1]) {
+      setDateRange([values[0], values[1]]);
+    } else {
+      setDateRange(defaultRange);
+    }
+  };
 
   const appTiles = [
     {
@@ -198,7 +209,9 @@ export const DashboardPage: React.FC = () => {
 
           <Space wrap size="middle" style={{ alignItems: 'center' }}>
             <RangePicker
-              defaultValue={[dayjs().startOf('year'), dayjs()]}
+              value={dateRange}
+              onChange={handleDateRangeChange}
+              allowClear={false}
               style={{ borderRadius: 999 }}
             />
             <Button
