@@ -1,8 +1,8 @@
-# ERP Backend
+# Nexora ERP
 
-NestJS + Prisma + PostgreSQL backend for a full-featured ERP system built for Kenyan SMEs.
+NestJS + Prisma + PostgreSQL backend for a full-featured, **multi-tenant** ERP system built for Kenyan SMEs — serving a React + Vite **web app** and an Expo/React Native **mobile app** over the same REST API, with real UI translation into **English, Kiswahili, and French**.
 
-Base URL used by all frontend clients:
+Base URL used by all clients:
 
 ```text
 http://localhost:3000/api/v1
@@ -14,17 +14,21 @@ http://localhost:3000/api/v1
 
 1. [System Modules](#system-modules)
 2. [Tech Stack](#tech-stack)
-3. [Quick Start](#quick-start)
-4. [Environment Variables](#environment-variables)
-5. [M-Pesa Integration](#m-pesa-integration)
-6. [ngrok Tunnel Helper](#ngrok-tunnel-helper)
-7. [API Reference](#api-reference)
-8. [Control Flow Diagrams](#control-flow-diagrams)
-9. [Operational Guide](#operational-guide)
-10. [Role-Based User Manual](#role-based-user-manual)
-11. [Daily Checklists](#daily-checklists)
-12. [Error Reference](#error-reference)
-13. [Developer Notes](#developer-notes)
+3. [Multi-Tenancy](#multi-tenancy)
+4. [Web App](#web-app)
+5. [Mobile App](#mobile-app)
+6. [Internationalization](#internationalization)
+7. [Quick Start](#quick-start)
+8. [Environment Variables](#environment-variables)
+9. [M-Pesa Integration](#m-pesa-integration)
+10. [ngrok Tunnel Helper](#ngrok-tunnel-helper)
+11. [API Reference](#api-reference)
+12. [Control Flow Diagrams](#control-flow-diagrams)
+13. [Operational Guide](#operational-guide)
+14. [Role-Based User Manual](#role-based-user-manual)
+15. [Daily Checklists](#daily-checklists)
+16. [Error Reference](#error-reference)
+17. [Developer Notes](#developer-notes)
 
 ---
 
@@ -32,31 +36,87 @@ http://localhost:3000/api/v1
 
 | # | Module | Description |
 | --- | -------- | ------------- |
-| 1 | **Auth / Users** | JWT login, role-based access, user management, POS-only access flag |
-| 2 | **Sales / POS** | Invoices, customers, quotes, credit notes, price lists, daily cash summary |
+| 1 | **Auth / Users** | JWT login (access + refresh tokens), role-based access, user management, branch assignment, POS-only access flag, PIN-based quick register unlock |
+| 2 | **Sales / POS** | Invoices, customers, quotes, credit notes, price lists, daily cash summary, POS cash-register sessions, offline-capable mobile checkout |
 | 3 | **M-Pesa Payments** | Safaricom Daraja STK push, callback, pending queue management, manual reconciliation |
-| 4 | **Accounting** | Chart of accounts, journal entries, bank accounts, bank reconciliation, financial reports |
-| 5 | **Inventory** | Products, categories, warehouses, stock movements, transfers, stock counts, serial/lot tracking, landed costs |
-| 6 | **Procurement** | RFQ, purchase orders, goods receipt, vendor bills, purchase returns, supplier management |
+| 4 | **Accounting** | Chart of accounts, journal entries, bank accounts, bank reconciliation, budgets, 8 financial reports (incl. COGS-aware P&L) |
+| 5 | **Inventory** | Products (with buying price / cost), categories, warehouses, stock movements, transfers, stock counts, serial/lot tracking, landed costs |
+| 6 | **Procurement** | RFQ, purchase orders, goods receipt, vendor bills, purchase returns, supplier management, per-purchase VAT-inclusive/exclusive pricing |
 | 7 | **HR & Payroll** | Employees, payroll, attendance, leave, appraisals, recruitment pipeline |
 | 8 | **Contacts** | Company and individual contacts with parent/child linking |
-| 9 | **eTIMS (KRA)** | Kenya Revenue Authority eTIMS invoice submission via BullMQ async queue |
-| 10 | **Notifications** | System notifications including low-stock alerts |
-| 11 | **Settings** | Company profile, logo, system configuration |
-| 12 | **Tax** | Tax rate management |
+| 9 | **CRM** | Lead pipeline (kanban stages), lead activities/notes |
+| 10 | **Manufacturing (MRP)** | Bills of materials, component availability checks, work orders (confirm → start → complete) |
+| 11 | **Branches** | Multi-location management, per-branch performance report, cross-branch revenue comparison |
+| 12 | **Budgets** | Budget lines by account/period, status workflow, budget-vs-actual |
+| 13 | **Tax** | Tax rates & groups, VAT return / WHT / annual tax reports |
+| 14 | **Analytics** | Sales/expense/profit trend charts, top products & customers, sales-by-payment-method, inventory summary |
+| 15 | **AI Insights** | Stock alerts, sales-trend callouts, payment-risk flags, dormant-customer detection |
+| 16 | **Workflow / Approvals** | Configurable approval-request queue with approve/reject and an overdue sweep |
+| 17 | **Audit Log** | Repo-wide change history viewer |
+| 18 | **Plugins & Feature Flags** | Installable integrations/extensions, toggleable platform feature flags |
+| 19 | **eTIMS (KRA)** | Kenya Revenue Authority eTIMS invoice submission via BullMQ async queue, QR receipt generation |
+| 20 | **Notifications** | System notifications including low-stock/out-of-stock alerts, overdue-invoice reminders |
+| 21 | **Settings** | Company profile, logo, receipt/invoice templates, localization (language/timezone/currency) |
+| 22 | **Mobile (API)** | Lightweight aggregate endpoints (dashboard, POS data, search, sync status) purpose-built for the mobile app |
 
 ---
 
 ## Tech Stack
 
+### Backend
+
 - **NestJS** (TypeScript) — API framework
-- **Prisma ORM** — Database access layer
+- **Prisma ORM 7** (with `@prisma/adapter-pg`) — Database access layer, multi-tenancy enforced via a Prisma Client Extension reading ambient tenant context (`AsyncLocalStorage`)
 - **PostgreSQL** — Primary database
-- **Redis + BullMQ** — Async job queue (eTIMS submission, background tasks)
-- **JWT** — Stateless authentication
+- **Redis + BullMQ** — Async job queue (eTIMS submission, background tasks), dashboard/analytics caching (fail-open if Redis is down)
+- **JWT** — Stateless authentication with revocable, rotating refresh tokens
 - **Axios** — Outbound HTTP (Daraja, eTIMS)
 - **Nodemailer** — Email (quotes, notifications)
+- **Helmet + `@nestjs/throttler`** — Security headers and rate limiting
 - **Docker** — PostgreSQL and Redis containers for local development
+
+### Web client (`frontend/`)
+
+- React + Vite + TypeScript, Ant Design (antd), `@tanstack/react-query`, `recharts`, `i18next`/`react-i18next`
+
+### Mobile client (`mobile/`)
+
+- Expo SDK + Expo Router (file-based routing), React Native, `react-native-paper`, `@tanstack/react-query`, `expo-secure-store`, `expo-print`/`expo-sharing`, `i18next`/`react-i18next`
+
+---
+
+## Multi-Tenancy
+
+Nexora is a true multi-company platform: every tenant (company) signing up via `POST /auth/register` gets its own isolated `Tenant` row, and `tenantId` scopes ~48 models across the schema — users, branches, customers, invoices, accounts, journal entries, products, warehouses, stock movements, suppliers, purchase orders, employees, payroll, accounting periods, bank accounts/statements, tax rates/groups, audit logs, notifications, system settings, approvals, quotes, credit notes, price lists, recurring invoices, product categories, lots, serials, landed costs, stock counts/transfers, reorder rules, RFQs, vendor bills, purchase returns, leave, attendance, recruitment, appraisals, allowances, loans, contacts, CRM leads, budgets, BOMs, and work orders.
+
+Isolation is enforced centrally by a Prisma Client Extension (`src/tenant-scoping.extension.ts`) that reads the current request's tenant from an `AsyncLocalStorage`-backed context (`src/tenant-context.ts`), populated per-request by a `TenantContextInterceptor` — individual services never need to remember to filter by `tenantId` themselves. `CurrencyRate`, `Plugin`, and `FeatureFlag` are deliberately left global (shared/platform-level config, not per-tenant).
+
+`POST /auth/register` creates a brand-new tenant (new company signup); `POST /auth/users` (admin-only) adds a user to the calling admin's own tenant automatically, via the same ambient context.
+
+---
+
+## Web App
+
+The React + Vite web app (`frontend/`, its own [README](frontend/README.md) covers local dev commands) mirrors every backend module above with a full admin/back-office UI, plus a dedicated Odoo-style **POS terminal** (`/pos/session`) with a product grid, cart, Qty/%/Price numpad, payment tile screen, M-Pesa pending-transaction panel, cash-register open/close with daily reconciliation, and a show/hide column picker on the Orders list. Receipts and invoices render in 3 selectable designs each (Standard/Compact/Branded receipts; Modern/Classic/Minimal A4 invoices), printable or saved as PDF.
+
+---
+
+## Mobile App
+
+A native Expo/React Native app (`mobile/`, see `mobile/AGENTS.md` for Expo-specific dev notes) over the same REST API — not a cut-down companion app, but POS-feature parity with the web terminal:
+
+- **Tabs**: Dashboard, POS, Sales, Alerts, Profile for every user; POS-only accounts see just POS + Profile, matching the web app's own role restriction.
+- **Admin Tools** (under Profile, ADMIN/ACCOUNTANT/INVENTORY_MANAGER as applicable): Stock receiving, eTIMS monitoring, Business Reports (P&L-based profit trend, top products/customers), AI Insights, Branch Comparison, Accounting Reports (Balance Sheet, Cash Flow, Aged Receivables/Payables, VAT Return).
+- **POS terminal**: real checkout (create → approve → stock deduction), M-Pesa STK push, KRA eTIMS QR receipt, cash-register open/close, PIN-based quick register unlock with auto-lock on backgrounding, held/parked orders queue, order detail + refund (via Credit Notes) + print/reprint.
+- **Offline-capable checkout**: Cash/Card/Bank Transfer/Credit sales complete and queue locally with no connectivity, syncing automatically on reconnect, app-foreground, or launch if a backlog exists — backed by an idempotent `clientRef` on invoice creation so a retried sync can't double-create a sale. M-Pesa stays online-only by design (STK push needs a live round-trip to the customer's phone). An offline receipt is unmistakably marked "not yet a tax receipt" until it syncs.
+
+---
+
+## Internationalization
+
+Settings → Localization's Default Language drives a real `i18next`-based translation layer on both the web and mobile apps — not just a stored preference. Currently translated: the app shell/navigation, Login, Dashboard, and the full POS terminal, in **English, Kiswahili, and French** (every other page still renders in English and is translated incrementally using the same infrastructure).
+
+Because the language setting lives on the authenticated tenant's `SystemSetting`, the pre-login screen can't read it — Login gets its own small, locally-persisted language switcher on both platforms, overridden by the tenant's configured language once signed in. Web's antd component chrome (date pickers, table pagination) follows along for English/French via antd's own locale packs; Kiswahili has no official antd pack, so that chrome stays English under Kiswahili while all of this app's own text is fully translated.
 
 ---
 
@@ -115,6 +175,18 @@ npx tsc --noEmit   # type check
 npm run lint        # lint
 npm run test        # unit tests
 npm run test:e2e    # end-to-end tests
+```
+
+### Running the clients
+
+The backend above serves both clients — start whichever you need separately:
+
+```bash
+# Web app
+cd frontend && npm install && npm run dev          # see frontend/README.md for details
+
+# Mobile app
+cd mobile && npm install --legacy-peer-deps && npx expo start   # see mobile/AGENTS.md for Expo-specific notes
 ```
 
 ---
@@ -278,12 +350,16 @@ All endpoints are prefixed with `/api/v1`. Authentication via `Authorization: Be
 | `POST` | `/auth/refresh` | Exchange a refresh token for a new access token (rotates it) | Public |
 | `POST` | `/auth/logout` | Revoke a refresh token | Public |
 | `GET` | `/auth/profile` | Current user profile | Authenticated |
+| `POST` | `/auth/set-pin` | Set/update the current user's quick-unlock PIN | Authenticated |
+| `POST` | `/auth/verify-pin` | Verify the PIN to re-unlock an already-valid session (rate-limited 5/min) | Authenticated |
 | `GET` | `/auth/users` | List all users | Admin |
-| `POST` | `/auth/users` | Create user | Admin |
-| `PATCH` | `/auth/users/:id` | Update user | Admin |
+| `POST` | `/auth/users` | Create user (accepts `branchId` — sets the user's home branch/outlet) | Admin |
+| `PATCH` | `/auth/users/:id` | Update user (incl. `branchId`) | Admin |
 | `POST` | `/auth/users/:id/reset-password` | Reset user password | Admin |
 | `PATCH` | `/auth/users/:id/deactivate` | Deactivate user | Admin |
 | `PATCH` | `/auth/users/:id/access` | Toggle POS-only access flag | Admin |
+
+> `branchId` on a user drives the "Point of Sale" column on the Orders list and the default branch for a cashier's POS sessions — it's the cashier's own assigned outlet, independent of whichever warehouse a sale happens to be fulfilled from.
 
 ---
 
@@ -304,7 +380,7 @@ All endpoints are prefixed with `/api/v1`. Authentication via `Authorization: Be
 
 | Method | Path | Description |
 | -------- | ------ | ------------- |
-| `POST` | `/sales/invoices` | Create invoice |
+| `POST` | `/sales/invoices` | Create invoice (accepts an optional `clientRef` for idempotent retries — e.g. offline mobile sync — so a dropped response can't double-create a sale) |
 | `GET` | `/sales/invoices` | List invoices |
 | `GET` | `/sales/invoices/summary` | Invoice summary stats |
 | `GET` | `/sales/invoices/monthly` | Monthly revenue breakdown |
@@ -342,6 +418,18 @@ All endpoints are prefixed with `/api/v1`. Authentication via `Authorization: Be
 | `GET` | `/sales/credit-notes/:id` | Get credit note |
 | `POST` | `/sales/credit-notes/:id/approve` | Approve credit note |
 | `POST` | `/sales/credit-notes/:id/apply/:invoiceId` | Apply credit note to invoice |
+
+> Refunds are modeled as Credit Notes, not a separate "refund" concept: cashiers draft one from an order's detail screen (web or mobile), ADMIN/ACCOUNTANT auto-approve it with stock restored in the same action.
+
+#### POS Sessions (cash register)
+
+| Method | Path | Description |
+| -------- | ------ | ------------- |
+| `POST` | `/sales/pos-sessions/open` | Open a cash-register shift for the current cashier (defaults to the cashier's own assigned branch unless one is passed explicitly) |
+| `POST` | `/sales/pos-sessions/:id/close` | Close a shift, recording the closing note and per-payment-method cash counts |
+| `GET` | `/sales/pos-sessions/current` | Get the current cashier's open session, if any |
+
+> Mounted under `/sales/` deliberately — it inherits the existing POS-only route allowlist with zero guard changes. Every invoice created or approved during an open session is stamped with `cashierId`/`posSessionId`, which is what drives the Orders list's Cashier/Session/Point-of-Sale columns.
 
 #### Price Lists
 
@@ -407,6 +495,8 @@ All endpoints are prefixed with `/api/v1`. Authentication via `Authorization: Be
 
 | Method | Path | Query params | Description |
 | -------- | ------ | --- | ------------- |
+| `GET` | `/accounting/reports/trial-balance` | `date` | Trial balance |
+| `GET` | `/accounting/reports/profit-and-loss` | `startDate`, `endDate` | P&L — revenue minus **COGS** (posted automatically on invoice approval) minus other expenses |
 | `GET` | `/accounting/reports/balance-sheet` | `date` | Balance sheet |
 | `GET` | `/accounting/reports/cash-flow` | `startDate`, `endDate` | Cash flow statement |
 | `GET` | `/accounting/reports/aged-receivables` | `asOf` | Aged receivables |
@@ -414,6 +504,19 @@ All endpoints are prefixed with `/api/v1`. Authentication via `Authorization: Be
 | `GET` | `/accounting/reports/general-ledger` | `startDate`, `endDate`, `accountId` | General ledger |
 | `GET` | `/accounting/reports/vat-return` | `startDate`, `endDate` | VAT return |
 | `GET` | `/accounting/reports/payment-modes` | `startDate`, `endDate`, `paymentMethod?` | Sales vs bank by payment mode |
+
+#### Budgets
+
+| Method | Path | Description |
+| -------- | ------ | ------------- |
+| `POST` | `/budgets` | Create budget |
+| `GET` | `/budgets` | List budgets |
+| `GET` | `/budgets/:id` | Get budget |
+| `PATCH` | `/budgets/:id` | Update budget |
+| `PATCH` | `/budgets/:id/status` | Change status (DRAFT/ACTIVE/CLOSED) |
+| `POST` | `/budgets/:id/lines` | Add a budget line (account/period/amount) |
+| `DELETE` | `/budgets/:id/lines/:lineId` | Remove a budget line |
+| `GET` | `/budgets/:id/vs-actual` | Budget vs. actual spend comparison |
 
 ---
 
@@ -430,6 +533,8 @@ All endpoints are prefixed with `/api/v1`. Authentication via `Authorization: Be
 | `GET` | `/inventory/products/:id` | Get product |
 | `PATCH` | `/inventory/products/:id` | Update product |
 | `PATCH` | `/inventory/products/:id/deactivate` | Deactivate product |
+
+> Product `unitPrice` is treated as **VAT-inclusive** (tax is extracted, not added on top). A separate `costPrice` (buying price) plus a per-product `costPriceIncludesVat` default drives both Cost of Goods Sold on sale approval and the pre-fill (overridable per line) on Purchase Orders/RFQs/Vendor Bills.
 
 #### Categories
 
@@ -648,15 +753,188 @@ All endpoints are prefixed with `/api/v1`. Authentication via `Authorization: Be
 
 ---
 
-### eTIMS (KRA) — `/etims`
+### CRM — `/crm`
 
 | Method | Path | Description |
 | -------- | ------ | ------------- |
-| `POST` | `/etims/submit/:invoiceId` | Manually trigger eTIMS submission |
-| `GET` | `/etims/logs` | List submission logs |
-| `GET` | `/etims/status/:invoiceId` | Submission status for invoice |
+| `GET` | `/crm/leads` | List / search leads |
+| `GET` | `/crm/pipeline` | Leads grouped by pipeline stage |
+| `GET` | `/crm/leads/:id` | Get lead |
+| `POST` | `/crm/leads` | Create lead |
+| `PATCH` | `/crm/leads/:id` | Update lead |
+| `PATCH` | `/crm/leads/:id/stage` | Move lead to a different pipeline stage |
+| `POST` | `/crm/leads/:id/activities` | Log an activity/note on a lead |
 
-Automatic submission queues via BullMQ when an invoice is approved and `ETIMS_ENV` is configured.
+---
+
+### Manufacturing (MRP) — `/mrp`
+
+#### Bills of Materials
+
+| Method | Path | Description |
+| -------- | ------ | ------------- |
+| `POST` | `/mrp/bom` | Create BOM |
+| `GET` | `/mrp/bom` | List BOMs |
+| `GET` | `/mrp/bom/:id` | Get BOM |
+| `PATCH` | `/mrp/bom/:id` | Update BOM |
+| `PATCH` | `/mrp/bom/:id/status` | Change BOM status |
+| `POST` | `/mrp/bom/:id/lines` | Add a component line |
+| `GET` | `/mrp/bom/:id/availability` | Check component stock availability |
+
+#### Work Orders
+
+| Method | Path | Description |
+| -------- | ------ | ------------- |
+| `POST` | `/mrp/work-orders` | Create work order |
+| `GET` | `/mrp/work-orders` | List work orders |
+| `GET` | `/mrp/work-orders/:id` | Get work order |
+| `PATCH` | `/mrp/work-orders/:id/confirm` | Confirm work order |
+| `PATCH` | `/mrp/work-orders/:id/start` | Start production |
+| `PATCH` | `/mrp/work-orders/:id/complete` | Complete — consumes components, produces output stock |
+| `PATCH` | `/mrp/work-orders/:id/cancel` | Cancel work order |
+
+---
+
+### Branches — `/branches`
+
+| Method | Path | Description |
+| -------- | ------ | ------------- |
+| `GET` | `/branches` | List branches |
+| `GET` | `/branches/comparison` | Rank every active branch by revenue for a date range (`from`, `to`) |
+| `GET` | `/branches/:id` | Get branch |
+| `GET` | `/branches/:id/report` | Single-branch performance report |
+| `POST` | `/branches` | Create branch |
+| `PATCH` | `/branches/:id` | Update branch |
+| `DELETE` | `/branches/:id` | Delete branch |
+
+---
+
+### Tax — `/tax`
+
+| Method | Path | Description |
+| -------- | ------ | ------------- |
+| `POST` | `/tax/rates` | Create tax rate |
+| `GET` | `/tax/rates` | List tax rates |
+| `GET` | `/tax/rates/:id` | Get tax rate |
+| `PATCH` | `/tax/rates/:id` | Update tax rate |
+| `POST` | `/tax/rates/:id/set-default` | Set as default rate |
+| `POST` | `/tax/rates/:id/deactivate` | Deactivate rate |
+| `POST` | `/tax/groups` | Create tax group |
+| `GET` | `/tax/groups` | List tax groups |
+| `GET` | `/tax/groups/:id` | Get tax group |
+| `PATCH` | `/tax/groups/:id` | Update tax group |
+| `DELETE` | `/tax/groups/:id` | Delete tax group |
+| `GET` | `/tax/reports/vat-return` | VAT return report |
+| `GET` | `/tax/reports/wht` | Withholding tax report |
+| `GET` | `/tax/reports/summary` | Annual tax summary |
+
+---
+
+### Analytics — `/analytics`
+
+| Method | Path | Description |
+| -------- | ------ | ------------- |
+| `GET` | `/analytics/sales-trend` | Sales trend over a period |
+| `GET` | `/analytics/expense-trend` | Expense trend over a period |
+| `GET` | `/analytics/profit-trend` | Profit trend over a period |
+| `GET` | `/analytics/top-products` | Best-selling products |
+| `GET` | `/analytics/top-customers` | Highest-value customers |
+| `GET` | `/analytics/sales-by-payment-method` | Sales split by payment method |
+| `GET` | `/analytics/inventory-summary` | Stock-level summary |
+
+---
+
+### AI Insights — `/ai-insights`
+
+| Method | Path | Description |
+| -------- | ------ | ------------- |
+| `GET` | `/ai-insights` | Stock alerts, sales-trend callouts, payment-risk flags, dormant-customer detection |
+
+---
+
+### Workflow / Approvals — `/workflow/requests`
+
+| Method | Path | Description |
+| -------- | ------ | ------------- |
+| `GET` | `/workflow/requests` | List approval requests |
+| `POST` | `/workflow/requests` | Create an approval request |
+| `POST` | `/workflow/requests/run-overdue-check` | Sweep and flag overdue requests |
+| `POST` | `/workflow/requests/:id/approve` | Approve a request |
+| `POST` | `/workflow/requests/:id/reject` | Reject a request |
+
+---
+
+### Audit Log — `/audit/logs`
+
+| Method | Path | Description |
+| -------- | ------ | ------------- |
+| `GET` | `/audit/logs` | List audit log entries (who changed what, when) |
+
+---
+
+### Plugins & Feature Flags
+
+| Method | Path | Description |
+| -------- | ------ | ------------- |
+| `POST` | `/plugins` | Register a plugin |
+| `GET` | `/plugins` | List plugins |
+| `GET` | `/plugins/active` | List active plugins |
+| `GET` | `/plugins/:id` | Get plugin |
+| `PATCH` | `/plugins/:id/activate` | Activate plugin |
+| `PATCH` | `/plugins/:id/deactivate` | Deactivate plugin |
+| `PATCH` | `/plugins/:id/config` | Update plugin config |
+| `DELETE` | `/plugins/:id` | Remove plugin |
+| `POST` | `/feature-flags` | Create feature flag |
+| `GET` | `/feature-flags` | List feature flags |
+| `GET` | `/feature-flags/enabled` | List enabled flags |
+| `GET` | `/feature-flags/:key/check` | Check whether a flag is enabled |
+| `PATCH` | `/feature-flags/:key/toggle` | Toggle a flag |
+| `PATCH` | `/feature-flags/:key` | Update a flag |
+| `DELETE` | `/feature-flags/:key` | Delete a flag |
+
+---
+
+### Notifications — `/notifications`
+
+| Method | Path | Description |
+| -------- | ------ | ------------- |
+| `GET` | `/notifications/unread` | List unread notifications |
+| `GET` | `/notifications/unread-count` | Unread count (for the bell badge) |
+| `GET` | `/notifications` | List all notifications (paginated) |
+| `PATCH` | `/notifications/mark-all-read` | Mark all as read |
+| `PATCH` | `/notifications/:id/read` | Mark one as read |
+| `POST` | `/notifications/reminders/overdue-invoices` | Trigger overdue-invoice reminder sweep |
+
+---
+
+### Mobile (API) — `/mobile`
+
+Lightweight, aggregated endpoints purpose-built for the mobile app's screens — not general CRUD, so they don't duplicate the module-specific endpoints above.
+
+| Method | Path | Description |
+| -------- | ------ | ------------- |
+| `GET` | `/mobile/dashboard` | Aggregated dashboard stats for the mobile Dashboard tab |
+| `GET` | `/mobile/pos-data` | Products, customers, warehouses bundled for the POS tab |
+| `GET` | `/mobile/search` | Cross-entity quick search |
+| `GET` | `/mobile/recent-invoices` | Recent invoices for the Sales tab |
+| `GET` | `/mobile/sync-status` | Offline-queue sync status |
+
+---
+
+### eTIMS (KRA) — `/etims`
+
+| Method | Path | Description | Roles |
+| -------- | ------ | ------------- | ------- |
+| `GET` | `/etims/stats` | Submission statistics | Admin, Accountant |
+| `GET` | `/etims/failed` | List failed submissions | Admin, Accountant |
+| `GET` | `/etims/queue/status` | BullMQ queue status | Admin |
+| `POST` | `/etims/queue/retry-all` | Retry every failed submission in the queue | Admin |
+| `GET` | `/etims/invoice/:invoiceId/status` | Submission status for one invoice | Admin, Accountant, Sales User |
+| `GET` | `/etims/invoice/:invoiceId/qr` | QR code for the receipt (falls back to a "provisional" QR via a retry loop if the real one isn't ready yet) | Admin, Accountant, Sales User |
+| `POST` | `/etims/invoice/:invoiceId/submit` | Manually queue an invoice for submission | Admin, Accountant |
+| `POST` | `/etims/invoice/:invoiceId/retry` | Retry a failed submission | Admin, Accountant |
+
+Automatic submission queues via BullMQ when an invoice is approved and `ETIMS_ENV` is configured. The `status`/`qr` endpoints are POS-only reachable too (a posOnly cashier token's route allowlist permits both), so cashier accounts get the real QR, not just the provisional one.
 
 ---
 
@@ -664,8 +942,10 @@ Automatic submission queues via BullMQ when an invoice is approved and `ETIMS_EN
 
 | Method | Path | Description |
 | -------- | ------ | ------------- |
-| `GET` | `/settings/system` | Get system settings (company name, logo, PIN, eTIMS env) |
+| `GET` | `/settings/system` | Get per-tenant system settings — company profile (name, logo, PIN, address, phone), payment instructions, invoice/receipt template choice + branding toggle, `defaultCurrency`/`timezone`/`defaultLanguage`, low-stock threshold, auto-approve drafts |
 | `PATCH` | `/settings/system` | Update system settings |
+
+> `defaultLanguage` drives real UI translation (see [Internationalization](#internationalization)) on both web and mobile — not just a stored preference. `invoiceTemplate`/`receiptTemplate` select one of 3 designs each (Modern/Classic/Minimal invoices; Standard/Compact/Branded receipts), used consistently across web POS, web Sales, mobile POS, and mobile Sales.
 
 ---
 
@@ -698,7 +978,7 @@ flowchart TD
     B --> C{Review OK?}
     C -- No --> D[Edit Invoice]
     D --> C
-    C -- Yes --> E[POST approve — APPROVED\nPosts AR + Revenue + VAT entries]
+    C -- Yes --> E[POST approve — APPROVED\nPosts AR + Revenue + VAT + COGS entries, deducts stock]
     E --> F{Payment method?}
     F -- CASH/CARD/BANK_TRANSFER/CREDIT --> G[PATCH paid\nPosts payment GL entry]
     F -- MOBILE_MONEY --> H[POST mpesa/stk-push\nSend STK to customer phone]
@@ -801,8 +1081,9 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    subgraph Frontend["Frontend (React + Vite)"]
-        UI[UI Pages + POS]
+    subgraph Clients["Clients (i18next: en / sw / fr)"]
+        WEB[Web — React + Vite + antd]
+        MOB[Mobile — Expo / React Native]
     end
 
     subgraph API["Backend API (NestJS)"]
@@ -810,13 +1091,19 @@ flowchart LR
         SALES[Sales / POS]
         MPESA[M-Pesa]
         PROC[Procurement]
-        ACC[Accounting]
-        INV[Inventory]
+        ACC[Accounting / Budgets]
+        INV[Inventory / MRP]
         HR[HR and Payroll]
-        CONT[Contacts]
+        CRMCONT[Contacts / CRM]
+        BRANCH[Branches]
         ETIMS[eTIMS]
-        NOTIF[Notifications]
+        ANALYTICS[Analytics / AI Insights]
+        NOTIF[Notifications / Workflow]
         SET[Settings]
+    end
+
+    subgraph Tenancy["Tenant Scoping"]
+        EXT["Prisma Client Extension<br/>+ AsyncLocalStorage context"]
     end
 
     subgraph Infra["Infrastructure"]
@@ -827,15 +1114,19 @@ flowchart LR
         KRA[KRA eTIMS API]
     end
 
-    UI -- JWT REST --> AUTH
-    UI --> SALES
-    UI --> PROC
-    UI --> ACC
-    UI --> INV
-    UI --> HR
-    UI --> CONT
+    WEB -- JWT REST --> AUTH
+    MOB -- JWT REST --> AUTH
+    WEB --> SALES
+    MOB --> SALES
+    WEB --> PROC
+    WEB --> ACC
+    WEB --> INV
+    WEB --> HR
+    WEB --> CRMCONT
+    WEB --> BRANCH
+    MOB --> ANALYTICS
 
-    SALES -- posts GL entries --> ACC
+    SALES -- posts GL entries incl. COGS --> ACC
     SALES -- STK push --> MPESA
     MPESA -- callback --> SALES
     MPESA --> DARAJA
@@ -845,19 +1136,23 @@ flowchart LR
     ETIMS --> KRA
     NOTIF -- low-stock alerts --> INV
 
-    AUTH --> PRISMA
-    SALES --> PRISMA
-    PROC --> PRISMA
-    ACC --> PRISMA
-    INV --> PRISMA
-    HR --> PRISMA
-    CONT --> PRISMA
-    ETIMS --> PRISMA
-    NOTIF --> PRISMA
-    SET --> PRISMA
+    AUTH --> EXT
+    SALES --> EXT
+    PROC --> EXT
+    ACC --> EXT
+    INV --> EXT
+    HR --> EXT
+    CRMCONT --> EXT
+    BRANCH --> EXT
+    ETIMS --> EXT
+    ANALYTICS --> EXT
+    NOTIF --> EXT
+    SET --> EXT
 
+    EXT --> PRISMA
     PRISMA --> DB
     ETIMS --> REDIS
+    ACC --> REDIS
 ```
 
 ---
@@ -867,9 +1162,16 @@ flowchart LR
 ### Sales to Accounting flow
 
 1. Create sales invoice (DRAFT).
-2. Approve invoice — AR debit, Revenue credit, VAT credit posted automatically.
+2. Approve invoice — AR debit, Revenue credit, VAT credit posted automatically, plus a **COGS debit / Inventory credit** using each line's product `costPrice` (skipped per-line, never blocks the sale, if a product has no buying price set yet).
 3. Collect payment and mark invoice PAID with accurate payment method.
 4. Payment entry posted — available for bank reconciliation.
+5. A refund reverses symmetrically via a Credit Note: stock restored, COGS reversed, AR/VAT reversed into the correct accounts.
+
+### Cash register (POS session) flow
+
+1. Cashier verifies/unlocks the terminal — a `PosSession` opens automatically, defaulting to the cashier's own assigned branch.
+2. Sales during the session are stamped with the cashier and session, driving the Orders list's Cashier / Session / Point of Sale columns.
+3. **Close Register** at end of shift — closing note and per-payment-method cash counts are now actually persisted (previously discarded).
 
 ### M-Pesa payment flow (cashier)
 
@@ -896,45 +1198,58 @@ In the customer dropdown, click the **+** button to open a quick-create form (Na
 3. Run auto-match, then manually match remaining lines.
 4. Finalize when all lines are matched.
 
+### Offline mobile sale flow
+
+1. Cashier rings up a Cash/Card/Bank Transfer/Credit sale on mobile with no connectivity — it completes locally and queues (M-Pesa stays online-only; its tile greys out while offline).
+2. On reconnect, app foreground, or next launch, the queue syncs automatically against `POST /sales/invoices` using its idempotent `clientRef` — a dropped response and retry can't double-create the sale.
+3. A sale that genuinely can't sync (e.g. stock ran out while offline) lands in a Failed state for manual retry without blocking the rest of the queue.
+4. The on-screen/printed receipt is clearly marked "not yet a tax receipt" until the sale has synced and received its eTIMS QR.
+
 ---
 
 ## Role-Based User Manual
 
 ### Admin
 
-- Manage users, roles, and the POS-only access flag.
-- Configure company profile, logo, tax PIN, and eTIMS environment.
-- Review cross-module dashboards and approve sensitive actions.
+- Manage users, roles, branch assignment, and the POS-only access flag.
+- Configure company profile, logo, tax PIN, eTIMS environment, invoice/receipt templates, and localization (language/timezone/currency).
+- Manage branches, plugins, and feature flags.
+- Review cross-module dashboards (Analytics, AI Insights, Branch Comparison), the Audit Log, and approve sensitive actions (Workflow approvals).
 
 ### Accountant
 
-- Review and approve invoices and vendor bills.
+- Review and approve invoices, credit notes, and vendor bills.
 - Import bank statements and run auto-match reconciliation.
-- Generate all financial reports (balance sheet, cash flow, general ledger, VAT return, payment mode report).
+- Generate all financial reports (trial balance, P&L with COGS, balance sheet, cash flow, general ledger, aged receivables/payables, VAT return, WHT, payment mode report).
+- Manage budgets and review budget-vs-actual.
 - Investigate variance between payment channels and bank records.
 
 ### Cashier / Sales User
 
-- Create, approve, and pay invoices from POS.
+- Open/close a cash-register (POS) session each shift; sales during it are automatically attributed to the cashier and session.
+- Create, approve, and pay invoices from POS (web or mobile) — on mobile, sales queue and sync automatically if offline (M-Pesa excepted).
 - Select or create customers directly in the POS dropdown.
 - Initiate M-Pesa STK push and monitor the pending queue panel.
 - Retry or manually reconcile failed M-Pesa transactions without leaving POS.
+- Draft a refund via Credit Note from any order's detail screen; print/reprint receipts.
 - Review daily summary by payment method.
+- Set a quick-unlock PIN and use it to re-enter a locked register without a full re-login.
 
 ### Procurement Officer
 
 - Create and send RFQs to suppliers.
-- Confirm purchase orders.
+- Confirm purchase orders, choosing VAT-inclusive or VAT-exclusive pricing per line where it differs from the product's default.
 - Record goods receipt (updates stock).
 - Create vendor bills for accountant validation and payment.
 
 ### Inventory Manager
 
-- Manage products, categories, and warehouses.
+- Manage products (including buying/cost price), categories, and warehouses.
 - Record stock movements and manual adjustments.
 - Create and validate physical stock counts.
 - Manage serial numbers and lot tracking.
 - Apply landed costs to received stock.
+- Manage bills of materials and work orders for manufactured products.
 
 ### HR Manager
 
@@ -942,6 +1257,11 @@ In the customer dropdown, click the **+** button to open a quick-create form (Na
 - Generate, approve, and pay payroll runs; print payslips.
 - Manage attendance (clock-in/out, bulk import), leave, allowances, and loans.
 - Run appraisals and the full recruitment pipeline (posting → application → interview → offer → hire).
+
+### Sales / Marketing (CRM)
+
+- Track leads through pipeline stages and log activities.
+- Follow up using the Workflow approvals queue for anything requiring sign-off.
 
 ---
 
@@ -953,6 +1273,9 @@ In the customer dropdown, click the **+** button to open a quick-create form (Na
 - [ ] All paid invoices have the correct `paymentMethod`.
 - [ ] M-Pesa pending queue is clear — no stuck transactions.
 - [ ] Daily summary totals reviewed per payment method.
+- [ ] Cash register closed at end of shift with an accurate closing count.
+- [ ] Mobile offline queue is empty — no sales stuck in Failed state.
+- [ ] Products sold today have a buying price set (otherwise today's COGS/P&L understates true cost).
 
 ### Banking and Reconciliation
 
@@ -988,16 +1311,23 @@ In the customer dropdown, click the **+** button to open a quick-create form (Na
 | `MPESA_SHORTCODE must be numeric` | Non-numeric shortcode | Set a valid numeric shortcode |
 | Daraja `errorMessage` in response | Invalid credentials or config | Check consumer key/secret, shortcode, and passkey |
 | `ngrok did not expose a tunnel` | ngrok not running | Start `ngrok http 3000` before running `npm run ngrok:update` |
+| `"property X should not exist"` on a create/update call | DTO class has zero class-validator decorators — the global `whitelist + forbidNonWhitelisted` pipe strips/rejects every undecorated field | Add class-validator decorators to every field on the DTO; put new DTOs under that module's `dto/` folder, not inline in the service |
+| Branch dropdown is empty | No `Branch` rows exist yet for this tenant | Create at least one branch in Settings → Branches |
+| Orders list shows "—" for Session / Point of Sale / Cashier | Sale predates POS session tracking, or the cashier has no `branchId` assigned | Assign the cashier a branch in Settings → Users; expected for historical sales made before this feature shipped |
+| P&L shows 100% of revenue as profit | Sold products have no `costPrice` set yet | Enter a buying price on each product in Inventory → Products |
 
 ---
 
 ## Developer Notes
 
 - Always run `npx prisma migrate deploy` after pulling schema changes.
-- Use explicit DTOs for any finance-critical field additions.
-- Run `npx tsc --noEmit` and `npm run lint` before committing.
+- Use explicit DTOs (under that module's `dto/` folder, with real class-validator decorators) for any finance-critical field additions — the global pipe silently strips/rejects undecorated fields, and this is invisible to unit tests since they call services directly, bypassing HTTP validation.
+- Run `npx tsc --noEmit` and `npm run lint` before committing (backend). For the web app: `cd frontend && npx tsc -b && npm run build && npx eslint <paths>`. For mobile: `cd mobile && npx tsc --noEmit && npx eslint --fix <paths> && npx expo-doctor` (aim for 20/20).
 - `MPESA_CALLBACK_URL` must be a publicly reachable HTTPS URL — use `npm run ngrok:update` during local development.
 - Leave `MPESA_CALLBACK_IP_ALLOWLIST` and `MPESA_CALLBACK_SIGNATURE_SECRET` empty for sandbox; set them for production hardening.
 - BullMQ jobs (eTIMS) require Redis — ensure the Docker container is running.
-- POS idle timeout is 5 minutes. The screen locks automatically and requires PIN re-entry.
+- POS idle timeout (web) is 5 minutes; the screen locks and requires password or PIN re-entry. Mobile locks as soon as the app leaves the foreground instead, matching standard mobile POS/banking-app behavior.
 - The `scripts/update-ngrok-url.js` helper uses only Node.js built-in modules — no additional npm install required.
+- Every model scoped by `tenantId` is enforced automatically via the Prisma Client Extension (`src/tenant-scoping.extension.ts`) — don't hand-filter by tenant in a service; populate the ambient context instead (`src/tenant-context.ts`) if writing a one-off script (see `scripts/backfill-cogs.ts` for the pattern: `NestFactory.createApplicationContext` + `tenantContextStorage.run({tenantId}, ...)`, looped defensively per tenant).
+- Any new money-calculation code (invoice/bill/quote/PO/RFQ line items) must go through the shared tax helpers — `extractTax()`/`addTax()`/`computeLineTax()` in `src/common/utils/tax.util.ts` (mirrored in `frontend/src/utils/tax.ts` and `mobile/src/utils/tax.ts`) — rather than a new inline formula. Prices are VAT-**inclusive** by default; `isTaxInclusive`/`costPriceIncludesVat` flags let a purchase line override that per item.
+- Any new translatable web/mobile screen should read the existing `common`/`nav`/`auth`/`dashboard`/`pos` namespace JSON files under `<app>/src/i18n/locales/{en,sw,fr}/` for reusable keys before adding new ones, and add the matching `sw`/`fr` translations in the same pass — i18next's `fallbackLng: 'en'` will silently mask a missing translation rather than erroring. Web and mobile locale files are separate and not auto-synced.
