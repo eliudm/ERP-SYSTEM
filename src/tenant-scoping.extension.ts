@@ -57,6 +57,7 @@ const TENANT_SCOPED_MODELS = new Set([
   'Budget',
   'BillOfMaterial',
   'WorkOrder',
+  'PosSession',
 ]);
 
 const UNIQUE_WHERE_OPERATIONS = new Set([

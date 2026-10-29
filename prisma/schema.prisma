@@ -72,6 +72,7 @@ model Tenant {
   budgets                   Budget[]
   billsOfMaterial           BillOfMaterial[]
   workOrders                WorkOrder[]
+  posSessions               PosSession[]
 
   @@map("tenants")
 }
@@ -104,6 +105,8 @@ model User {
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   refreshTokens RefreshToken[]
+  cashierSales  SalesInvoice[] @relation("InvoiceCashier")
+  posSessions   PosSession[]
 
   @@index([tenantId])
   @@map("users")
@@ -298,6 +301,12 @@ model SalesInvoice {
   // Nullable: every non-offline caller (web, API integrations) never sets it,
   // and Postgres treats multiple NULLs as distinct under a unique index.
   clientRef         String?
+  // Who processed the sale and which POS session it fell within — both
+  // nullable since non-POS (Sales module) invoices have neither.
+  cashierId         String?
+  cashier           User?                 @relation("InvoiceCashier", fields: [cashierId], references: [id])
+  posSessionId      String?
+  posSession        PosSession?           @relation(fields: [posSessionId], references: [id])
   createdAt         DateTime              @default(now())
   updatedAt         DateTime              @updatedAt
   items             SalesInvoiceItem[]
@@ -313,9 +322,37 @@ model SalesInvoice {
   @@index([tenantId])
   @@index([customerId])
   @@index([branchId])
+  @@index([cashierId])
+  @@index([posSessionId])
   @@index([status])
   @@index([invoiceDate])
   @@map("sales_invoices")
+}
+
+// A POS cash-register working period: opened by a cashier, sales happen
+// within it, closed with a reconciliation note/cash count. Nullable links
+// everywhere since plenty of invoices (Sales module, pre-dating this
+// feature) have no session.
+model PosSession {
+  id            String         @id @default(uuid())
+  tenantId      String
+  tenant        Tenant         @relation(fields: [tenantId], references: [id])
+  sessionRef    String // e.g. "MAIN/00001" — branch code (or "POS") + sequential number
+  cashierId     String
+  cashier       User           @relation(fields: [cashierId], references: [id])
+  branchId      String?
+  branch        Branch?        @relation(fields: [branchId], references: [id])
+  status        String         @default("OPEN") // OPEN | CLOSED
+  openedAt      DateTime       @default(now())
+  closedAt      DateTime?
+  closingNote   String?
+  closingCounts Json?
+  invoices      SalesInvoice[]
+
+  @@index([tenantId])
+  @@index([cashierId])
+  @@index([status])
+  @@map("pos_sessions")
 }
 
 enum MpesaTransactionStatus {
@@ -410,6 +447,7 @@ model Branch {
   warehouses                Warehouse[]
   invoices                  SalesInvoice[]
   recurringInvoiceTemplates RecurringInvoiceTemplate[]
+  posSessions               PosSession[]
 
   @@unique([tenantId, code])
   @@index([tenantId])

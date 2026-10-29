@@ -124,6 +124,14 @@ export class InvoicesService {
     const total = subtotal + taxAmount;
     const invoiceNo = await this.generateInvoiceNo();
 
+    // Attribute the sale to the cashier's open POS session, if any — null
+    // for Sales-module invoices made outside a POS shift.
+    const openSession = userId
+      ? await this.prisma.posSession.findFirst({
+          where: { cashierId: userId, status: 'OPEN' },
+        })
+      : null;
+
     // Create invoice in database
     let invoice;
     try {
@@ -133,6 +141,8 @@ export class InvoicesService {
           invoiceNo,
           customerId: dto.customerId,
           branchId: dto.branchId ?? null,
+          cashierId: userId ?? null,
+          posSessionId: openSession?.id ?? null,
           invoiceDate: new Date(dto.invoiceDate),
           dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
           status: InvoiceStatus.DRAFT,
@@ -318,6 +328,19 @@ export class InvoicesService {
       ],
     });
 
+    // Only backfill cashier/session attribution if create() didn't already
+    // set it (e.g. an older client, or a Sales-module draft approved by a
+    // different POS user) — never overwrite the original creator's record.
+    let cashierId = invoice.cashierId;
+    let posSessionId = invoice.posSessionId;
+    if (!cashierId && userId) {
+      const openSession = await this.prisma.posSession.findFirst({
+        where: { cashierId: userId, status: 'OPEN' },
+      });
+      cashierId = userId;
+      posSessionId = openSession?.id ?? null;
+    }
+
     const approvedInvoice = await this.prisma.$transaction(async (tx) => {
       for (const item of invoice.items) {
         await tx.stockMovement.create({
@@ -347,6 +370,8 @@ export class InvoicesService {
         data: {
           status: InvoiceStatus.APPROVED,
           branchId: warehouse.branchId ?? null,
+          cashierId,
+          posSessionId,
         },
         include: {
           customer: true,
@@ -622,6 +647,10 @@ export class InvoicesService {
         include: {
           customer: true,
           items: { include: { product: true } },
+          etimsInvoice: true,
+          branch: true,
+          posSession: true,
+          cashier: { select: { id: true, firstName: true, lastName: true } },
         },
         orderBy: { createdAt: 'desc' },
       }),

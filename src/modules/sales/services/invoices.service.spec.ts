@@ -37,6 +37,9 @@ const mockPrisma = () => ({
   stockMovement: {
     create: jest.fn(),
   },
+  posSession: {
+    findFirst: jest.fn(),
+  },
   $transaction: jest.fn(),
 });
 
@@ -237,6 +240,38 @@ describe('InvoicesService', () => {
       } as any);
 
       expect(result).toEqual(winner);
+    });
+
+    it("attributes the invoice to the cashier's open POS session", async () => {
+      prisma.customer.findUnique.mockResolvedValue({
+        id: 'cust-1',
+        name: 'Jane',
+      });
+      prisma.product.findMany.mockResolvedValue([
+        { id: 'prod-1', name: 'Widget' },
+        { id: 'prod-2', name: 'Gadget' },
+      ]);
+      prisma.salesInvoice.count.mockResolvedValue(0);
+      prisma.posSession.findFirst.mockResolvedValue({
+        id: 'sess-1',
+        status: 'OPEN',
+        cashierId: 'user-1',
+      });
+      prisma.salesInvoice.create.mockResolvedValue({ id: 'inv-1' });
+
+      await service.create(dto as any, 'user-1');
+
+      expect(prisma.posSession.findFirst).toHaveBeenCalledWith({
+        where: { cashierId: 'user-1', status: 'OPEN' },
+      });
+      expect(prisma.salesInvoice.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            cashierId: 'user-1',
+            posSessionId: 'sess-1',
+          }),
+        }),
+      );
     });
   });
 
