@@ -300,6 +300,12 @@ model SalesInvoice {
   total             Decimal               @db.Decimal(18, 2)
   paymentMethod     PaymentMethod?
   paidAt            DateTime?
+  // Cost of goods sold at the moment this invoice was approved — computed
+  // once from each line's product.costPrice and stored here so later profit
+  // reporting reflects what was actually posted to the GL, not whatever a
+  // product's cost happens to be today. Null until approved (or for
+  // invoices approved before this field existed, until backfilled).
+  cogsAmount        Decimal?              @db.Decimal(18, 2)
   notes             String?
   // Client-generated reference (e.g. the mobile app's offline-queue id) used
   // to make retrying POST /sales/invoices idempotent — see InvoicesService.create().

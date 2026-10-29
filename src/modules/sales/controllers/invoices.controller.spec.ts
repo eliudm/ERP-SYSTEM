@@ -50,7 +50,9 @@ describe('InvoicesController', () => {
       const expected = { id: 'inv-1' };
       invoicesService.create.mockResolvedValue(expected);
 
-      const result = await controller.create(dto as any, { user: { id: 'user-1' } });
+      const result = await controller.create(dto as any, {
+        user: { id: 'user-1' },
+      });
 
       expect(invoicesService.create).toHaveBeenCalledWith(dto, 'user-1');
       expect(result).toEqual(expected);
@@ -71,7 +73,11 @@ describe('InvoicesController', () => {
     it('should default page and limit when not provided', async () => {
       invoicesService.findAll.mockResolvedValue({ data: [], meta: {} });
 
-      await controller.findAll(undefined as any, undefined as any, undefined as any);
+      await controller.findAll(
+        undefined as any,
+        undefined as any,
+        undefined as any,
+      );
 
       expect(invoicesService.findAll).toHaveBeenCalledWith(1, 20, undefined);
     });
@@ -111,7 +117,33 @@ describe('InvoicesController', () => {
 
       const result = await controller.getDailySummary('2026-04-02');
 
-      expect(invoicesService.getDailySummary).toHaveBeenCalledWith('2026-04-02');
+      expect(invoicesService.getDailySummary).toHaveBeenCalledWith(
+        '2026-04-02',
+        undefined,
+        undefined,
+      );
+      expect(result).toEqual(expected);
+    });
+
+    it('should pass through an optional time-of-day window', async () => {
+      const expected = {
+        date: '2026-04-02',
+        fromTime: '14:00',
+        toTime: '18:00',
+      };
+      invoicesService.getDailySummary.mockResolvedValue(expected);
+
+      const result = await controller.getDailySummary(
+        '2026-04-02',
+        '14:00',
+        '18:00',
+      );
+
+      expect(invoicesService.getDailySummary).toHaveBeenCalledWith(
+        '2026-04-02',
+        '14:00',
+        '18:00',
+      );
       expect(result).toEqual(expected);
     });
   });
@@ -121,9 +153,13 @@ describe('InvoicesController', () => {
       const expected = [{ id: 'txn-1' }];
       mpesaService.getPendingTransactions.mockResolvedValue(expected);
 
-      const result = await controller.getPendingMpesaTransactions('PENDING' as any);
+      const result = await controller.getPendingMpesaTransactions(
+        'PENDING' as any,
+      );
 
-      expect(mpesaService.getPendingTransactions).toHaveBeenCalledWith('PENDING');
+      expect(mpesaService.getPendingTransactions).toHaveBeenCalledWith(
+        'PENDING',
+      );
       expect(result).toEqual(expected);
     });
   });
@@ -146,9 +182,15 @@ describe('InvoicesController', () => {
       const expected = { id: 'txn-1', ...dto };
       mpesaService.reconcileTransaction.mockResolvedValue(expected);
 
-      const result = await controller.reconcileMpesaTransaction('txn-1', dto as any);
+      const result = await controller.reconcileMpesaTransaction(
+        'txn-1',
+        dto as any,
+      );
 
-      expect(mpesaService.reconcileTransaction).toHaveBeenCalledWith('txn-1', dto);
+      expect(mpesaService.reconcileTransaction).toHaveBeenCalledWith(
+        'txn-1',
+        dto,
+      );
       expect(result).toEqual(expected);
     });
   });
@@ -225,7 +267,9 @@ describe('InvoicesController', () => {
 
       const result = await controller.getMpesaStatus('inv-1');
 
-      expect(mpesaService.getInvoicePaymentStatus).toHaveBeenCalledWith('inv-1');
+      expect(mpesaService.getInvoicePaymentStatus).toHaveBeenCalledWith(
+        'inv-1',
+      );
       expect(result).toEqual(expected);
     });
   });

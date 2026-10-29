@@ -43,7 +43,8 @@ export class InvoicesController {
 
   // GET /sales/invoices
   @ApiOperation({
-    summary: 'List sales invoices with pagination, optionally filtered by status',
+    summary:
+      'List sales invoices with pagination, optionally filtered by status',
   })
   @Get()
   findAll(
@@ -73,12 +74,21 @@ export class InvoicesController {
     );
   }
 
-  // GET /sales/invoices/daily-summary?date=2026-04-02
-  @ApiOperation({ summary: 'Get sales summary totals for a given day' })
+  // GET /sales/invoices/daily-summary?date=2026-04-02&fromTime=14:00&toTime=18:00
+  @ApiOperation({
+    summary:
+      'Get sales summary totals (incl. gross profit) for a given day, optionally narrowed to a time-of-day window',
+  })
   @Get('daily-summary')
-  getDailySummary(@Query('date') date: string) {
+  getDailySummary(
+    @Query('date') date: string,
+    @Query('fromTime') fromTime?: string,
+    @Query('toTime') toTime?: string,
+  ) {
     return this.invoicesService.getDailySummary(
       date || new Date().toISOString().split('T')[0],
+      fromTime,
+      toTime,
     );
   }
 
@@ -158,7 +168,9 @@ export class InvoicesController {
     return this.invoicesService.markAsPaid(id, paymentMethod, req?.user?.id);
   }
 
-  @ApiOperation({ summary: 'Initiate an M-Pesa STK push payment for an invoice' })
+  @ApiOperation({
+    summary: 'Initiate an M-Pesa STK push payment for an invoice',
+  })
   @Post(':id/mpesa/stk-push')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.ACCOUNTANT, Role.SALES_USER)

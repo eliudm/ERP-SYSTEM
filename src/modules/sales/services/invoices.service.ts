@@ -372,6 +372,7 @@ export class InvoicesService {
           branchId: warehouse.branchId ?? null,
           cashierId,
           posSessionId,
+          cogsAmount: totalCogs,
         },
         include: {
           customer: true,
@@ -452,23 +453,43 @@ export class InvoicesService {
     };
 
     for (const invoice of invoices) {
-      const reference = `COGS-${invoice.invoiceNo}`;
-      const already = await this.prisma.journalEntry.findFirst({
-        where: { reference },
+      const totalCogs = this.calculateCogs(invoice.items);
+
+      // Backfill the stored cogsAmount regardless of whether a journal
+      // entry needs posting — invoices approved normally since COGS
+      // shipped already have their GL entry (bundled into SALE-<no>) but,
+      // until this field existed, never got the value stored on the row.
+      if (invoice.cogsAmount == null) {
+        await this.prisma.salesInvoice.update({
+          where: { id: invoice.id },
+          data: { cogsAmount: totalCogs },
+        });
+      }
+
+      // Has COGS already been posted for this invoice under ANY reference?
+      // A normal approve() bundles it into the SALE-<no> entry; an earlier
+      // run of this script posts it separately as COGS-<no>. Check by
+      // source + account rather than guessing the reference string, so a
+      // re-run (or a run after invoices have been approved normally since
+      // the last run) can never double-post.
+      const existingCogsLine = await this.prisma.journalLine.findFirst({
+        where: {
+          accountId: cogsAccount.id,
+          journalEntry: { sourceType: 'SALES_INVOICE', sourceId: invoice.id },
+        },
       });
-      if (already) {
+      if (existingCogsLine) {
         summary.skippedAlreadyBackfilled += 1;
         continue;
       }
 
-      const totalCogs = this.calculateCogs(invoice.items);
       if (totalCogs <= 0) {
         summary.skippedNoCostData += 1;
         continue;
       }
 
       await this.postingEngine.postTransaction({
-        reference,
+        reference: `COGS-${invoice.invoiceNo}`,
         description: `COGS backfill - Sales Invoice ${invoice.invoiceNo}`,
         entryDate: invoice.invoiceDate.toISOString(),
         sourceType: 'SALES_INVOICE',
@@ -770,17 +791,25 @@ export class InvoicesService {
   }
 
   // ─── DAILY SUMMARY BY PAYMENT METHOD ─────────────────────
-  async getDailySummary(date: string) {
-    const start = new Date(`${date}T00:00:00`);
-    const end = new Date(`${date}T23:59:59`);
+  // fromTime/toTime ('HH:mm') narrow the day to a time-of-day window. They're
+  // applied against createdAt, not invoiceDate — invoiceDate is stamped as a
+  // bare date (midnight) by every caller today, so it carries no real
+  // time-of-day information to filter on. In the normal POS create→approve
+  // flow createdAt and invoiceDate land on the same calendar day, so this is
+  // a no-op change for the existing whole-day, no-time-filter call site.
+  async getDailySummary(date: string, fromTime?: string, toTime?: string) {
+    const start = new Date(`${date}T${fromTime || '00:00'}:00`);
+    const end = new Date(`${date}T${toTime || '23:59'}:59`);
 
     const invoices = await this.prisma.salesInvoice.findMany({
       where: {
         status: { not: InvoiceStatus.VOID },
-        invoiceDate: { gte: start, lte: end },
+        createdAt: { gte: start, lte: end },
       },
       select: {
         total: true,
+        subtotal: true,
+        cogsAmount: true,
         paymentMethod: true,
         status: true,
         invoiceNo: true,
@@ -792,6 +821,18 @@ export class InvoicesService {
       (sum, inv) => sum + Number(inv.total),
       0,
     );
+    const totalSubtotal = invoices.reduce(
+      (sum, inv) => sum + Number(inv.subtotal),
+      0,
+    );
+    const totalCogs = invoices.reduce(
+      (sum, inv) => sum + (inv.cogsAmount != null ? Number(inv.cogsAmount) : 0),
+      0,
+    );
+    const invoicesMissingCostData = invoices.filter(
+      (inv) => inv.cogsAmount == null,
+    ).length;
+    const grossProfit = totalSubtotal - totalCogs;
 
     // Group by payment method
     const methods = Object.values(PaymentMethod);
@@ -803,6 +844,16 @@ export class InvoicesService {
       })
       .filter((entry) => entry.orders > 0);
 
-    return { date, totalOrders, totalRevenue, byPaymentMethod };
+    return {
+      date,
+      fromTime: fromTime || null,
+      toTime: toTime || null,
+      totalOrders,
+      totalRevenue,
+      totalCogs,
+      grossProfit,
+      invoicesMissingCostData,
+      byPaymentMethod,
+    };
   }
 }

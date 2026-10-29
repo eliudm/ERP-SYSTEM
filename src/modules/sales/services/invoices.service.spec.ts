@@ -34,6 +34,9 @@ const mockPrisma = () => ({
   journalEntry: {
     findFirst: jest.fn(),
   },
+  journalLine: {
+    findFirst: jest.fn(),
+  },
   stockMovement: {
     create: jest.fn(),
   },
@@ -391,9 +394,31 @@ describe('InvoicesService', () => {
         ],
       });
 
+      let capturedTx: any;
+      prisma.$transaction.mockImplementation(async (cb) => {
+        const tx = {
+          stockMovement: { create: jest.fn().mockResolvedValue({}) },
+          product: { update: jest.fn().mockResolvedValue({}) },
+          salesInvoice: {
+            update: jest.fn().mockResolvedValue({
+              ...invoice,
+              status: InvoiceStatus.APPROVED,
+              branchId: warehouse.branchId,
+            }),
+          },
+        };
+        capturedTx = tx;
+        return cb(tx);
+      });
+
       await service.approve('inv-1', undefined, undefined, 'user-1');
 
       // gross cost: 2*50=100; tax: 100*0.16/1.16=13.79; net COGS=86.21
+      expect(capturedTx.salesInvoice.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ cogsAmount: 86.21 }),
+        }),
+      );
       expect(postingEngine.postTransaction).toHaveBeenCalledWith(
         expect.objectContaining({
           reference: 'SALE-INV-00001',
@@ -568,6 +593,217 @@ describe('InvoicesService', () => {
       await expect(service.void('inv-1', 'reason')).rejects.toThrow(
         BadRequestException,
       );
+    });
+  });
+
+  describe('getDailySummary', () => {
+    it('should default to the whole calendar day when no time window is given', async () => {
+      prisma.salesInvoice.findMany.mockResolvedValue([]);
+
+      await service.getDailySummary('2026-04-02');
+
+      expect(prisma.salesInvoice.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            createdAt: {
+              gte: new Date('2026-04-02T00:00:00'),
+              lte: new Date('2026-04-02T23:59:59'),
+            },
+          }),
+        }),
+      );
+    });
+
+    it('should narrow the query to a given time-of-day window', async () => {
+      prisma.salesInvoice.findMany.mockResolvedValue([]);
+
+      await service.getDailySummary('2026-04-02', '14:00', '18:00');
+
+      expect(prisma.salesInvoice.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            createdAt: {
+              gte: new Date('2026-04-02T14:00:00'),
+              lte: new Date('2026-04-02T18:00:59'),
+            },
+          }),
+        }),
+      );
+    });
+
+    it('should compute gross profit from subtotal minus cogsAmount, skipping invoices with no cost data', async () => {
+      prisma.salesInvoice.findMany.mockResolvedValue([
+        {
+          total: 250,
+          subtotal: 222.41,
+          cogsAmount: 86.21,
+          paymentMethod: PaymentMethod.CASH,
+          status: InvoiceStatus.APPROVED,
+          invoiceNo: 'INV-1',
+        },
+        {
+          total: 100,
+          subtotal: 86.21,
+          cogsAmount: null,
+          paymentMethod: PaymentMethod.CARD,
+          status: InvoiceStatus.APPROVED,
+          invoiceNo: 'INV-2',
+        },
+      ]);
+
+      const result = await service.getDailySummary('2026-04-02');
+
+      expect(result.totalOrders).toBe(2);
+      expect(result.totalRevenue).toBe(350);
+      expect(result.totalCogs).toBe(86.21);
+      expect(result.grossProfit).toBeCloseTo(222.41);
+      expect(result.invoicesMissingCostData).toBe(1);
+      expect(result.byPaymentMethod).toEqual([
+        { method: PaymentMethod.CASH, amount: 250, orders: 1 },
+        { method: PaymentMethod.CARD, amount: 100, orders: 1 },
+      ]);
+    });
+  });
+
+  describe('backfillCogs', () => {
+    const cogsAccount = { id: 'acc-cogs', code: '5000' };
+    const inventoryAccount = { id: 'acc-inv', code: '1200' };
+
+    beforeEach(() => {
+      prisma.account.findFirst.mockImplementation(
+        ({ where: { code } }: any) => {
+          if (code === '5000') return Promise.resolve(cogsAccount);
+          if (code === '1200') return Promise.resolve(inventoryAccount);
+          return Promise.resolve(null);
+        },
+      );
+    });
+
+    it('stores cogsAmount and posts a catch-up entry for an invoice with no COGS posted yet', async () => {
+      prisma.salesInvoice.findMany.mockResolvedValue([
+        {
+          id: 'inv-1',
+          invoiceNo: 'INV-1',
+          invoiceDate: new Date('2026-01-01'),
+          cogsAmount: null,
+          items: [
+            {
+              productId: 'prod-1',
+              quantity: 2,
+              product: {
+                costPrice: 50,
+                taxRate: 0.16,
+                costPriceIncludesVat: true,
+              },
+            },
+          ],
+        },
+      ]);
+      prisma.journalLine.findFirst.mockResolvedValue(null);
+
+      const result = await service.backfillCogs();
+
+      expect(prisma.salesInvoice.update).toHaveBeenCalledWith({
+        where: { id: 'inv-1' },
+        data: { cogsAmount: 86.21 },
+      });
+      expect(postingEngine.postTransaction).toHaveBeenCalledWith(
+        expect.objectContaining({ reference: 'COGS-INV-1' }),
+      );
+      expect(result.posted).toBe(1);
+      expect(result.skippedAlreadyBackfilled).toBe(0);
+    });
+
+    it('backfills cogsAmount without re-posting when COGS was already posted (e.g. bundled into a normal approve())', async () => {
+      prisma.salesInvoice.findMany.mockResolvedValue([
+        {
+          id: 'inv-2',
+          invoiceNo: 'INV-2',
+          invoiceDate: new Date('2026-01-01'),
+          cogsAmount: null,
+          items: [
+            {
+              productId: 'prod-1',
+              quantity: 2,
+              product: {
+                costPrice: 50,
+                taxRate: 0.16,
+                costPriceIncludesVat: true,
+              },
+            },
+          ],
+        },
+      ]);
+      prisma.journalLine.findFirst.mockResolvedValue({ id: 'line-1' });
+
+      const result = await service.backfillCogs();
+
+      expect(prisma.salesInvoice.update).toHaveBeenCalledWith({
+        where: { id: 'inv-2' },
+        data: { cogsAmount: 86.21 },
+      });
+      expect(postingEngine.postTransaction).not.toHaveBeenCalled();
+      expect(result.posted).toBe(0);
+      expect(result.skippedAlreadyBackfilled).toBe(1);
+    });
+
+    it('skips invoices that already have cogsAmount stored and no new posting needed', async () => {
+      prisma.salesInvoice.findMany.mockResolvedValue([
+        {
+          id: 'inv-3',
+          invoiceNo: 'INV-3',
+          invoiceDate: new Date('2026-01-01'),
+          cogsAmount: 86.21,
+          items: [
+            {
+              productId: 'prod-1',
+              quantity: 2,
+              product: {
+                costPrice: 50,
+                taxRate: 0.16,
+                costPriceIncludesVat: true,
+              },
+            },
+          ],
+        },
+      ]);
+      prisma.journalLine.findFirst.mockResolvedValue({ id: 'line-1' });
+
+      await service.backfillCogs();
+
+      expect(prisma.salesInvoice.update).not.toHaveBeenCalled();
+    });
+
+    it('skips posting (but still records cogsAmount as 0) when no sold product has cost data', async () => {
+      prisma.salesInvoice.findMany.mockResolvedValue([
+        {
+          id: 'inv-4',
+          invoiceNo: 'INV-4',
+          invoiceDate: new Date('2026-01-01'),
+          cogsAmount: null,
+          items: [
+            {
+              productId: 'prod-1',
+              quantity: 2,
+              product: {
+                costPrice: null,
+                taxRate: 0.16,
+                costPriceIncludesVat: true,
+              },
+            },
+          ],
+        },
+      ]);
+      prisma.journalLine.findFirst.mockResolvedValue(null);
+
+      const result = await service.backfillCogs();
+
+      expect(prisma.salesInvoice.update).toHaveBeenCalledWith({
+        where: { id: 'inv-4' },
+        data: { cogsAmount: 0 },
+      });
+      expect(postingEngine.postTransaction).not.toHaveBeenCalled();
+      expect(result.skippedNoCostData).toBe(1);
     });
   });
 });
