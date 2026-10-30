@@ -22,6 +22,9 @@ const mockMpesaService = () => ({
   reconcileTransaction: jest.fn(),
   initiateStkPush: jest.fn(),
   getInvoicePaymentStatus: jest.fn(),
+  getUnmatchedTillPayments: jest.fn(),
+  matchTillPayment: jest.fn(),
+  unmatchTillPayment: jest.fn(),
 });
 
 describe('InvoicesController', () => {
@@ -191,6 +194,60 @@ describe('InvoicesController', () => {
         'txn-1',
         dto,
       );
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('getPendingTillPayments', () => {
+    it('should call mpesaService.getUnmatchedTillPayments with a parsed sinceMinutes', async () => {
+      const expected = [{ id: 'till-1' }];
+      mpesaService.getUnmatchedTillPayments.mockResolvedValue(expected);
+
+      const result = await controller.getPendingTillPayments('60');
+
+      expect(mpesaService.getUnmatchedTillPayments).toHaveBeenCalledWith(60);
+      expect(result).toEqual(expected);
+    });
+
+    it('should pass undefined when sinceMinutes is not provided', async () => {
+      mpesaService.getUnmatchedTillPayments.mockResolvedValue([]);
+
+      await controller.getPendingTillPayments(undefined as any);
+
+      expect(mpesaService.getUnmatchedTillPayments).toHaveBeenCalledWith(
+        undefined,
+      );
+    });
+  });
+
+  describe('matchTillPayment', () => {
+    it('should call mpesaService.matchTillPayment with the till payment id, invoiceId and user id', async () => {
+      const expected = { matched: true };
+      mpesaService.matchTillPayment.mockResolvedValue(expected);
+
+      const result = await controller.matchTillPayment(
+        'till-1',
+        { invoiceId: 'inv-1' } as any,
+        { user: { id: 'user-1' } },
+      );
+
+      expect(mpesaService.matchTillPayment).toHaveBeenCalledWith(
+        'till-1',
+        'inv-1',
+        'user-1',
+      );
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('unmatchTillPayment', () => {
+    it('should call mpesaService.unmatchTillPayment with the till payment id', async () => {
+      const expected = { isMatched: false };
+      mpesaService.unmatchTillPayment.mockResolvedValue(expected);
+
+      const result = await controller.unmatchTillPayment('till-1');
+
+      expect(mpesaService.unmatchTillPayment).toHaveBeenCalledWith('till-1');
       expect(result).toEqual(expected);
     });
   });
