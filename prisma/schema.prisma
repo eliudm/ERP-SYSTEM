@@ -74,6 +74,7 @@ model Tenant {
   billsOfMaterial           BillOfMaterial[]
   workOrders                WorkOrder[]
   posSessions               PosSession[]
+  mpesaTillPayments         MpesaTillPayment[]
 
   @@map("tenants")
 }
@@ -358,6 +359,7 @@ model SalesInvoice {
   updatedAt         DateTime              @updatedAt
   items             SalesInvoiceItem[]
   mpesaTransactions MpesaTransaction[]
+  mpesaTillPayments MpesaTillPayment[]
   etimsInvoice      EtimsInvoice?
   quotes            SalesQuote[]
   creditNotes       CreditNote[]
@@ -427,6 +429,41 @@ model MpesaTransaction {
 
   @@index([invoiceId, status])
   @@map("mpesa_transactions")
+}
+
+// An M-Pesa Till Number (Buy Goods / C2B) payment, as pushed to us unprompted
+// by Safaricom's Confirmation callback. Unlike MpesaTransaction (always
+// created by us against a known invoice before Safaricom confirms it), this
+// row starts life with no invoice and no tenant at all — the customer paid
+// on their own initiative, and a cashier has to claim it for a sale later.
+// tenantId is nullable as a deliberate, one-off exception to this codebase's
+// usual non-null tenantId convention, resolved only once a cashier matches
+// the row to one of their own invoices.
+model MpesaTillPayment {
+  id                String        @id @default(uuid())
+  tenantId          String?
+  tenant            Tenant?       @relation(fields: [tenantId], references: [id])
+  transId           String        @unique // Safaricom's own C2B transaction id; doubles as our idempotency key
+  transactionType   String?
+  transTime         DateTime
+  transAmount       Decimal       @db.Decimal(18, 2)
+  businessShortCode String
+  billRefNumber     String?
+  msisdn            String
+  firstName         String?
+  middleName        String?
+  lastName          String?
+  isMatched         Boolean       @default(false)
+  matchedInvoiceId  String?
+  matchedInvoice    SalesInvoice? @relation(fields: [matchedInvoiceId], references: [id])
+  matchedAt         DateTime?
+  matchedByUserId   String?
+  rawPayload        Json
+  createdAt         DateTime      @default(now())
+
+  @@index([isMatched])
+  @@index([transTime])
+  @@map("mpesa_till_payments")
 }
 
 model SalesInvoiceItem {
