@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
@@ -42,6 +43,7 @@ export class MpesaService {
   private readonly consumerSecret: string;
   private readonly shortcode: string;
   private readonly passkey: string;
+  private readonly tillNumber: string;
   private readonly callbackUrl: string;
   private readonly callbackToken: string;
   private readonly callbackIpAllowlist: string[];
@@ -60,6 +62,12 @@ export class MpesaService {
     this.consumerSecret =
       this.config.get<string>('MPESA_CONSUMER_SECRET') || '';
     this.shortcode = this.config.get<string>('MPESA_SHORTCODE') || '';
+    // Till Number (Buy Goods) is normally a separate shortcode from the
+    // PayBill one used for STK push — falls back to MPESA_SHORTCODE so C2B
+    // registration/testing works against the sandbox with zero new config
+    // until a real production Till number is set.
+    this.tillNumber =
+      this.config.get<string>('MPESA_TILL_NUMBER') || this.shortcode;
     this.passkey = this.config.get<string>('MPESA_PASSKEY') || '';
     this.callbackUrl = this.config.get<string>('MPESA_CALLBACK_URL') || '';
     this.callbackToken = this.config.get<string>('MPESA_CALLBACK_TOKEN') || '';
@@ -427,6 +435,202 @@ export class MpesaService {
           }
         : null,
     };
+  }
+
+  // ─── TILL NUMBER (BUY GOODS / C2B) ───────────────────────
+  // Unlike STK push, a Till payment starts on the customer's own phone, with
+  // no invoice (and no tenant) attached — Safaricom just pushes it to our
+  // Confirmation URL once it has already happened. We hold it as unmatched
+  // until a cashier claims it for a specific sale.
+
+  async registerC2BUrls() {
+    if (!this.callbackUrl) {
+      throw new BadRequestException(
+        'MPESA_CALLBACK_URL is not configured — cannot derive C2B URLs from it',
+      );
+    }
+
+    const token = await this.getAccessToken();
+    const base = this.callbackUrl.replace(/\/api\/v1\/.*$/, '');
+
+    let response;
+    try {
+      response = await this.axiosInstance.post(
+        '/mpesa/c2b/v1/registerurl',
+        {
+          ShortCode: this.tillNumber,
+          ResponseType: 'Completed',
+          ConfirmationURL: `${base}/api/v1/payments/mpesa/c2b/confirmation`,
+          ValidationURL: `${base}/api/v1/payments/mpesa/c2b/validation`,
+        },
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+    } catch (error) {
+      throw new BadRequestException(this.extractAxiosErrorMessage(error));
+    }
+
+    return response.data;
+  }
+
+  // Safaricom only calls this if ValidateTransaction is enabled on the
+  // shortcode. We accept every transaction here — rejecting a validation
+  // doesn't give us any real fraud control (we have no order to check it
+  // against yet), so there's nothing useful to reject on.
+  handleC2BValidation() {
+    return { ResultCode: 0, ResultDesc: 'Accepted' };
+  }
+
+  // Confirmation means the money has ALREADY moved — there is no way to
+  // "decline" it. We must always return success here regardless of any
+  // internal error, or Safaricom will eventually disable this URL after
+  // repeated non-success responses. Any real problem is only logged.
+  async handleC2BConfirmation(payload: unknown) {
+    try {
+      const body = payload as {
+        TransactionType?: string;
+        TransID?: string;
+        TransTime?: string;
+        TransAmount?: string | number;
+        BusinessShortCode?: string;
+        BillRefNumber?: string;
+        MSISDN?: string;
+        FirstName?: string;
+        MiddleName?: string;
+        LastName?: string;
+      };
+
+      if (!body.TransID) {
+        this.logger.warn('C2B confirmation missing TransID — ignoring');
+        return { ResultCode: 0, ResultDesc: 'Accepted' };
+      }
+
+      const existing = await this.prisma.mpesaTillPayment.findUnique({
+        where: { transId: body.TransID },
+      });
+
+      if (existing) {
+        this.logger.log(
+          `C2B confirmation for already-recorded TransID ${body.TransID} — ignoring duplicate`,
+        );
+        return { ResultCode: 0, ResultDesc: 'Accepted' };
+      }
+
+      await this.prisma.mpesaTillPayment.create({
+        data: {
+          transId: body.TransID,
+          transactionType: body.TransactionType,
+          transTime: body.TransTime
+            ? this.parseMpesaDate(body.TransTime)
+            : new Date(),
+          transAmount: new Prisma.Decimal(Number(body.TransAmount ?? 0)),
+          businessShortCode: body.BusinessShortCode || this.tillNumber,
+          billRefNumber: body.BillRefNumber,
+          msisdn: body.MSISDN || '',
+          firstName: body.FirstName,
+          middleName: body.MiddleName,
+          lastName: body.LastName,
+          rawPayload: payload as Prisma.InputJsonValue,
+        },
+      });
+    } catch (error) {
+      this.logger.error('Failed to record C2B confirmation', error as Error);
+    }
+
+    return { ResultCode: 0, ResultDesc: 'Accepted' };
+  }
+
+  async getUnmatchedTillPayments(sinceMinutes = 240) {
+    const since = new Date(Date.now() - sinceMinutes * 60 * 1000);
+
+    const rows = await this.prisma.mpesaTillPayment.findMany({
+      where: { isMatched: false, transTime: { gte: since } },
+      orderBy: { transTime: 'desc' },
+      take: 50,
+    });
+
+    return rows.map((row) => ({
+      id: row.id,
+      transId: row.transId,
+      transTime: row.transTime,
+      amount: Number(row.transAmount),
+      msisdn: row.msisdn,
+      payerName: [row.firstName, row.middleName, row.lastName]
+        .filter(Boolean)
+        .join(' '),
+      billRefNumber: row.billRefNumber,
+    }));
+  }
+
+  async matchTillPayment(
+    tillPaymentId: string,
+    invoiceId: string,
+    userId?: string,
+  ) {
+    const invoice = await this.prisma.salesInvoice.findUnique({
+      where: { id: invoiceId },
+    });
+    if (!invoice) {
+      throw new NotFoundException('Invoice not found');
+    }
+    if (invoice.status !== InvoiceStatus.APPROVED) {
+      throw new BadRequestException(
+        'Only APPROVED invoices can be matched to a Till payment',
+      );
+    }
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const { count } = await tx.mpesaTillPayment.updateMany({
+        where: { id: tillPaymentId, isMatched: false },
+        data: {
+          isMatched: true,
+          matchedInvoiceId: invoiceId,
+          matchedAt: new Date(),
+          matchedByUserId: userId,
+          tenantId: invoice.tenantId,
+        },
+      });
+
+      if (count !== 1) {
+        throw new ConflictException(
+          'This payment was already matched by someone else',
+        );
+      }
+
+      return tx.mpesaTillPayment.findUnique({ where: { id: tillPaymentId } });
+    });
+
+    await this.invoicesService.markAsPaid(
+      invoiceId,
+      PaymentMethod.MOBILE_MONEY,
+    );
+
+    return { matched: true, invoiceId, tillPayment: result };
+  }
+
+  // Frees the payment row only, for re-matching to the correct invoice.
+  // Deliberately does NOT reverse the wrongly-matched invoice's PAID status
+  // or GL posting — undoing a wrong sale goes through the existing Credit
+  // Note flow, same as any other wrong-sale correction in this app.
+  async unmatchTillPayment(tillPaymentId: string) {
+    const payment = await this.prisma.mpesaTillPayment.findUnique({
+      where: { id: tillPaymentId },
+    });
+    if (!payment) {
+      throw new NotFoundException('Till payment not found');
+    }
+    if (!payment.isMatched) {
+      throw new BadRequestException('This payment is not currently matched');
+    }
+
+    return this.prisma.mpesaTillPayment.update({
+      where: { id: tillPaymentId },
+      data: {
+        isMatched: false,
+        matchedInvoiceId: null,
+        matchedAt: null,
+        matchedByUserId: null,
+      },
+    });
   }
 
   private ensureConfigured() {
