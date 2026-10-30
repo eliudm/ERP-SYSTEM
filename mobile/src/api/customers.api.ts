@@ -5,6 +5,7 @@ export interface Customer {
   name: string;
   email?: string | null;
   phone?: string | null;
+  taxPin?: string | null;
 }
 
 export const customersApi = {
@@ -17,6 +18,7 @@ export const customersApi = {
     name: string;
     email?: string;
     phone?: string;
+    taxPin?: string;
   }): Promise<Customer> => {
     const res = await apiClient.post('/sales/customers', data);
     return res.data;
