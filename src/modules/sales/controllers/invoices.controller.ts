@@ -19,6 +19,7 @@ import { Role, PaymentMethod, MpesaTransactionStatus } from '@prisma/client';
 import { InitiateMpesaPaymentDto } from '../dto/initiate-mpesa-payment.dto';
 import { MpesaService } from '../services/mpesa.service';
 import { ReconcileMpesaTransactionDto } from '../dto/reconcile-mpesa-transaction.dto';
+import { MatchTillPaymentDto } from '../dto/match-till-payment.dto';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 @ApiTags('sales')
@@ -124,6 +125,51 @@ export class InvoicesController {
     @Body() dto: ReconcileMpesaTransactionDto,
   ) {
     return this.mpesaService.reconcileTransaction(transactionId, dto);
+  }
+
+  @ApiOperation({
+    summary:
+      'List recent, unmatched M-Pesa Till Number (Buy Goods) payments awaiting a cashier to claim them for a sale',
+  })
+  @Get('mpesa/till/pending')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN, Role.ACCOUNTANT, Role.SALES_USER)
+  @AllowPosUser()
+  getPendingTillPayments(@Query('sinceMinutes') sinceMinutes?: string) {
+    return this.mpesaService.getUnmatchedTillPayments(
+      sinceMinutes ? +sinceMinutes : undefined,
+    );
+  }
+
+  @ApiOperation({
+    summary:
+      'Match an unmatched Till Number payment to an invoice, marking it paid',
+  })
+  @Post('mpesa/till/:tillPaymentId/match')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN, Role.ACCOUNTANT, Role.SALES_USER)
+  @AllowPosUser()
+  matchTillPayment(
+    @Param('tillPaymentId') tillPaymentId: string,
+    @Body() dto: MatchTillPaymentDto,
+    @Req() req: any,
+  ) {
+    return this.mpesaService.matchTillPayment(
+      tillPaymentId,
+      dto.invoiceId,
+      req.user?.id,
+    );
+  }
+
+  @ApiOperation({
+    summary:
+      'Undo a wrong Till Number match (frees the payment only — does not reverse the invoice it was wrongly matched to; use a Credit Note for that)',
+  })
+  @Patch('mpesa/till/:tillPaymentId/unmatch')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN, Role.ACCOUNTANT)
+  unmatchTillPayment(@Param('tillPaymentId') tillPaymentId: string) {
+    return this.mpesaService.unmatchTillPayment(tillPaymentId);
   }
 
   // GET /sales/invoices/:id
