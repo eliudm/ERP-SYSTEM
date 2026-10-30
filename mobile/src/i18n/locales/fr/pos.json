@@ -13,7 +13,9 @@
   "toast": {
     "orderParked": "Commande mise de côté",
     "mpesaNeedsInternet": "M-Pesa nécessite une connexion internet — basculé sur Espèces.",
-    "registerClosed": "Caisse fermée"
+    "registerClosed": "Caisse fermée",
+    "customerCreated": "Client \"{{name}}\" créé",
+    "customerCreateFailed": "Impossible de créer le client"
   },
   "errors": {
     "invalidMpesaNumber": "Saisissez un numéro M-Pesa valide, ex. 2547XXXXXXXX",
@@ -69,6 +71,9 @@
   },
   "customerSearchPlaceholder": "Rechercher, ou laisser vide pour le client de passage",
   "noCustomerMatchesHint": "Aucune correspondance — le client de passage sera utilisé",
+  "createCustomerNamed": "Créer un nouveau client \"{{name}}\"",
+  "taxPinLabel": "NIF (optionnel)",
+  "customerNameRequired": "Le nom du client est requis",
   "selectedCustomerHint": "Sélectionné : {{name}}",
   "willUseWalkIn": "Utilisera : Client de passage",
   "offlineStatus": {

@@ -13,7 +13,9 @@
   "toast": {
     "orderParked": "Order parked",
     "mpesaNeedsInternet": "M-Pesa needs internet — switched to Cash.",
-    "registerClosed": "Register closed"
+    "registerClosed": "Register closed",
+    "customerCreated": "Customer \"{{name}}\" created",
+    "customerCreateFailed": "Failed to create customer"
   },
   "errors": {
     "invalidMpesaNumber": "Enter a valid M-Pesa number, e.g. 2547XXXXXXXX",
@@ -69,6 +71,9 @@
   },
   "customerSearchPlaceholder": "Search, or leave blank for Walk-in Customer",
   "noCustomerMatchesHint": "No matches — will use Walk-in Customer",
+  "createCustomerNamed": "Create new customer \"{{name}}\"",
+  "taxPinLabel": "KRA PIN (optional)",
+  "customerNameRequired": "Customer name is required",
   "selectedCustomerHint": "Selected: {{name}}",
   "willUseWalkIn": "Will use: Walk-in Customer",
   "offlineStatus": {

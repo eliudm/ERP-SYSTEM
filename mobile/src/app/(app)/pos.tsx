@@ -173,6 +173,12 @@ export default function PosScreen() {
     null,
   );
   const [searchingCustomers, setSearchingCustomers] = useState(false);
+  const [showCreateCustomerForm, setShowCreateCustomerForm] = useState(false);
+  const [newCustomerName, setNewCustomerName] = useState('');
+  const [newCustomerPhone, setNewCustomerPhone] = useState('');
+  const [newCustomerEmail, setNewCustomerEmail] = useState('');
+  const [newCustomerPin, setNewCustomerPin] = useState('');
+  const [creatingCustomer, setCreatingCustomer] = useState(false);
   const [mpesaPhone, setMpesaPhone] = useState('');
   const [checkoutStage, setCheckoutStage] = useState<string | null>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
@@ -393,6 +399,7 @@ export default function PosScreen() {
   const runCustomerSearch = async (q: string) => {
     setCustomerQuery(q);
     setSelectedCustomer(null);
+    setShowCreateCustomerForm(false);
     const query = q.trim();
     if (!query) {
       setCustomerResults([]);
@@ -412,6 +419,52 @@ export default function PosScreen() {
   const selectCustomer = (customer: Customer) => {
     setSelectedCustomer(customer);
     setMpesaPhone(customer.phone ?? '');
+    setShowCreateCustomerForm(false);
+  };
+
+  const openCreateCustomerForm = () => {
+    setNewCustomerName(customerQuery.trim());
+    setNewCustomerPhone('');
+    setNewCustomerEmail('');
+    setNewCustomerPin('');
+    setShowCreateCustomerForm(true);
+  };
+
+  const submitNewCustomer = async () => {
+    const name = newCustomerName.trim();
+    if (!name) {
+      setSnackbar({
+        visible: true,
+        message: t('customerNameRequired'),
+        isError: true,
+      });
+      return;
+    }
+    setCreatingCustomer(true);
+    try {
+      const customer = await customersApi.createCustomer({
+        name,
+        phone: newCustomerPhone.trim() || undefined,
+        email: newCustomerEmail.trim() || undefined,
+        taxPin: newCustomerPin.trim() || undefined,
+      });
+      selectCustomer(customer);
+      setCustomerQuery(customer.name);
+      setCustomerResults([customer]);
+      setSnackbar({
+        visible: true,
+        message: t('toast.customerCreated', { name: customer.name }),
+      });
+    } catch (err) {
+      setSnackbar({
+        visible: true,
+        message:
+          err instanceof Error ? err.message : t('toast.customerCreateFailed'),
+        isError: true,
+      });
+    } finally {
+      setCreatingCustomer(false);
+    }
   };
 
   const resolveWalkInCustomer = async (): Promise<Customer> => {
@@ -777,6 +830,19 @@ export default function PosScreen() {
           selectedCustomer={selectedCustomer}
           onSelectCustomer={selectCustomer}
           searchingCustomers={searchingCustomers}
+          showCreateCustomerForm={showCreateCustomerForm}
+          onOpenCreateCustomerForm={openCreateCustomerForm}
+          onCancelCreateCustomerForm={() => setShowCreateCustomerForm(false)}
+          newCustomerName={newCustomerName}
+          onNewCustomerNameChange={setNewCustomerName}
+          newCustomerPhone={newCustomerPhone}
+          onNewCustomerPhoneChange={setNewCustomerPhone}
+          newCustomerEmail={newCustomerEmail}
+          onNewCustomerEmailChange={setNewCustomerEmail}
+          newCustomerPin={newCustomerPin}
+          onNewCustomerPinChange={setNewCustomerPin}
+          creatingCustomer={creatingCustomer}
+          onSubmitNewCustomer={() => void submitNewCustomer()}
           warehouses={warehouses}
           warehouseId={activeWarehouseId}
           onSelectWarehouse={setWarehouseId}

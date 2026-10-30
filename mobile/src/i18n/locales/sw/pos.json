@@ -13,7 +13,9 @@
   "toast": {
     "orderParked": "Agizo limehifadhiwa",
     "mpesaNeedsInternet": "M-Pesa inahitaji mtandao — imebadilishwa kuwa Pesa Taslimu.",
-    "registerClosed": "Rejista imefungwa"
+    "registerClosed": "Rejista imefungwa",
+    "customerCreated": "Mteja \"{{name}}\" ameundwa",
+    "customerCreateFailed": "Imeshindwa kuunda mteja"
   },
   "errors": {
     "invalidMpesaNumber": "Weka namba sahihi ya M-Pesa, mfano 2547XXXXXXXX",
@@ -69,6 +71,9 @@
   },
   "customerSearchPlaceholder": "Tafuta, au acha wazi kwa Mteja wa Papo Hapo",
   "noCustomerMatchesHint": "Hakuna linalofanana — Mteja wa Papo Hapo atatumika",
+  "createCustomerNamed": "Unda mteja mpya \"{{name}}\"",
+  "taxPinLabel": "PIN ya KRA (si lazima)",
+  "customerNameRequired": "Jina la mteja linahitajika",
   "selectedCustomerHint": "Aliyechaguliwa: {{name}}",
   "willUseWalkIn": "Itatumia: Mteja wa Papo Hapo",
   "offlineStatus": {

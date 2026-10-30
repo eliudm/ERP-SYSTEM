@@ -47,6 +47,19 @@ interface PaymentScreenProps {
   selectedCustomer: Customer | null;
   onSelectCustomer: (customer: Customer) => void;
   searchingCustomers: boolean;
+  showCreateCustomerForm: boolean;
+  onOpenCreateCustomerForm: () => void;
+  onCancelCreateCustomerForm: () => void;
+  newCustomerName: string;
+  onNewCustomerNameChange: (value: string) => void;
+  newCustomerPhone: string;
+  onNewCustomerPhoneChange: (value: string) => void;
+  newCustomerEmail: string;
+  onNewCustomerEmailChange: (value: string) => void;
+  newCustomerPin: string;
+  onNewCustomerPinChange: (value: string) => void;
+  creatingCustomer: boolean;
+  onSubmitNewCustomer: () => void;
   warehouses: Warehouse[];
   warehouseId: string | undefined;
   onSelectWarehouse: (id: string) => void;
@@ -71,6 +84,19 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
   selectedCustomer,
   onSelectCustomer,
   searchingCustomers,
+  showCreateCustomerForm,
+  onOpenCreateCustomerForm,
+  onCancelCreateCustomerForm,
+  newCustomerName,
+  onNewCustomerNameChange,
+  newCustomerPhone,
+  onNewCustomerPhoneChange,
+  newCustomerEmail,
+  onNewCustomerEmailChange,
+  newCustomerPin,
+  onNewCustomerPinChange,
+  creatingCustomer,
+  onSubmitNewCustomer,
   warehouses,
   warehouseId,
   onSelectWarehouse,
@@ -166,31 +192,105 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
         {searchingCustomers && (
           <ActivityIndicator size="small" style={{ marginVertical: 4 }} />
         )}
-        {!searchingCustomers && customerQuery.trim().length > 0 && (
-          <View style={styles.customerResults}>
-            {customerResults.length === 0 ? (
-              <Text style={styles.hint}>{t('noCustomerMatchesHint')}</Text>
-            ) : (
-              customerResults.map((c) => (
-                <Pressable
-                  key={c.id}
-                  style={[
-                    styles.customerRow,
-                    selectedCustomer?.id === c.id && styles.customerRowSelected,
-                  ]}
-                  onPress={() => onSelectCustomer(c)}
-                >
-                  <Text style={styles.customerRowText}>{c.name}</Text>
-                </Pressable>
-              ))
-            )}
+        {!searchingCustomers &&
+          customerQuery.trim().length > 0 &&
+          !showCreateCustomerForm && (
+            <View style={styles.customerResults}>
+              {customerResults.length === 0 ? (
+                <>
+                  <Text style={styles.hint}>{t('noCustomerMatchesHint')}</Text>
+                  <Button
+                    mode="text"
+                    icon="account-plus-outline"
+                    onPress={onOpenCreateCustomerForm}
+                    style={styles.createCustomerButton}
+                    contentStyle={{ justifyContent: 'flex-start' }}
+                  >
+                    {t('createCustomerNamed', { name: customerQuery.trim() })}
+                  </Button>
+                </>
+              ) : (
+                customerResults.map((c) => (
+                  <Pressable
+                    key={c.id}
+                    style={[
+                      styles.customerRow,
+                      selectedCustomer?.id === c.id &&
+                        styles.customerRowSelected,
+                    ]}
+                    onPress={() => onSelectCustomer(c)}
+                  >
+                    <Text style={styles.customerRowText}>{c.name}</Text>
+                  </Pressable>
+                ))
+              )}
+            </View>
+          )}
+
+        {showCreateCustomerForm && (
+          <View style={styles.createCustomerForm}>
+            <TextInput
+              mode="outlined"
+              label={t('common:name')}
+              value={newCustomerName}
+              onChangeText={onNewCustomerNameChange}
+              dense
+              style={styles.input}
+              autoFocus
+            />
+            <TextInput
+              mode="outlined"
+              label={t('common:phone')}
+              value={newCustomerPhone}
+              onChangeText={onNewCustomerPhoneChange}
+              keyboardType="phone-pad"
+              dense
+              style={styles.input}
+            />
+            <TextInput
+              mode="outlined"
+              label={t('common:email')}
+              value={newCustomerEmail}
+              onChangeText={onNewCustomerEmailChange}
+              keyboardType="email-address"
+              dense
+              style={styles.input}
+            />
+            <TextInput
+              mode="outlined"
+              label={t('taxPinLabel')}
+              value={newCustomerPin}
+              onChangeText={onNewCustomerPinChange}
+              dense
+              style={styles.input}
+            />
+            <View style={styles.createCustomerActions}>
+              <Button
+                mode="text"
+                onPress={onCancelCreateCustomerForm}
+                disabled={creatingCustomer}
+              >
+                {t('common:cancel')}
+              </Button>
+              <Button
+                mode="contained"
+                onPress={onSubmitNewCustomer}
+                loading={creatingCustomer}
+                disabled={creatingCustomer}
+              >
+                {t('common:save')}
+              </Button>
+            </View>
           </View>
         )}
-        <Text style={styles.hint}>
-          {selectedCustomer
-            ? t('selectedCustomerHint', { name: selectedCustomer.name })
-            : t('willUseWalkIn')}
-        </Text>
+
+        {!showCreateCustomerForm && (
+          <Text style={styles.hint}>
+            {selectedCustomer
+              ? t('selectedCustomerHint', { name: selectedCustomer.name })
+              : t('willUseWalkIn')}
+          </Text>
+        )}
 
         {warehouses.length > 1 && (
           <>
@@ -336,6 +436,20 @@ const styles = StyleSheet.create({
   customerRowText: {
     fontSize: 13,
     color: brand.textDark,
+  },
+  createCustomerButton: {
+    alignSelf: 'flex-start',
+    marginTop: 2,
+  },
+  createCustomerForm: {
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  createCustomerActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 8,
+    marginTop: 4,
   },
   hint: {
     fontSize: 12,
