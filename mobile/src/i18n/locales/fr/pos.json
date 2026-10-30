@@ -15,7 +15,8 @@
     "mpesaNeedsInternet": "M-Pesa nécessite une connexion internet — basculé sur Espèces.",
     "registerClosed": "Caisse fermée",
     "customerCreated": "Client \"{{name}}\" créé",
-    "customerCreateFailed": "Impossible de créer le client"
+    "customerCreateFailed": "Impossible de créer le client",
+    "tillMatchCancelled": "Rapprochement Till annulé — la vente est enregistrée mais pas encore payée."
   },
   "errors": {
     "invalidMpesaNumber": "Saisissez un numéro M-Pesa valide, ex. 2547XXXXXXXX",
@@ -26,7 +27,8 @@
     "mpesaStillPending": "La confirmation M-Pesa est toujours en attente. Vérifiez le statut du paiement dans quelques instants.",
     "printDialogFailed": "Impossible d'ouvrir la fenêtre d'impression.",
     "pdfGenerationFailed": "Impossible de générer le reçu PDF.",
-    "loadPosDataFailed": "Échec du chargement des données du point de vente."
+    "loadPosDataFailed": "Échec du chargement des données du point de vente.",
+    "tillMatchFailed": "Impossible de faire correspondre ce paiement Till"
   },
   "checkoutStage": {
     "creatingInvoice": "Création de la facture…",
@@ -66,6 +68,12 @@
   },
   "needsInternetCaption": "Nécessite internet",
   "mpesaPhoneNumberLabel": "Numéro de téléphone M-Pesa",
+  "mpesaChannel": {
+    "stk": "STK Push",
+    "till": "Numéro Till"
+  },
+  "tillPushNotice": "Le client paie lui-même avec son téléphone en utilisant le numéro Till. Une fois le paiement arrivé, appuyez ci-dessous pour confirmer.",
+  "noTillPaymentsYet": "Aucun paiement Till pour l'instant — en attente du paiement du client...",
   "placeholder": {
     "mpesaNumber": "2547XXXXXXXX"
   },

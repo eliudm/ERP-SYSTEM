@@ -180,6 +180,13 @@ export default function PosScreen() {
   const [newCustomerPin, setNewCustomerPin] = useState('');
   const [creatingCustomer, setCreatingCustomer] = useState(false);
   const [mpesaPhone, setMpesaPhone] = useState('');
+  const [mpesaChannel, setMpesaChannel] = useState<'STK' | 'TILL'>('STK');
+  const [tillMatching, setTillMatching] = useState(false);
+  const [pendingTillInvoice, setPendingTillInvoice] = useState<{
+    id: string;
+  } | null>(null);
+  const [pendingTillReceipt, setPendingTillReceipt] =
+    useState<ReceiptData | null>(null);
   const [checkoutStage, setCheckoutStage] = useState<string | null>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
@@ -558,9 +565,82 @@ export default function PosScreen() {
     return null;
   };
 
+  const finalizeCheckout = ({
+    invoice,
+    receipt,
+    offline,
+  }: {
+    invoice: { id: string } | null;
+    receipt: ReceiptData;
+    offline: boolean;
+  }) => {
+    setCart([]);
+    setCartExpanded(false);
+    setSelectedLineId(null);
+    setCheckoutStage(null);
+    setReceiptData(receipt);
+    setOfflinePending(offline);
+    setReceiptQr(null);
+    setScreen('receipt');
+    if (offline || !invoice) {
+      setReceiptQrLoading(false);
+      return;
+    }
+    setReceiptQrLoading(true);
+    void queryClient.invalidateQueries({ queryKey: ['mobile-dashboard'] });
+    void queryClient.invalidateQueries({ queryKey: ['pos-data'] });
+    void fetchEtimsQrWithRetry(invoice.id).then((qr) => {
+      setReceiptQr(qr);
+      setReceiptQrLoading(false);
+    });
+  };
+
+  const { data: pendingTillPayments, isFetching: fetchingTillPayments } =
+    useQuery({
+      queryKey: ['pending-till-payments'],
+      queryFn: () => salesApi.getPendingTillPayments(),
+      enabled: tillMatching,
+      refetchInterval: tillMatching ? 5000 : false,
+    });
+
+  const matchTillMutation = useMutation({
+    mutationFn: (tillPaymentId: string) =>
+      salesApi.matchTillPayment(tillPaymentId, pendingTillInvoice!.id),
+    onSuccess: () => {
+      setTillMatching(false);
+      if (pendingTillInvoice && pendingTillReceipt) {
+        finalizeCheckout({
+          invoice: pendingTillInvoice,
+          receipt: pendingTillReceipt,
+          offline: false,
+        });
+      }
+      setPendingTillInvoice(null);
+      setPendingTillReceipt(null);
+    },
+    onError: (err: any) => {
+      setSnackbar({
+        visible: true,
+        message: err?.response?.data?.message ?? t('errors.tillMatchFailed'),
+        isError: true,
+      });
+    },
+  });
+
+  const cancelTillMatch = () => {
+    setTillMatching(false);
+    setPendingTillInvoice(null);
+    setPendingTillReceipt(null);
+    setSnackbar({ visible: true, message: t('toast.tillMatchCancelled') });
+  };
+
   const chargeMutation = useMutation({
     mutationFn: async () => {
-      if (paymentMethod === 'MOBILE_MONEY' && !isValidKenyaPhone(mpesaPhone)) {
+      if (
+        paymentMethod === 'MOBILE_MONEY' &&
+        mpesaChannel === 'STK' &&
+        !isValidKenyaPhone(mpesaPhone)
+      ) {
         throw new Error(t('errors.invalidMpesaNumber'));
       }
       if (paymentMethod === 'MOBILE_MONEY' && network.isOnline === false) {
@@ -640,6 +720,30 @@ export default function PosScreen() {
         paymentMethod,
       });
 
+      const receipt: ReceiptData = {
+        invoiceNo: invoice.invoiceNo,
+        createdAt: new Date().toISOString(),
+        customerName: customer.name,
+        servedBy: user?.email ?? 'Staff',
+        subtotal,
+        taxTotal,
+        total,
+        paymentMethod,
+        items,
+      };
+
+      if (paymentMethod === 'MOBILE_MONEY' && mpesaChannel === 'TILL') {
+        // Till payments arrive on their own, unprompted — hand off to the
+        // in-place matching UI (see PaymentScreen) instead of finishing the
+        // sale synchronously like STK/cash do.
+        return {
+          offline: false as const,
+          invoice,
+          receipt,
+          awaitingTillMatch: true as const,
+        };
+      }
+
       if (paymentMethod === 'MOBILE_MONEY') {
         setCheckoutStage(t('checkoutStage.sendingMpesaPrompt'));
         await salesApi.initiateMpesaStkPush(invoice.id, {
@@ -651,42 +755,17 @@ export default function PosScreen() {
         await waitForMpesaSettlement(invoice.id);
       }
 
-      return {
-        offline: false as const,
-        invoice,
-        receipt: {
-          invoiceNo: invoice.invoiceNo,
-          createdAt: new Date().toISOString(),
-          customerName: customer.name,
-          servedBy: user?.email ?? 'Staff',
-          subtotal,
-          taxTotal,
-          total,
-          paymentMethod,
-          items,
-        } satisfies ReceiptData,
-      };
+      return { offline: false as const, invoice, receipt };
     },
-    onSuccess: ({ invoice, receipt, offline }) => {
-      setCart([]);
-      setCartExpanded(false);
-      setSelectedLineId(null);
-      setCheckoutStage(null);
-      setReceiptData(receipt);
-      setOfflinePending(offline);
-      setReceiptQr(null);
-      setScreen('receipt');
-      if (offline) {
-        setReceiptQrLoading(false);
+    onSuccess: (result) => {
+      if ('awaitingTillMatch' in result && result.awaitingTillMatch) {
+        setCheckoutStage(null);
+        setPendingTillInvoice(result.invoice);
+        setPendingTillReceipt(result.receipt);
+        setTillMatching(true);
         return;
       }
-      setReceiptQrLoading(true);
-      void queryClient.invalidateQueries({ queryKey: ['mobile-dashboard'] });
-      void queryClient.invalidateQueries({ queryKey: ['pos-data'] });
-      void fetchEtimsQrWithRetry(invoice.id).then((qr) => {
-        setReceiptQr(qr);
-        setReceiptQrLoading(false);
-      });
+      finalizeCheckout(result);
     },
     onError: (err: any) => {
       setCheckoutStage(null);
@@ -824,6 +903,14 @@ export default function PosScreen() {
           disabledMethods={network.isOnline === false ? ['MOBILE_MONEY'] : []}
           mpesaPhone={mpesaPhone}
           onMpesaPhoneChange={setMpesaPhone}
+          mpesaChannel={mpesaChannel}
+          onMpesaChannelChange={setMpesaChannel}
+          tillMatching={tillMatching}
+          pendingTillPayments={pendingTillPayments ?? []}
+          fetchingTillPayments={fetchingTillPayments}
+          onConfirmTillMatch={(id) => matchTillMutation.mutate(id)}
+          confirmingTillMatch={matchTillMutation.isPending}
+          onCancelTillMatch={cancelTillMatch}
           customerQuery={customerQuery}
           onCustomerQueryChange={(v) => void runCustomerSearch(v)}
           customerResults={customerResults}

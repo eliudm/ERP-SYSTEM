@@ -41,6 +41,20 @@ interface PaymentScreenProps {
   disabledMethods?: string[];
   mpesaPhone: string;
   onMpesaPhoneChange: (value: string) => void;
+  mpesaChannel: 'STK' | 'TILL';
+  onMpesaChannelChange: (value: 'STK' | 'TILL') => void;
+  tillMatching: boolean;
+  pendingTillPayments: Array<{
+    id: string;
+    payerName: string;
+    msisdn: string;
+    amount: number;
+    transTime: string;
+  }>;
+  fetchingTillPayments: boolean;
+  onConfirmTillMatch: (tillPaymentId: string) => void;
+  confirmingTillMatch: boolean;
+  onCancelTillMatch: () => void;
   customerQuery: string;
   onCustomerQueryChange: (value: string) => void;
   customerResults: Customer[];
@@ -78,6 +92,14 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
   disabledMethods = [],
   mpesaPhone,
   onMpesaPhoneChange,
+  mpesaChannel,
+  onMpesaChannelChange,
+  tillMatching,
+  pendingTillPayments,
+  fetchingTillPayments,
+  onConfirmTillMatch,
+  confirmingTillMatch,
+  onCancelTillMatch,
   customerQuery,
   onCustomerQueryChange,
   customerResults,
@@ -111,6 +133,43 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
     PAYMENT_METHOD_LABEL_KEYS[method]
       ? t(PAYMENT_METHOD_LABEL_KEYS[method])
       : method;
+
+  if (tillMatching) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.total}>{formatCurrency(total)}</Text>
+        <View style={styles.tillMatchingBody}>
+          <Text style={styles.hint}>{t('noTillPaymentsYet')}</Text>
+          {fetchingTillPayments && pendingTillPayments.length === 0 && (
+            <ActivityIndicator size="small" style={{ marginVertical: 8 }} />
+          )}
+          {pendingTillPayments.map((tx) => (
+            <Pressable
+              key={tx.id}
+              style={styles.customerRow}
+              onPress={() => onConfirmTillMatch(tx.id)}
+              disabled={confirmingTillMatch}
+            >
+              <Text style={styles.customerRowText}>
+                {(tx.payerName || tx.msisdn) +
+                  ' — ' +
+                  formatCurrency(tx.amount)}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+        <View style={styles.footer}>
+          <Button
+            mode="outlined"
+            onPress={onCancelTillMatch}
+            disabled={confirmingTillMatch}
+          >
+            {t('common:cancel')}
+          </Button>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -169,15 +228,30 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
         keyboardShouldPersistTaps="handled"
       >
         {paymentMethod === 'MOBILE_MONEY' && (
-          <TextInput
-            mode="outlined"
-            label={t('mpesaPhoneNumberLabel')}
-            placeholder={t('placeholder.mpesaNumber')}
-            keyboardType="phone-pad"
-            value={mpesaPhone}
-            onChangeText={onMpesaPhoneChange}
-            style={styles.input}
-          />
+          <>
+            <SegmentedButtons
+              value={mpesaChannel}
+              onValueChange={(v) => onMpesaChannelChange(v)}
+              buttons={[
+                { value: 'STK', label: t('mpesaChannel.stk') },
+                { value: 'TILL', label: t('mpesaChannel.till') },
+              ]}
+              style={styles.input}
+            />
+            {mpesaChannel === 'STK' ? (
+              <TextInput
+                mode="outlined"
+                label={t('mpesaPhoneNumberLabel')}
+                placeholder={t('placeholder.mpesaNumber')}
+                keyboardType="phone-pad"
+                value={mpesaPhone}
+                onChangeText={onMpesaPhoneChange}
+                style={styles.input}
+              />
+            ) : (
+              <Text style={styles.hint}>{t('tillPushNotice')}</Text>
+            )}
+          </>
         )}
 
         <Text style={styles.sectionLabel}>{t('common:customer')}</Text>
@@ -444,6 +518,11 @@ const styles = StyleSheet.create({
   createCustomerForm: {
     marginTop: 4,
     marginBottom: 8,
+  },
+  tillMatchingBody: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 12,
   },
   createCustomerActions: {
     flexDirection: 'row',

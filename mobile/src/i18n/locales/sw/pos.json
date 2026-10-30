@@ -15,7 +15,8 @@
     "mpesaNeedsInternet": "M-Pesa inahitaji mtandao — imebadilishwa kuwa Pesa Taslimu.",
     "registerClosed": "Rejista imefungwa",
     "customerCreated": "Mteja \"{{name}}\" ameundwa",
-    "customerCreateFailed": "Imeshindwa kuunda mteja"
+    "customerCreateFailed": "Imeshindwa kuunda mteja",
+    "tillMatchCancelled": "Kulinganisha Till kumesitishwa — mauzo yamerekodiwa lakini bado hayajalipwa."
   },
   "errors": {
     "invalidMpesaNumber": "Weka namba sahihi ya M-Pesa, mfano 2547XXXXXXXX",
@@ -26,7 +27,8 @@
     "mpesaStillPending": "Uthibitisho wa M-Pesa unasubiri. Angalia hali ya malipo baadaye kidogo.",
     "printDialogFailed": "Imeshindwa kufungua dirisha la kuchapisha.",
     "pdfGenerationFailed": "Imeshindwa kuunda risiti ya PDF.",
-    "loadPosDataFailed": "Imeshindwa kupakia data ya POS."
+    "loadPosDataFailed": "Imeshindwa kupakia data ya POS.",
+    "tillMatchFailed": "Imeshindwa kulinganisha malipo haya ya Till"
   },
   "checkoutStage": {
     "creatingInvoice": "Inaunda ankara…",
@@ -66,6 +68,12 @@
   },
   "needsInternetCaption": "Inahitaji mtandao",
   "mpesaPhoneNumberLabel": "Namba ya simu ya M-Pesa",
+  "mpesaChannel": {
+    "stk": "STK Push",
+    "till": "Namba ya Till"
+  },
+  "tillPushNotice": "Mteja analipa kwa simu yake kwa kutumia Namba ya Till. Mara malipo yatakapofika, bofya hapa chini ili kuthibitisha.",
+  "noTillPaymentsYet": "Hakuna malipo ya Till bado — inasubiri mteja kulipa...",
   "placeholder": {
     "mpesaNumber": "2547XXXXXXXX"
   },
