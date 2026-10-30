@@ -3,6 +3,7 @@ import {
   Button, Input, Typography,
   Space, Table, Divider, Select, message,
   InputNumber, Empty, Tag, Modal, Alert, Dropdown, Switch, Form, Spin,
+  Segmented, List,
 } from 'antd';
 import {
   DeleteOutlined,
@@ -148,6 +149,9 @@ export const POSPage: React.FC = () => {
   const [createCustomerOpen, setCreateCustomerOpen] = useState(false);
   const [createCustomerForm] = Form.useForm();
   const [customerSearchText, setCustomerSearchText] = useState('');
+  const [mpesaChannel, setMpesaChannel] = useState<'STK' | 'TILL'>('STK');
+  const [tillMatchOpen, setTillMatchOpen] = useState(false);
+  const [pendingTillInvoice, setPendingTillInvoice] = useState<{ id: string; invoiceNo: string } | null>(null);
   const [isCompactCalculator, setIsCompactCalculator] = useState(() => {
     if (typeof window === 'undefined') {
       return false;
@@ -417,9 +421,51 @@ export const POSPage: React.FC = () => {
     return null;
   };
 
+  const finalizeSale = async (invoice: { id: string; invoiceNo: string }) => {
+    const qrDetails = await fetchEtimsQrCode(invoice.id);
+    if (qrDetails?.provisional) {
+      message.warning(qrDetails.message || t('toast.etimsQrUnavailable'));
+    } else {
+      message.success(t('toast.saleCompleted', { invoiceNo: invoice.invoiceNo }));
+    }
+    if (pendingReceipt) {
+      setValidatedReceipt({
+        ...pendingReceipt,
+        invoiceId: invoice.id,
+        invoiceNo: invoice.invoiceNo,
+        qrCode: qrDetails?.qrCode,
+        etimsInvoiceNo: qrDetails?.etimsInvoiceNo,
+        provisionalQr: qrDetails?.provisional,
+        qrStatus: qrDetails?.status,
+        qrMessage: qrDetails?.message,
+      });
+    }
+    setPaymentOpen(false);
+    setCart([]);
+    setCustomerId(undefined);
+    setWarehouseId(undefined);
+    setPaymentMethod('CASH');
+    setMpesaChannel('STK');
+    setMpesaPhoneNumber('');
+    setPendingReceipt(null);
+    queryClient.invalidateQueries({ queryKey: ['invoices'] });
+    queryClient.invalidateQueries({ queryKey: ['products'] });
+  };
+
   const createInvoiceMutation = useMutation({
     mutationFn: salesApi.createInvoice,
     onSuccess: async (invoice) => {
+      if (paymentMethod === 'MOBILE_MONEY' && mpesaChannel === 'TILL') {
+        // Till payments arrive on their own, unprompted — approve (deducts
+        // stock, same as every other method) then wait for the cashier to
+        // pick the matching incoming payment in the modal below, instead of
+        // finalizing the sale synchronously like STK/cash do.
+        await salesApi.approveInvoice(invoice.id, activeWarehouseId);
+        setPendingTillInvoice(invoice);
+        setTillMatchOpen(true);
+        return;
+      }
+
       if (paymentMethod === 'MOBILE_MONEY') {
         await salesApi.approveInvoice(invoice.id, activeWarehouseId);
         await salesApi.initiateMpesaPayment(invoice.id, {
@@ -444,33 +490,7 @@ export const POSPage: React.FC = () => {
         await salesApi.approveInvoice(invoice.id, activeWarehouseId, paymentMethod);
       }
 
-      const qrDetails = await fetchEtimsQrCode(invoice.id);
-      if (qrDetails?.provisional) {
-        message.warning(qrDetails.message || t('toast.etimsQrUnavailable'));
-      } else {
-        message.success(t('toast.saleCompleted', { invoiceNo: invoice.invoiceNo }));
-      }
-      if (pendingReceipt) {
-        setValidatedReceipt({
-          ...pendingReceipt,
-          invoiceId: invoice.id,
-          invoiceNo: invoice.invoiceNo,
-          qrCode: qrDetails?.qrCode,
-          etimsInvoiceNo: qrDetails?.etimsInvoiceNo,
-          provisionalQr: qrDetails?.provisional,
-          qrStatus: qrDetails?.status,
-          qrMessage: qrDetails?.message,
-        });
-      }
-      setPaymentOpen(false);
-      setCart([]);
-      setCustomerId(undefined);
-      setWarehouseId(undefined);
-      setPaymentMethod('CASH');
-      setMpesaPhoneNumber('');
-      setPendingReceipt(null);
-      queryClient.invalidateQueries({ queryKey: ['invoices'] });
-      queryClient.invalidateQueries({ queryKey: ['products'] });
+      await finalizeSale(invoice);
     },
     onError: (error: unknown) => {
       const apiError = error as AxiosError<{ message?: string }>;
@@ -479,6 +499,36 @@ export const POSPage: React.FC = () => {
       setPendingReceipt(null);
     },
   });
+
+  const { data: pendingTillPayments, isFetching: fetchingTillPayments } = useQuery({
+    queryKey: ['pending-till-payments'],
+    queryFn: () => salesApi.getPendingTillPayments(),
+    enabled: tillMatchOpen,
+    refetchInterval: tillMatchOpen ? 5000 : false,
+  });
+
+  const matchTillMutation = useMutation({
+    mutationFn: (tillPaymentId: string) =>
+      salesApi.matchTillPayment(tillPaymentId, pendingTillInvoice!.id),
+    onSuccess: async () => {
+      const invoice = pendingTillInvoice;
+      setTillMatchOpen(false);
+      setPendingTillInvoice(null);
+      if (invoice) {
+        await finalizeSale(invoice);
+      }
+    },
+    onError: (error: unknown) => {
+      const apiError = error as AxiosError<{ message?: string }>;
+      message.error(apiError.response?.data?.message || t('toast.tillMatchFailed'));
+    },
+  });
+
+  const cancelTillMatch = () => {
+    setTillMatchOpen(false);
+    setPendingTillInvoice(null);
+    message.info(t('toast.tillMatchCancelled'));
+  };
 
   const retryMpesaMutation = useMutation({
     mutationFn: (transactionId: string) => salesApi.retryMpesaTransaction(transactionId),
@@ -1347,19 +1397,37 @@ export const POSPage: React.FC = () => {
       )}
       {paymentMethod === 'MOBILE_MONEY' && (
         <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 12, color: '#888', marginBottom: 6 }}>{t('mpesaPhoneNumber')}</div>
-          <Input
-            size="large"
-            placeholder={t('placeholder.mpesaNumber')}
-            value={mpesaPhoneNumber}
-            onChange={(event) => setMpesaPhoneNumber(event.target.value)}
+          <Segmented
+            block
+            value={mpesaChannel}
+            onChange={(v) => setMpesaChannel(v as 'STK' | 'TILL')}
+            options={[
+              { label: t('mpesaChannel.stk'), value: 'STK' },
+              { label: t('mpesaChannel.till'), value: 'TILL' },
+            ]}
+            style={{ marginBottom: 12 }}
           />
-          <div style={{ marginTop: 8, fontSize: 12, color: '#8c8c8c' }}>
-            {t('stkPushNotice')}
-          </div>
-          {mpesaPhoneNumber.trim() !== '' && !isValidKenyaPhone(mpesaPhoneNumber) && (
-            <div style={{ marginTop: 8, color: '#cf1322', fontSize: 12 }}>
-              {t('invalidKenyanPhone')}
+          {mpesaChannel === 'STK' ? (
+            <>
+              <div style={{ fontSize: 12, color: '#888', marginBottom: 6 }}>{t('mpesaPhoneNumber')}</div>
+              <Input
+                size="large"
+                placeholder={t('placeholder.mpesaNumber')}
+                value={mpesaPhoneNumber}
+                onChange={(event) => setMpesaPhoneNumber(event.target.value)}
+              />
+              <div style={{ marginTop: 8, fontSize: 12, color: '#8c8c8c' }}>
+                {t('stkPushNotice')}
+              </div>
+              {mpesaPhoneNumber.trim() !== '' && !isValidKenyaPhone(mpesaPhoneNumber) && (
+                <div style={{ marginTop: 8, color: '#cf1322', fontSize: 12 }}>
+                  {t('invalidKenyanPhone')}
+                </div>
+              )}
+            </>
+          ) : (
+            <div style={{ fontSize: 12, color: '#8c8c8c' }}>
+              {t('tillPushNotice')}
             </div>
           )}
         </div>
@@ -1388,7 +1456,7 @@ export const POSPage: React.FC = () => {
         onClick={confirmSale}
         disabled={
           (paymentMethod === 'CASH' && cashTendered !== '' && parseFloat(cashTendered) < total)
-          || (paymentMethod === 'MOBILE_MONEY' && !isValidKenyaPhone(mpesaPhoneNumber))
+          || (paymentMethod === 'MOBILE_MONEY' && mpesaChannel === 'STK' && !isValidKenyaPhone(mpesaPhoneNumber))
         }
       >
         {t('validatePayment')}
@@ -1449,6 +1517,47 @@ export const POSPage: React.FC = () => {
             placeholder={t('placeholder.optionalNotes')}
           />
         </div>
+      </Space>
+    </Modal>
+
+    <Modal
+      title={t('modal.matchTillPayment')}
+      open={tillMatchOpen}
+      onCancel={cancelTillMatch}
+      footer={[
+        <Button key="cancel" onClick={cancelTillMatch}>
+          {t('common:cancel')}
+        </Button>,
+      ]}
+      destroyOnClose
+    >
+      <Space direction="vertical" style={{ width: '100%' }} size="small">
+        <Text type="secondary" style={{ fontSize: 12 }}>
+          {pendingTillInvoice
+            ? t('tillMatchHint', { invoiceNo: pendingTillInvoice.invoiceNo, total: formatCurrency(total) })
+            : ''}
+        </Text>
+        {fetchingTillPayments && !pendingTillPayments && <Spin size="small" />}
+        <List
+          dataSource={pendingTillPayments || []}
+          locale={{ emptyText: t('noTillPaymentsYet') }}
+          renderItem={(tx) => (
+            <List.Item
+              style={{ cursor: 'pointer' }}
+              onClick={() => matchTillMutation.mutate(tx.id)}
+              actions={[
+                <Button key="confirm" type="primary" size="small" loading={matchTillMutation.isPending}>
+                  {t('common:confirm')}
+                </Button>,
+              ]}
+            >
+              <List.Item.Meta
+                title={`${tx.payerName || tx.msisdn} — ${formatCurrency(tx.amount)}`}
+                description={new Date(tx.transTime).toLocaleTimeString()}
+              />
+            </List.Item>
+          )}
+        />
       </Space>
     </Modal>
 

@@ -139,6 +139,27 @@ export const salesApi = {
     return res.data;
   },
 
+  getPendingTillPayments: async (): Promise<Array<{
+    id: string;
+    transId: string;
+    transTime: string;
+    amount: number;
+    msisdn: string;
+    payerName: string;
+    billRefNumber?: string;
+  }>> => {
+    const res = await apiClient.get('/sales/invoices/mpesa/till/pending');
+    return res.data;
+  },
+
+  matchTillPayment: async (tillPaymentId: string, invoiceId: string) => {
+    const res = await apiClient.post(
+      `/sales/invoices/mpesa/till/${tillPaymentId}/match`,
+      { invoiceId },
+    );
+    return res.data;
+  },
+
   voidInvoice: async (id: string, reason: string): Promise<Invoice> => {
     const res = await apiClient.patch(`/sales/invoices/${id}/void`, { reason });
     return res.data;

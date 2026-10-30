@@ -21,7 +21,9 @@
     "dataReloaded": "Données rechargées",
     "registerClosed": "Caisse fermée",
     "cashRecorded": "{{label}} : KES {{amount}} enregistré — {{reason}}",
-    "noReasonGiven": "Aucune raison indiquée"
+    "noReasonGiven": "Aucune raison indiquée",
+    "tillMatchFailed": "Impossible de faire correspondre ce paiement Till",
+    "tillMatchCancelled": "Rapprochement Till annulé — la vente est enregistrée mais pas encore payée."
   },
   "cashIn": "Entrée de caisse",
   "cashOut": "Sortie de caisse",
@@ -31,7 +33,8 @@
     "newCustomer": "Nouveau client",
     "createCustomerNamed": "Créer un nouveau client \"{{name}}\"",
     "cashInOut": "Entrée / Sortie de caisse",
-    "payment": "Paiement — {{total}}"
+    "payment": "Paiement — {{total}}",
+    "matchTillPayment": "Associer le paiement Till"
   },
   "register": "Caisse",
   "orders": "Commandes",
@@ -83,6 +86,13 @@
   "perUnit": "/ unité",
   "selectAnItem": "sélectionnez un article",
   "stkPushNotice": "Le client recevra une invite STK push sur ce numéro.",
+  "tillPushNotice": "Le client paie lui-même avec son téléphone en utilisant le numéro Till. Une fois le paiement arrivé, sélectionnez-le dans la liste pour confirmer.",
+  "mpesaChannel": {
+    "stk": "STK Push",
+    "till": "Numéro Till"
+  },
+  "tillMatchHint": "En attente d'un paiement Till pour la facture {{invoiceNo}} ({{total}}). Appuyez sur le paiement correspondant dès qu'il apparaît.",
+  "noTillPaymentsYet": "Aucun paiement Till pour l'instant — en attente du paiement du client...",
   "invalidKenyanPhone": "Entrez un numéro de téléphone kenyan valide : 07XXXXXXXX ou 2547XXXXXXXX.",
   "minAmountPlaceholder": "Min : {{amount}}",
   "changeAmount": "Monnaie : {{amount}}",
