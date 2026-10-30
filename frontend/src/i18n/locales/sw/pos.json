@@ -29,6 +29,7 @@
     "reconcileMpesa": "Linganisha Muamala wa M-Pesa",
     "saleValidated": "Mauzo Yamethibitishwa",
     "newCustomer": "Mteja Mpya",
+    "createCustomerNamed": "Unda mteja mpya \"{{name}}\"",
     "cashInOut": "Pesa Ndani / Nje",
     "payment": "Malipo — {{total}}"
   },

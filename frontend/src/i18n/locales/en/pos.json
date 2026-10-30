@@ -29,6 +29,7 @@
     "reconcileMpesa": "Reconcile M-Pesa Transaction",
     "saleValidated": "Sale Validated",
     "newCustomer": "New Customer",
+    "createCustomerNamed": "Create new customer \"{{name}}\"",
     "cashInOut": "Cash In / Out",
     "payment": "Payment — {{total}}"
   },

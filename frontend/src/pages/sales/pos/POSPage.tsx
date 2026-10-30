@@ -147,6 +147,7 @@ export const POSPage: React.FC = () => {
   const [panelTransactions, setPanelTransactions] = useState<PendingMpesaPanelRow[]>([]);
   const [createCustomerOpen, setCreateCustomerOpen] = useState(false);
   const [createCustomerForm] = Form.useForm();
+  const [customerSearchText, setCustomerSearchText] = useState('');
   const [isCompactCalculator, setIsCompactCalculator] = useState(() => {
     if (typeof window === 'undefined') {
       return false;
@@ -530,6 +531,7 @@ export const POSPage: React.FC = () => {
       setCustomerId(newCustomer.id);
       createCustomerForm.resetFields();
       setCreateCustomerOpen(false);
+      setCustomerSearchText('');
     },
     onError: (error: unknown) => {
       const apiError = error as AxiosError<{ message?: string }>;
@@ -1074,8 +1076,22 @@ export const POSPage: React.FC = () => {
               showSearch
               allowClear
               value={customerId}
-              onChange={setCustomerId}
+              onChange={(v) => { setCustomerId(v); setCustomerSearchText(''); }}
+              onSearch={setCustomerSearchText}
               filterOption={(i, o) => String(o?.label ?? '').toLowerCase().includes(i.toLowerCase())}
+              notFoundContent={customerSearchText.trim() ? (
+                <Button
+                  type="link"
+                  icon={<PlusOutlined />}
+                  style={{ padding: 0 }}
+                  onClick={() => {
+                    createCustomerForm.setFieldsValue({ name: customerSearchText.trim() });
+                    setCreateCustomerOpen(true);
+                  }}
+                >
+                  {t('modal.createCustomerNamed', { name: customerSearchText.trim() })}
+                </Button>
+              ) : null}
               options={[
                 { value: WALK_IN_VALUE, label: t('common:walkInCustomer') },
                 ...((customers || []).map((c: Customer) => ({ value: c.id, label: c.name }))),
@@ -1804,7 +1820,7 @@ export const POSPage: React.FC = () => {
       <Modal
         title={t('modal.newCustomer')}
         open={createCustomerOpen}
-        onCancel={() => { createCustomerForm.resetFields(); setCreateCustomerOpen(false); }}
+        onCancel={() => { createCustomerForm.resetFields(); setCreateCustomerOpen(false); setCustomerSearchText(''); }}
         onOk={() => createCustomerForm.submit()}
         okText={t('create')}
         confirmLoading={createCustomerMutation.isPending}

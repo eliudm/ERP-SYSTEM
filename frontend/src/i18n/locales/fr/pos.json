@@ -29,6 +29,7 @@
     "reconcileMpesa": "Rapprocher la transaction M-Pesa",
     "saleValidated": "Vente validée",
     "newCustomer": "Nouveau client",
+    "createCustomerNamed": "Créer un nouveau client \"{{name}}\"",
     "cashInOut": "Entrée / Sortie de caisse",
     "payment": "Paiement — {{total}}"
   },
