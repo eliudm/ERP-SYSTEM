@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node check_branches.js)",
+      "Bash(grep -nE \">[A-Z][a-zA-Z ]{2,}<\" src/components/pos/PaymentScreen.tsx)",
+      "Bash(grep -nE \">[A-Z][a-zA-Z ]{2,}<\" src/components/pos/OrdersList.tsx)",
+      "Bash(node -e ' *)",
+      "Bash(grep -nE \">[A-Z][a-zA-Z ]{2,}<\" \"src/app/\\(app\\)/index.tsx\")",
+      "Bash(npm audit *)",
+      "Bash(python3 -c ' *)",
+      "Bash(npm uninstall *)",
+      "Bash(npm ls *)"
+    ]
+  }
+}
