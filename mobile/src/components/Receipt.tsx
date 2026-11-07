@@ -36,6 +36,10 @@ interface ReceiptProps {
   printing?: boolean;
   onSavePdf?: () => void;
   savingPdf?: boolean;
+  // Android-only (cable-connected thermal printer) — omitted entirely on
+  // iOS/web rather than shown disabled, since it never works there.
+  onPrintUsb?: () => void;
+  printingUsb?: boolean;
   // Sold while offline — not a real tax invoice yet, nothing to fetch a QR
   // against until it syncs. See useOfflineSales.ts / pos.tsx's chargeMutation.
   pendingSync?: boolean;
@@ -51,6 +55,8 @@ export const Receipt: React.FC<ReceiptProps> = ({
   printing,
   onSavePdf,
   savingPdf,
+  onPrintUsb,
+  printingUsb,
   pendingSync,
 }) => {
   const businessName = settings?.companyName || 'Nexora ERP';
@@ -154,7 +160,7 @@ export const Receipt: React.FC<ReceiptProps> = ({
         </View>
       </ScrollView>
 
-      {(onPrint || onSavePdf) && (
+      {(onPrint || onSavePdf || onPrintUsb) && (
         <View style={styles.footerButtons}>
           {onPrint && (
             <Button
@@ -162,11 +168,24 @@ export const Receipt: React.FC<ReceiptProps> = ({
               icon="printer-outline"
               onPress={onPrint}
               loading={printing}
-              disabled={printing || savingPdf}
+              disabled={printing || savingPdf || printingUsb}
               style={styles.printButton}
               contentStyle={styles.doneButtonContent}
             >
               Print
+            </Button>
+          )}
+          {onPrintUsb && (
+            <Button
+              mode="outlined"
+              icon="usb"
+              onPress={onPrintUsb}
+              loading={printingUsb}
+              disabled={printing || savingPdf || printingUsb}
+              style={styles.printButton}
+              contentStyle={styles.doneButtonContent}
+            >
+              USB
             </Button>
           )}
           {onSavePdf && (
@@ -175,7 +194,7 @@ export const Receipt: React.FC<ReceiptProps> = ({
               icon="file-pdf-box"
               onPress={onSavePdf}
               loading={savingPdf}
-              disabled={printing || savingPdf}
+              disabled={printing || savingPdf || printingUsb}
               style={styles.printButton}
               contentStyle={styles.doneButtonContent}
             >

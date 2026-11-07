@@ -28,7 +28,8 @@
     "printDialogFailed": "Could not open print dialog.",
     "pdfGenerationFailed": "Could not generate the PDF receipt.",
     "loadPosDataFailed": "Failed to load POS data.",
-    "tillMatchFailed": "Failed to match this Till payment"
+    "tillMatchFailed": "Failed to match this Till payment",
+    "usbPrintFailed": "Failed to print to the USB printer."
   },
   "checkoutStage": {
     "creatingInvoice": "Creating invoice…",

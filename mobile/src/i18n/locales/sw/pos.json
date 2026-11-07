@@ -28,7 +28,8 @@
     "printDialogFailed": "Imeshindwa kufungua dirisha la kuchapisha.",
     "pdfGenerationFailed": "Imeshindwa kuunda risiti ya PDF.",
     "loadPosDataFailed": "Imeshindwa kupakia data ya POS.",
-    "tillMatchFailed": "Imeshindwa kulinganisha malipo haya ya Till"
+    "tillMatchFailed": "Imeshindwa kulinganisha malipo haya ya Till",
+    "usbPrintFailed": "Imeshindwa kuchapisha kwenye printa ya USB."
   },
   "checkoutStage": {
     "creatingInvoice": "Inaunda ankara…",

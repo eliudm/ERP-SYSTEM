@@ -28,7 +28,8 @@
     "printDialogFailed": "Impossible d'ouvrir la fenêtre d'impression.",
     "pdfGenerationFailed": "Impossible de générer le reçu PDF.",
     "loadPosDataFailed": "Échec du chargement des données du point de vente.",
-    "tillMatchFailed": "Impossible de faire correspondre ce paiement Till"
+    "tillMatchFailed": "Impossible de faire correspondre ce paiement Till",
+    "usbPrintFailed": "Impossible d'imprimer sur l'imprimante USB."
   },
   "checkoutStage": {
     "creatingInvoice": "Création de la facture…",

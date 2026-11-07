@@ -7,6 +7,7 @@ import {
   FlatList,
   ScrollView,
   Pressable,
+  Platform,
   useWindowDimensions,
 } from 'react-native';
 import {
@@ -44,7 +45,11 @@ import { useOfflineSales } from '../../hooks/useOfflineSales';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import { useOrderDetailActions } from '../../hooks/useOrderDetailActions';
 import { buildReceiptHtml } from '../../utils/receiptHtml';
-import { printReceiptHtml, saveReceiptPdf } from '../../utils/printReceipt';
+import {
+  printReceiptHtml,
+  saveReceiptPdf,
+  printReceiptUsb,
+} from '../../utils/printReceipt';
 import { brand } from '../../theme';
 
 interface CartLine {
@@ -147,6 +152,7 @@ export default function PosScreen() {
   // document (the full invoice, not the till receipt).
   const [printing, setPrinting] = useState(false);
   const [savingPdf, setSavingPdf] = useState(false);
+  const [printingUsb, setPrintingUsb] = useState(false);
   const [openingFloatInput, setOpeningFloatInput] = useState('');
   const [cashCountedInput, setCashCountedInput] = useState('');
 
@@ -855,6 +861,24 @@ export default function PosScreen() {
     }
   };
 
+  const printCurrentReceiptUsb = async () => {
+    const html = buildCurrentReceiptHtml();
+    if (!html) return;
+    setPrintingUsb(true);
+    try {
+      await printReceiptUsb(html);
+    } catch (err) {
+      setSnackbar({
+        visible: true,
+        message:
+          err instanceof Error ? err.message : t('errors.usbPrintFailed'),
+        isError: true,
+      });
+    } finally {
+      setPrintingUsb(false);
+    }
+  };
+
   const snackbarElement = (
     <Snackbar
       visible={snackbar.visible}
@@ -1007,6 +1031,12 @@ export default function PosScreen() {
             printing={printing}
             onSavePdf={() => void saveCurrentReceiptPdf()}
             savingPdf={savingPdf}
+            onPrintUsb={
+              Platform.OS === 'android'
+                ? () => void printCurrentReceiptUsb()
+                : undefined
+            }
+            printingUsb={printingUsb}
             pendingSync={offlinePending}
           />
         )}
