@@ -27,7 +27,8 @@
       "expo-status-bar",
       "expo-secure-store",
       "expo-font",
-      "expo-sharing"
+      "expo-sharing",
+      "expo-dev-client"
     ],
     "experiments": {
       "typedRoutes": true
