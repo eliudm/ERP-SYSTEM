@@ -707,24 +707,39 @@ export class ReportsService {
     const start = new Date(startDate);
     const end = new Date(endDate);
 
-    const invoices = await this.prisma.salesInvoice.findMany({
-      where: {
-        status: { in: ['PAID', 'APPROVED'] },
-        invoiceDate: { gte: start, lte: end },
-        OR: [
-          { paymentMethod: { not: null } },
-          { creditPayments: { some: {} } },
-        ],
-      },
-      select: {
-        cashierId: true,
-        cashier: { select: { firstName: true, lastName: true } },
-        paymentMethod: true,
-        total: true,
-        cogsAmount: true,
-        creditPayments: { select: { id: true } },
-      },
-    });
+    // Two queries mirror the getDailyCollections pattern to avoid OR-clause issues.
+    const [regularInvoices, creditInvoices] = await Promise.all([
+      this.prisma.salesInvoice.findMany({
+        where: {
+          status: { in: ['PAID', 'APPROVED'] },
+          paymentMethod: { not: null },
+          invoiceDate: { gte: start, lte: end },
+        },
+        select: {
+          cashierId: true,
+          cashier: { select: { firstName: true, lastName: true } },
+          paymentMethod: true,
+          total: true,
+          cogsAmount: true,
+        },
+      }),
+      this.prisma.salesInvoice.findMany({
+        where: {
+          invoiceDate: { gte: start, lte: end },
+          OR: [
+            { paymentMethod: 'CREDIT' },
+            { creditPayments: { some: {} } },
+          ],
+        },
+        select: {
+          id: true,
+          cashierId: true,
+          cashier: { select: { firstName: true, lastName: true } },
+          total: true,
+          cogsAmount: true,
+        },
+      }),
+    ]);
 
     type Bucket = {
       name: string;
@@ -733,21 +748,33 @@ export class ReportsService {
       total: number; cogs: number;
     };
     const map = new Map<string, Bucket>();
+    const mkBucket = (name: string): Bucket => ({
+      name, CASH: 0, CARD: 0, MOBILE_MONEY: 0, BANK_TRANSFER: 0, CREDIT: 0, total: 0, cogs: 0,
+    });
 
-    for (const inv of invoices) {
+    for (const inv of regularInvoices) {
+      if (!inv.paymentMethod || inv.paymentMethod === 'CREDIT') continue; // credit handled below
       const id = inv.cashierId ?? '__none__';
       const c = inv.cashier;
       const name = c ? `${c.firstName} ${c.lastName}`.trim() : 'No Cashier';
-      if (!map.has(id)) {
-        map.set(id, { name, CASH: 0, CARD: 0, MOBILE_MONEY: 0, BANK_TRANSFER: 0, CREDIT: 0, total: 0, cogs: 0 });
-      }
+      if (!map.has(id)) map.set(id, mkBucket(name));
       const b = map.get(id)!;
-      // Treat as CREDIT if paymentMethod is CREDIT or if it has credit payments
-      const isCreditSale = inv.paymentMethod === 'CREDIT' || (inv as any).creditPayments?.length > 0;
-      const method = (isCreditSale ? 'CREDIT' : inv.paymentMethod) as keyof Bucket;
-      if (method) {
-        (b[method] as number) = ((b[method] as number) || 0) + Number(inv.total);
-      }
+      const method = inv.paymentMethod as keyof Bucket;
+      (b[method] as number) = ((b[method] as number) || 0) + Number(inv.total);
+      b.total += Number(inv.total);
+      b.cogs += Number(inv.cogsAmount ?? 0);
+    }
+
+    const seenCredit = new Set<string>();
+    for (const inv of creditInvoices) {
+      if (seenCredit.has(inv.id)) continue;
+      seenCredit.add(inv.id);
+      const id = inv.cashierId ?? '__none__';
+      const c = inv.cashier;
+      const name = c ? `${c.firstName} ${c.lastName}`.trim() : 'No Cashier';
+      if (!map.has(id)) map.set(id, mkBucket(name));
+      const b = map.get(id)!;
+      b.CREDIT += Number(inv.total);
       b.total += Number(inv.total);
       b.cogs += Number(inv.cogsAmount ?? 0);
     }
@@ -799,17 +826,11 @@ export class ReportsService {
         status: { in: ['PAID', 'APPROVED'] },
         invoiceDate: { gte: start, lte: end },
       },
-      select: {
-        invoiceNo: true,
-        invoiceDate: true,
-        paymentMethod: true,
+      include: {
         cashier: { select: { firstName: true, lastName: true } },
         customer: { select: { name: true } },
         items: {
-          select: {
-            quantity: true,
-            unitPrice: true,
-            lineTotal: true,
+          include: {
             product: { select: { name: true, code: true, costPrice: true } },
           },
         },
@@ -817,8 +838,8 @@ export class ReportsService {
       orderBy: { invoiceDate: 'desc' },
     });
 
-    const rows = invoices.flatMap((inv) =>
-      inv.items.map((item) => {
+    const rows = (invoices as any[]).flatMap((inv: any) =>
+      inv.items.map((item: any) => {
         const qty = Number(item.quantity);
         const unitPrice = Number(item.unitPrice);
         const lineTotal = Number(item.lineTotal);
