@@ -69,7 +69,7 @@ export const CashFlowPage: React.FC = () => {
       key: 'date',
       fixed: 'left' as const,
       width: 110,
-      render: (v: string) => <Text strong>{formatDate(v)}</Text>,
+      render: (v: string) => <Text strong>{v === 'TOTALS' ? 'TOTALS' : formatDate(v)}</Text>,
     },
     {
       title: <Tooltip title="Direct cash sales"><span style={{ color: '#52c41a' }}>💵 Cash</span></Tooltip>,
