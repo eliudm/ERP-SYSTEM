@@ -214,6 +214,26 @@ export class AuthService {
     return user;
   }
 
+  // ─── UPDATE OWN PROFILE ─────────────────────────────────
+  async updateProfile(userId: string, dto: { firstName?: string; lastName?: string }) {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: dto,
+      select: { id: true, firstName: true, lastName: true, email: true, role: true, posOnly: true, isActive: true, createdAt: true },
+    });
+  }
+
+  // ─── CHANGE OWN PASSWORD ─────────────────────────────────
+  async changePassword(userId: string, currentPassword: string, newPassword: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+    const valid = await bcrypt.compare(currentPassword, user.password);
+    if (!valid) throw new UnauthorizedException('Current password is incorrect');
+    const hashed = await bcrypt.hash(newPassword, 10);
+    await this.prisma.user.update({ where: { id: userId }, data: { password: hashed } });
+    return { message: 'Password changed successfully' };
+  }
+
   // ─── GET ALL USERS (Admin only) ─────────────────────────
   async getAllUsers() {
     return this.prisma.user.findMany({

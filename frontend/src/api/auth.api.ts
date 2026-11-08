@@ -56,6 +56,16 @@ export const authApi = {
     return res.data;
   },
 
+  updateProfile: async (dto: { firstName?: string; lastName?: string }): Promise<User> => {
+    const res = await apiClient.patch('/auth/profile', dto);
+    return res.data;
+  },
+
+  changePassword: async (currentPassword: string, newPassword: string): Promise<{ message: string }> => {
+    const res = await apiClient.post('/auth/change-password', { currentPassword, newPassword });
+    return res.data;
+  },
+
   updateUserAccess: async (
     id: string,
     posOnly: boolean,

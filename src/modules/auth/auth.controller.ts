@@ -89,6 +89,22 @@ export class AuthController {
     return this.authService.verifyPin(userId, dto.pin);
   }
 
+  @ApiOperation({ summary: 'Update own profile (name)' })
+  @ApiBearerAuth()
+  @Patch('profile')
+  @UseGuards(JwtAuthGuard)
+  updateProfile(@GetUser('id') userId: string, @Body() dto: { firstName?: string; lastName?: string }) {
+    return this.authService.updateProfile(userId, dto);
+  }
+
+  @ApiOperation({ summary: 'Change own password' })
+  @ApiBearerAuth()
+  @Post('change-password')
+  @UseGuards(JwtAuthGuard)
+  changePassword(@GetUser('id') userId: string, @Body() dto: { currentPassword: string; newPassword: string }) {
+    return this.authService.changePassword(userId, dto.currentPassword, dto.newPassword);
+  }
+
   @ApiOperation({ summary: 'List all users (admin only)' })
   @ApiBearerAuth()
   @Get('users')
