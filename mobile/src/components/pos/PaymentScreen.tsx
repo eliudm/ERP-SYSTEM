@@ -218,6 +218,11 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
                   {t('needsInternetCaption')}
                 </Text>
               )}
+              {method === 'CREDIT' && selected && !selectedCustomer && (
+                <Text style={[styles.methodCaption, { color: '#d4380d' }]}>
+                  {t('creditNeedsCustomer')}
+                </Text>
+              )}
             </Pressable>
           );
         })}
@@ -416,7 +421,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
           contentStyle={styles.confirmButtonContent}
           onPress={onConfirm}
           loading={isSubmitting}
-          disabled={isSubmitting}
+          disabled={isSubmitting || (paymentMethod === 'CREDIT' && !selectedCustomer)}
         >
           {PAYMENT_METHOD_LABEL_KEYS[paymentMethod]
             ? paymentMethodLabel(paymentMethod)
