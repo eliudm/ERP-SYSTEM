@@ -121,7 +121,7 @@ export default function DashboardScreen() {
           value={String(data?.pendingInvoices ?? 0)}
           tone={data?.pendingInvoices ? 'warning' : 'default'}
           icon="clock-outline"
-          onPress={() => router.push('/sales?filter=all&status=APPROVED')}
+          onPress={() => router.push('/sales?filter=all&status=PENDING')}
         />
       </View>
 
@@ -132,7 +132,7 @@ export default function DashboardScreen() {
           value={String(data?.pendingApprovals ?? 0)}
           tone={data?.pendingApprovals ? 'warning' : 'default'}
           icon="file-clock-outline"
-          onPress={() => router.push('/sales?filter=all&status=DRAFT')}
+          onPress={() => router.push('/sales?filter=all&status=PENDING')}
         />
         <Stat
           label={t('lowStockItems')}

@@ -24,7 +24,7 @@ import { useOrderDetailActions } from '../../hooks/useOrderDetailActions';
 import { brand } from '../../theme';
 
 type DateFilter = 'today' | 'week' | 'month' | 'all';
-type StatusFilter = 'ALL' | 'PAID' | 'APPROVED' | 'DRAFT' | 'VOID';
+type StatusFilter = 'ALL' | 'PAID' | 'PENDING' | 'DRAFT' | 'VOID';
 
 const DATE_FILTERS: { key: DateFilter; label: string }[] = [
   { key: 'today', label: 'Today' },
@@ -36,10 +36,13 @@ const DATE_FILTERS: { key: DateFilter; label: string }[] = [
 const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
   { key: 'ALL', label: 'All' },
   { key: 'PAID', label: 'Paid' },
-  { key: 'APPROVED', label: 'Pending' },
+  { key: 'PENDING', label: 'Pending' },
   { key: 'DRAFT', label: 'Draft' },
   { key: 'VOID', label: 'Void' },
 ];
+
+// PENDING = DRAFT | APPROVED | SENT (not yet fully settled)
+const PENDING_STATUSES = new Set(['DRAFT', 'APPROVED', 'SENT']);
 
 function getDateRange(filter: DateFilter): { dateFrom?: string; dateTo?: string } {
   const now = new Date();
@@ -171,7 +174,7 @@ function parseDateFilter(v: string | undefined): DateFilter {
 }
 
 function parseStatusFilter(v: string | undefined): StatusFilter {
-  if (v === 'PAID' || v === 'APPROVED' || v === 'DRAFT' || v === 'VOID') return v;
+  if (v === 'PAID' || v === 'PENDING' || v === 'DRAFT' || v === 'VOID') return v;
   return 'ALL';
 }
 
@@ -202,7 +205,9 @@ export default function SalesScreen() {
 
   const filtered = useMemo(() => {
     let result = invoices;
-    if (statusFilter !== 'ALL') {
+    if (statusFilter === 'PENDING') {
+      result = result.filter((inv) => PENDING_STATUSES.has(inv.status));
+    } else if (statusFilter !== 'ALL') {
       result = result.filter((inv) => inv.status === statusFilter);
     }
     const q = query.trim().toLowerCase();
