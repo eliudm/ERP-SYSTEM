@@ -83,6 +83,20 @@ export default function AppTabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="analytics"
+        options={{
+          title: t('tabs.analytics'),
+          href: isPosOnly ? null : undefined,
+          tabBarIcon: ({ color, size }) => (
+            <MaterialCommunityIcons
+              name="chart-line"
+              color={color as string}
+              size={size}
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="notifications"
         options={{
           title: t('tabs.alerts'),
