@@ -23,7 +23,8 @@
     "cashRecorded": "{{label}}: KES {{amount}} recorded — {{reason}}",
     "noReasonGiven": "No reason given",
     "tillMatchFailed": "Failed to match this Till payment",
-    "tillMatchCancelled": "Till matching cancelled — the sale is recorded but still unpaid."
+    "tillMatchCancelled": "Till matching cancelled — the sale is recorded but still unpaid.",
+    "creditRequiresCustomer": "Credit sales require a named customer — walk-in customers cannot be used for credit"
   },
   "cashIn": "Cash In",
   "cashOut": "Cash Out",
@@ -56,6 +57,8 @@
   "unlockTerminal": "Unlock Terminal",
   "exitToDashboard": "Exit to Dashboard",
   "selectPaymentMethod": "Select Payment Method",
+  "creditRequiresCustomer": "Credit sales require a named customer. Please select or create a customer before proceeding.",
+  "creditSaleNotice": "This sale will be recorded as credit. The customer will be invoiced and payment collected later.",
   "cashTendered": "Cash Tendered",
   "mpesaPhoneNumber": "M-Pesa Phone Number",
   "mpesaReceiptNumber": "M-Pesa Receipt Number",

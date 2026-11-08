@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Avatar, Badge, Button, Card, Checkbox, DatePicker, Dropdown,
-  Input, Select, Space, Table, Tag, Typography,
+  Alert, Avatar, Badge, Button, Card, Checkbox, DatePicker, Descriptions, Divider,
+  Dropdown, Form, Input, InputNumber, Modal, Select, Space, Table, Tag, Timeline, Typography,
 } from 'antd';
-import { SearchOutlined, PrinterOutlined, EyeOutlined, UserOutlined, SettingOutlined } from '@ant-design/icons';
-import { useQuery } from '@tanstack/react-query';
+import { CreditCardOutlined, DollarOutlined, EyeOutlined, PrinterOutlined, SearchOutlined, SettingOutlined, UserOutlined } from '@ant-design/icons';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import dayjs from 'dayjs';
@@ -12,7 +12,7 @@ import { salesApi } from '../../api/sales.api';
 import { settingsApi } from '../../api/settings.api';
 import { formatCurrency } from '../../utils/format';
 import { buildReceiptHtml, openReceiptPrintWindow } from '../../utils/receiptHtml';
-import type { Invoice } from '../../types';
+import type { Invoice, PaymentMethod } from '../../types';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -73,11 +73,17 @@ const loadVisibleColumns = (): string[] => {
 export const POSOrdersPage: React.FC = () => {
   const { t } = useTranslation('pos');
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>();
   const [dateRange, setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(null);
   const [visibleColumns, setVisibleColumns] = useState<string[]>(loadVisibleColumns);
+
+  // Credit payment modal state
+  const [creditModalInvoice, setCreditModalInvoice] = useState<Invoice | null>(null);
+  const [creditPaymentForm] = Form.useForm();
+  const [creditPaymentAmount, setCreditPaymentAmount] = useState<number | null>(null);
 
   useEffect(() => {
     localStorage.setItem(COLUMNS_STORAGE_KEY, JSON.stringify(visibleColumns));
@@ -97,6 +103,24 @@ export const POSOrdersPage: React.FC = () => {
   const { data: settings } = useQuery({
     queryKey: ['system-settings'],
     queryFn: () => settingsApi.getSystemSettings(),
+  });
+
+  const { data: creditHistory, isLoading: creditHistoryLoading } = useQuery({
+    queryKey: ['credit-payments', creditModalInvoice?.id],
+    queryFn: () => salesApi.getCreditPayments(creditModalInvoice!.id),
+    enabled: !!creditModalInvoice,
+  });
+
+  const recordPaymentMutation = useMutation({
+    mutationFn: (dto: { amount: number; paymentMethod: PaymentMethod; notes?: string }) =>
+      salesApi.recordCreditPayment(creditModalInvoice!.id, dto),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pos-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['credit-payments', creditModalInvoice?.id] });
+      queryClient.invalidateQueries({ queryKey: ['outstanding-credit'] });
+      creditPaymentForm.resetFields();
+      setCreditPaymentAmount(null);
+    },
   });
 
   const columnOptions = COLUMN_KEYS.map((key) => ({ key, label: t(COLUMN_LABEL_KEYS[key]) }));
@@ -217,7 +241,7 @@ export const POSOrdersPage: React.FC = () => {
     {
       title: '',
       key: 'actions',
-      width: 80,
+      width: 120,
       render: (_: unknown, row: Invoice) => (
         <Space size={4}>
           <Button
@@ -234,6 +258,17 @@ export const POSOrdersPage: React.FC = () => {
             title={t('ordersPage.reprintReceipt')}
             onClick={(e) => { e.stopPropagation(); handleReprint(row); }}
           />
+          {row.status === 'APPROVED' && row.paymentMethod === 'CREDIT' && (
+            <Button
+              type="primary"
+              size="small"
+              icon={<DollarOutlined />}
+              title="Record Payment"
+              onClick={(e) => { e.stopPropagation(); setCreditModalInvoice(row); }}
+            >
+              Pay
+            </Button>
+          )}
         </Space>
       ),
     },
@@ -353,6 +388,119 @@ export const POSOrdersPage: React.FC = () => {
           size="middle"
         />
       </Card>
+
+      {/* ── Credit Payment Modal ── */}
+      {creditModalInvoice && (() => {
+        const paid = (creditHistory ?? []).reduce((s, p) => s + Number(p.amount), 0);
+        const balance = Number(creditModalInvoice.total) - paid;
+        return (
+          <Modal
+            title={
+              <Space>
+                <CreditCardOutlined />
+                <span>Record Payment — {creditModalInvoice.invoiceNo}</span>
+              </Space>
+            }
+            open={!!creditModalInvoice}
+            onCancel={() => { setCreditModalInvoice(null); creditPaymentForm.resetFields(); setCreditPaymentAmount(null); }}
+            footer={null}
+            width={520}
+            destroyOnClose
+          >
+            <Descriptions size="small" column={2} style={{ marginBottom: 16 }}>
+              <Descriptions.Item label="Customer">{creditModalInvoice.customer?.name ?? '—'}</Descriptions.Item>
+              <Descriptions.Item label="Invoice Total">{formatCurrency(Number(creditModalInvoice.total))}</Descriptions.Item>
+              <Descriptions.Item label="Paid So Far">{formatCurrency(paid)}</Descriptions.Item>
+              <Descriptions.Item label="Balance Due">
+                <Typography.Text strong style={{ color: balance > 0 ? '#cf1322' : '#52c41a' }}>
+                  {formatCurrency(balance)}
+                </Typography.Text>
+              </Descriptions.Item>
+            </Descriptions>
+
+            {balance <= 0 ? (
+              <Alert type="success" showIcon message="This invoice is fully paid." style={{ marginBottom: 16 }} />
+            ) : (
+              <Form
+                form={creditPaymentForm}
+                layout="vertical"
+                onFinish={(vals) => recordPaymentMutation.mutate(vals)}
+                initialValues={{ paymentMethod: 'CASH' }}
+              >
+                <Form.Item
+                  name="amount"
+                  label="Amount to Record"
+                  rules={[
+                    { required: true, message: 'Enter amount' },
+                    { type: 'number', min: 0.01, message: 'Must be greater than 0' },
+                    { type: 'number', max: balance, message: `Cannot exceed balance of ${formatCurrency(balance)}` },
+                  ]}
+                >
+                  <InputNumber
+                    style={{ width: '100%' }}
+                    size="large"
+                    min={0.01}
+                    max={balance}
+                    precision={2}
+                    placeholder={`Max ${formatCurrency(balance)}`}
+                    onChange={(v) => setCreditPaymentAmount(v as number | null)}
+                    addonAfter={
+                      creditPaymentAmount != null && creditPaymentAmount >= balance
+                        ? <Tag color="green">Full Settlement</Tag>
+                        : creditPaymentAmount != null && creditPaymentAmount > 0
+                          ? <Tag color="orange">Partial</Tag>
+                          : null
+                    }
+                  />
+                </Form.Item>
+                <Form.Item name="paymentMethod" label="Payment Method" rules={[{ required: true }]}>
+                  <Select size="large" options={[
+                    { value: 'CASH', label: 'Cash' },
+                    { value: 'CARD', label: 'Card' },
+                    { value: 'MOBILE_MONEY', label: 'Mobile Money' },
+                    { value: 'BANK_TRANSFER', label: 'Bank Transfer' },
+                  ]} />
+                </Form.Item>
+                <Form.Item name="notes" label="Notes (optional)">
+                  <Input.TextArea rows={2} placeholder="Reference number, remarks..." />
+                </Form.Item>
+                <Button
+                  type="primary"
+                  htmlType="submit"
+                  block
+                  size="large"
+                  loading={recordPaymentMutation.isPending}
+                  icon={<DollarOutlined />}
+                >
+                  Record Payment
+                </Button>
+              </Form>
+            )}
+
+            {(creditHistory ?? []).length > 0 && (
+              <>
+                <Divider>Payment History</Divider>
+                <Timeline
+                  loading={creditHistoryLoading}
+                  items={(creditHistory ?? []).map((p) => ({
+                    color: 'green',
+                    children: (
+                      <Space direction="vertical" size={0}>
+                        <Typography.Text strong>{formatCurrency(Number(p.amount))}</Typography.Text>
+                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                          {p.paymentMethod.replace('_', ' ')} · {dayjs(p.createdAt).format('DD MMM YYYY HH:mm')}
+                          {p.recordedBy ? ` · ${p.recordedBy.firstName} ${p.recordedBy.lastName}` : ''}
+                        </Typography.Text>
+                        {p.notes && <Typography.Text type="secondary" style={{ fontSize: 12 }}>{p.notes}</Typography.Text>}
+                      </Space>
+                    ),
+                  }))}
+                />
+              </>
+            )}
+          </Modal>
+        );
+      })()}
     </Space>
   );
 };

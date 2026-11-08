@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  Button, Input, Typography,
+  Badge, Button, Input, Typography,
   Space, Table, Divider, Select, message,
   InputNumber, Empty, Tag, Modal, Alert, Dropdown, Switch, Form, Spin,
   Segmented, List,
@@ -26,6 +26,8 @@ import { extractTax } from '../../../utils/tax';
 import { authApi } from '../../../api/auth.api';
 import { formatCurrency } from '../../../utils/format';
 import { buildReceiptHtml, openReceiptPrintWindow } from '../../../utils/receiptHtml';
+import dayjs from 'dayjs';
+import { POSOrdersPage } from '../../pos/POSOrdersPage';
 import type { Customer, Product, ProductCategory, PaymentMethod } from '../../../types';
 import { PAYMENT_METHOD_ICONS } from '../../../types';
 
@@ -126,6 +128,7 @@ export const POSPage: React.FC = () => {
   const [cashModalOpen, setCashModalOpen] = useState(false);
   const [cashDirection, setCashDirection] = useState<'in' | 'out'>('in');
   const [cashForm] = Form.useForm();
+  const [showOrders, setShowOrders] = useState(false);
   const [closeRegisterOpen, setCloseRegisterOpen] = useState(false);
   const [closingCounts, setClosingCounts] = useState<Record<string, number>>({});
   const [closingNote, setClosingNote] = useState('');
@@ -244,6 +247,12 @@ export const POSPage: React.FC = () => {
   const { data: lowStockProducts } = useQuery({
     queryKey: ['low-stock'],
     queryFn: inventoryApi.getLowStock,
+    refetchInterval: 60000,
+  });
+
+  const { data: outstandingCredit } = useQuery({
+    queryKey: ['outstanding-credit'],
+    queryFn: salesApi.getOutstandingCredit,
     refetchInterval: 60000,
   });
 
@@ -487,7 +496,16 @@ export const POSPage: React.FC = () => {
           duration: 2,
         });
       } else {
-        await salesApi.approveInvoice(invoice.id, activeWarehouseId, paymentMethod);
+        try {
+          await salesApi.approveInvoice(invoice.id, activeWarehouseId, paymentMethod);
+        } catch (err: unknown) {
+          const apiErr = err as AxiosError<{ message?: string | string[] }>;
+          const raw = apiErr.response?.data?.message;
+          const msg = Array.isArray(raw) ? raw[0] : raw || t('toast.saleFailed');
+          message.error(msg);
+          setPendingReceipt(null);
+          return;
+        }
       }
 
       await finalizeSale(invoice);
@@ -708,8 +726,19 @@ export const POSPage: React.FC = () => {
     return created.id;
   };
 
+  const isWalkInCustomer = (id?: string) => {
+    if (!id || id === WALK_IN_VALUE) return true;
+    const name = (customers || []).find((c: Customer) => c.id === id)?.name?.trim().toLowerCase() ?? '';
+    return name === 'walk-in customer' || name === 'walk in customer' || name === 'walk in';
+  };
+
   const confirmSale = async () => {
     try {
+      if (paymentMethod === 'CREDIT' && isWalkInCustomer(customerId)) {
+        message.error(t('toast.creditRequiresCustomer'));
+        return;
+      }
+
       const resolvedCustomerId = await resolveCustomerId();
 
       setPendingReceipt({
@@ -727,7 +756,7 @@ export const POSPage: React.FC = () => {
 
       createInvoiceMutation.mutate({
         customerId: resolvedCustomerId,
-        invoiceDate: new Date().toISOString().split('T')[0],
+        invoiceDate: dayjs().format('YYYY-MM-DD'),
         items: cart.map((i) => ({
           productId: i.productId,
           quantity: i.quantity,
@@ -894,14 +923,30 @@ export const POSPage: React.FC = () => {
       <div style={{ display: 'flex', alignItems: 'center', background: '#fff', borderBottom: '1px solid #e0e0e0', padding: '0 12px', height: 50, gap: 8, flexShrink: 0 }}>
         <Button icon={<ArrowLeftOutlined />} size="small" type="text" onClick={() => { setPosVerified(false); navigate('/pos/dashboard'); }} title={t('exitToDashboard')} />
         <div style={{ display: 'flex' }}>
-          <Button type="primary" size="small" style={{ borderRadius: '4px 0 0 4px', background: '#4a2560', borderColor: '#4a2560', fontWeight: 600 }}>{t('register')}</Button>
-          <Button size="small" style={{ borderRadius: '0 4px 4px 0' }} onClick={() => navigate('/pos/orders')}>{t('orders')}</Button>
+          <Button
+            type={showOrders ? 'default' : 'primary'}
+            size="small"
+            style={{ borderRadius: '4px 0 0 4px', ...(showOrders ? {} : { background: '#4a2560', borderColor: '#4a2560', fontWeight: 600 }) }}
+            onClick={() => setShowOrders(false)}
+          >{t('register')}</Button>
+          <Badge count={outstandingCredit?.length ?? 0} size="small" offset={[-4, 2]}>
+            <Button
+              type={showOrders ? 'primary' : 'default'}
+              size="small"
+              style={{ borderRadius: '0 4px 4px 0', ...(showOrders ? { background: '#4a2560', borderColor: '#4a2560', fontWeight: 600 } : {}) }}
+              onClick={() => setShowOrders(true)}
+            >{t('orders')}</Button>
+          </Badge>
         </div>
-        <Button size="small" icon={<PlusOutlined />} onClick={() => { setCart([]); setCustomerId(undefined); setSelectedCartId(null); setNumpadBuffer(''); }}>{t('new')}</Button>
-        {cart.length > 0 && (
-          <div style={{ background: '#f5f5f5', borderRadius: 4, padding: '2px 10px', fontSize: 12, fontWeight: 600, border: '1px solid #ddd', whiteSpace: 'nowrap' }}>
-            {t('cartItemCount', { count: cart.reduce((s, i) => s + i.quantity, 0) })} — {formatCurrency(total)}
-          </div>
+        {!showOrders && (
+          <>
+            <Button size="small" icon={<PlusOutlined />} onClick={() => { setCart([]); setCustomerId(undefined); setSelectedCartId(null); setNumpadBuffer(''); }}>{t('new')}</Button>
+            {cart.length > 0 && (
+              <div style={{ background: '#f5f5f5', borderRadius: 4, padding: '2px 10px', fontSize: 12, fontWeight: 600, border: '1px solid #ddd', whiteSpace: 'nowrap' }}>
+                {t('cartItemCount', { count: cart.reduce((s, i) => s + i.quantity, 0) })} — {formatCurrency(total)}
+              </div>
+            )}
+          </>
         )}
         <div style={{ flex: 1 }} />
         <Search
@@ -944,8 +989,15 @@ export const POSPage: React.FC = () => {
         </Dropdown>
       </div>
 
+      {/* Body: orders panel or register (cart + products) */}
+      {showOrders ? (
+        <div style={{ flex: 1, overflow: 'auto', padding: 24, background: '#f4f4f4' }}>
+          <POSOrdersPage />
+        </div>
+      ) : null}
+
       {/* Body: left (cart) + right (products) */}
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+      <div style={{ display: showOrders ? 'none' : 'flex', flex: 1, overflow: 'hidden' }}>
 
         {/* ── RIGHT PANEL: Categories + Products ───────────── */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', order: 2 }}>
@@ -1432,6 +1484,22 @@ export const POSPage: React.FC = () => {
           )}
         </div>
       )}
+      {paymentMethod === 'CREDIT' && isWalkInCustomer(customerId) && (
+        <Alert
+          type="error"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message={t('creditRequiresCustomer')}
+        />
+      )}
+      {paymentMethod === 'CREDIT' && !isWalkInCustomer(customerId) && (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message={t('creditSaleNotice')}
+        />
+      )}
       <div style={{ background: '#fafafa', borderRadius: 8, padding: '10px 14px', marginBottom: 16, border: '1px solid #f0f0f0' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4, color: '#888' }}>
           <span>{t('common:customer')}</span><span style={{ color: '#262626', fontWeight: 500 }}>{selectedCustomerName}</span>
@@ -1457,6 +1525,7 @@ export const POSPage: React.FC = () => {
         disabled={
           (paymentMethod === 'CASH' && cashTendered !== '' && parseFloat(cashTendered) < total)
           || (paymentMethod === 'MOBILE_MONEY' && mpesaChannel === 'STK' && !isValidKenyaPhone(mpesaPhoneNumber))
+          || (paymentMethod === 'CREDIT' && isWalkInCustomer(customerId))
         }
       >
         {t('validatePayment')}

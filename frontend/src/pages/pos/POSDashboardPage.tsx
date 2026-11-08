@@ -75,9 +75,17 @@ export const POSDashboardPage: React.FC = () => {
     }
   };
 
+  // Session summary: from last close to today (shown on the session card)
   const { data: summary, isLoading } = useQuery({
     queryKey: ['pos-session-summary', queryFrom, today],
     queryFn: () => salesApi.getSalesSummary(queryFrom, today),
+    refetchInterval: 30_000,
+  });
+
+  // Today-only stats: always just today, resets at midnight automatically
+  const { data: todaySummary } = useQuery({
+    queryKey: ['pos-today-summary', today],
+    queryFn: () => salesApi.getSalesSummary(today, today),
     refetchInterval: 30_000,
   });
 
@@ -91,6 +99,10 @@ export const POSDashboardPage: React.FC = () => {
   const invoiceCount: number = (summary as any)?.totalInvoices ?? 0;
   // Has unclosed sales since last close
   const hasOpenSales = invoiceCount > 0;
+
+  // Today-only figures for the stats cards (always reset at midnight)
+  const todayRevenue: number = (todaySummary as any)?.totalRevenue ?? 0;
+  const todayOrders: number = (todaySummary as any)?.totalInvoices ?? 0;
 
   return (
     <>
@@ -231,13 +243,13 @@ export const POSDashboardPage: React.FC = () => {
         </Row>
       )}
 
-      {/* Quick stats row */}
+      {/* Quick stats row — always today only, resets at midnight */}
       <Row gutter={16}>
         <Col xs={24} sm={8}>
           <Card bordered={false} style={{ borderRadius: 12, background: '#f6ffed', border: '1px solid #b7eb8f' }}>
             <Statistic
               title={t('dashboard.todaysRevenue')}
-              value={totalSold}
+              value={todayRevenue}
               formatter={(v) => formatCurrency(Number(v))}
               prefix={<DollarOutlined />}
               valueStyle={{ color: '#389e0d' }}
@@ -248,7 +260,7 @@ export const POSDashboardPage: React.FC = () => {
           <Card bordered={false} style={{ borderRadius: 12, background: '#e6f7ff', border: '1px solid #91d5ff' }}>
             <Statistic
               title={t('dashboard.ordersToday')}
-              value={invoiceCount}
+              value={todayOrders}
               prefix={<ShoppingCartOutlined />}
               valueStyle={{ color: '#1677ff' }}
             />
@@ -258,7 +270,7 @@ export const POSDashboardPage: React.FC = () => {
           <Card bordered={false} style={{ borderRadius: 12, background: '#fff7e6', border: '1px solid #ffd591' }}>
             <Statistic
               title={t('dashboard.avgOrderValue')}
-              value={invoiceCount > 0 ? totalSold / invoiceCount : 0}
+              value={todayOrders > 0 ? todayRevenue / todayOrders : 0}
               formatter={(v) => formatCurrency(Number(v))}
               valueStyle={{ color: '#d46b08' }}
             />

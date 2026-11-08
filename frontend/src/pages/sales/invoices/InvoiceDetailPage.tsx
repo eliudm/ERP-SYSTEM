@@ -179,7 +179,7 @@ export const InvoiceDetailPage: React.FC = () => {
           )}
           {invoice.status === 'APPROVED' && (
             <Button type="primary" icon={<DollarOutlined />} style={{ background: '#52c41a', borderColor: '#52c41a' }} onClick={() => { setSelectedPayMethod('CASH'); setPayModalOpen(true); }}>
-              Mark as Paid
+              Pay
             </Button>
           )}
           {['DRAFT', 'APPROVED'].includes(invoice.status) && (
@@ -285,12 +285,12 @@ export const InvoiceDetailPage: React.FC = () => {
         onCancel={() => setPayModalOpen(false)}
         onOk={() => paidMutation.mutate(selectedPayMethod)}
         confirmLoading={paidMutation.isPending}
-        okText="Mark as Paid"
+        okText="Pay"
       >
         <Space direction="vertical" style={{ width: '100%' }}>
           <Text>Select payment method:</Text>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {(['CASH', 'CARD', 'MOBILE_MONEY', 'BANK_TRANSFER', 'CREDIT'] as PaymentMethod[]).map((m) => (
+            {(['CASH', 'CARD', 'MOBILE_MONEY', 'BANK_TRANSFER'] as PaymentMethod[]).map((m) => (
               <Button key={m} type={selectedPayMethod === m ? 'primary' : 'default'} onClick={() => setSelectedPayMethod(m)}>
                 {PAYMENT_METHOD_ICONS[m]} {PAYMENT_METHOD_LABELS[m]}
               </Button>
