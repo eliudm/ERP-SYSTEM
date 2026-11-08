@@ -102,7 +102,8 @@ type Screen =
   | 'orderDetail'
   | 'receipt'
   | 'registerOpen'
-  | 'registerClose';
+  | 'registerClose'
+  | 'creditPayment';
 
 export default function PosScreen() {
   const { t } = useTranslation('pos');
@@ -195,6 +196,60 @@ export default function PosScreen() {
     useState<ReceiptData | null>(null);
   const [checkoutStage, setCheckoutStage] = useState<string | null>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+
+  // Outstanding credit summary (for orders screen)
+  const { data: outstandingCredit, refetch: refetchOutstandingCredit } = useQuery({
+    queryKey: ['outstanding-credit'],
+    queryFn: () => salesApi.getOutstandingCredit(),
+    enabled: screen === 'orders' || screen === 'creditPayment',
+    refetchInterval: screen === 'orders' ? 60000 : false,
+  });
+
+  const outstandingCreditMap = useMemo(() => {
+    const map = new Map<string, { amountPaid: number; balance: number }>();
+    (outstandingCredit ?? []).forEach((inv) => map.set(inv.id, {
+      amountPaid: Number(inv.amountPaid) || 0,
+      balance: Number(inv.balance) || 0,
+    }));
+    return map;
+  }, [outstandingCredit]);
+
+  const totalOutstandingBalance = (outstandingCredit ?? []).reduce((s, inv) => s + (Number(inv.balance) || 0), 0);
+
+  // Credit payment recording
+  const [creditInvoiceId, setCreditInvoiceId] = useState<string | null>(null);
+  const [creditInvoiceNo, setCreditInvoiceNo] = useState<string>('');
+  const [creditInvoiceTotal, setCreditInvoiceTotal] = useState<number>(0);
+  const [creditPaymentAmount, setCreditPaymentAmount] = useState('');
+  const [creditPaymentMethod, setCreditPaymentMethod] = useState('CASH');
+  const [creditPaymentNotes, setCreditPaymentNotes] = useState('');
+  const [creditPaymentError, setCreditPaymentError] = useState<string | null>(null);
+
+  const { data: creditPaymentHistory, refetch: refetchCreditHistory } = useQuery({
+    queryKey: ['credit-payments', creditInvoiceId],
+    queryFn: () => salesApi.getCreditPayments(creditInvoiceId!),
+    enabled: !!creditInvoiceId && screen === 'creditPayment',
+  });
+
+  const recordCreditMutation = useMutation({
+    mutationFn: () =>
+      salesApi.recordCreditPayment(creditInvoiceId!, {
+        amount: parseFloat(creditPaymentAmount),
+        paymentMethod: creditPaymentMethod,
+        notes: creditPaymentNotes.trim() || undefined,
+      }),
+    onSuccess: () => {
+      setCreditPaymentAmount('');
+      setCreditPaymentNotes('');
+      setCreditPaymentError(null);
+      refetchCreditHistory();
+      void refetchOutstandingCredit();
+      queryClient.invalidateQueries({ queryKey: ['recent-invoices'] });
+    },
+    onError: (err: any) => {
+      setCreditPaymentError(err?.response?.data?.message || 'Failed to record payment');
+    },
+  });
 
   const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
   const [receiptQr, setReceiptQr] = useState<EtimsQrResult | null>(null);
@@ -654,6 +709,17 @@ export default function PosScreen() {
         // connectivity could have dropped in the gap between render and tap.
         throw new Error(t('errors.mpesaRequiresInternet'));
       }
+      if (paymentMethod === 'CREDIT') {
+        const name = selectedCustomer?.name?.trim().toLowerCase() ?? '';
+        const isWalkIn =
+          !selectedCustomer ||
+          name === 'walk-in customer' ||
+          name === 'walk in customer' ||
+          name === 'walk in';
+        if (isWalkIn) {
+          throw new Error(t('errors.creditRequiresCustomer'));
+        }
+      }
 
       // Online: always resolve a fresh walk-in customer, exactly as before.
       // Offline: fall back to whatever the cache warmed while last online —
@@ -972,22 +1038,170 @@ export default function PosScreen() {
   }
 
   if (screen === 'orders') {
+    const creditCount = outstandingCredit?.length ?? 0;
     return (
       <View style={styles.container}>
         <View style={styles.ordersHeader}>
           <IconButton icon="chevron-left" onPress={() => setScreen('main')} />
           <Text style={styles.ordersTitle}>{t('orders')}</Text>
         </View>
+        {creditCount > 0 && (
+          <View style={styles.creditBanner}>
+            <MaterialCommunityIcons name="account-clock-outline" size={18} color="#d4380d" />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.creditBannerTitle}>
+                {creditCount} unpaid credit {creditCount === 1 ? 'invoice' : 'invoices'}
+              </Text>
+              <Text style={styles.creditBannerAmount}>
+                Outstanding: {formatCurrency(totalOutstandingBalance)}
+              </Text>
+            </View>
+          </View>
+        )}
         <OrdersList
           heldOrders={heldOrders.orders}
           recentInvoices={recentInvoices}
           offlineSales={offlineSales.sales}
           isLoading={heldOrders.isLoading}
+          outstandingCreditMap={outstandingCreditMap}
           onLoadOrder={loadHeldOrder}
           onDeleteOrder={(id) => void heldOrders.removeOrder(id)}
           onSelectInvoice={openOrderDetail}
           onRetryOfflineSale={(id) => void offlineSales.retryOne(id)}
+          onRecordCreditPayment={(inv) => {
+            setCreditInvoiceId(inv.id);
+            setCreditInvoiceNo(inv.invoiceNo);
+            setCreditInvoiceTotal(Number(inv.total) || 0);
+            setCreditPaymentAmount('');
+            setCreditPaymentNotes('');
+            setCreditPaymentError(null);
+            setScreen('creditPayment');
+          }}
         />
+        {snackbarElement}
+      </View>
+    );
+  }
+
+  if (screen === 'creditPayment') {
+    const history = creditPaymentHistory ?? [];
+    const paid = history.reduce((s, p) => s + Number(p.amount), 0);
+    const balance = creditInvoiceTotal - paid;
+    const amountNum = parseFloat(creditPaymentAmount);
+    const amountValid = !isNaN(amountNum) && amountNum > 0 && amountNum <= balance;
+    return (
+      <View style={styles.container}>
+        <View style={styles.ordersHeader}>
+          <IconButton icon="chevron-left" onPress={() => { setScreen('orders'); }} />
+          <Text style={styles.ordersTitle}>{creditInvoiceNo} — Record Payment</Text>
+        </View>
+        <ScrollView style={{ flex: 1, padding: 16 }}>
+          {/* Balance summary */}
+          <View style={{ backgroundColor: '#f8f5ef', borderRadius: 14, padding: 14, marginBottom: 16 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+              <Text style={{ color: '#888', fontSize: 13 }}>Invoice Total</Text>
+              <Text style={{ fontWeight: '700', fontSize: 13 }}>{formatCurrency(creditInvoiceTotal)}</Text>
+            </View>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+              <Text style={{ color: '#888', fontSize: 13 }}>Paid So Far</Text>
+              <Text style={{ fontSize: 13 }}>{formatCurrency(paid)}</Text>
+            </View>
+            <Divider style={{ marginVertical: 8 }} />
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+              <Text style={{ fontWeight: '700', fontSize: 15 }}>Balance Due</Text>
+              <Text style={{ fontWeight: '700', fontSize: 15, color: balance > 0 ? '#d4380d' : '#1db8a0' }}>{formatCurrency(balance)}</Text>
+            </View>
+          </View>
+
+          {balance <= 0 ? (
+            <View style={{ padding: 16, backgroundColor: '#d6f3ee', borderRadius: 12, alignItems: 'center' }}>
+              <Text style={{ color: '#1db8a0', fontWeight: '700' }}>Invoice fully paid</Text>
+            </View>
+          ) : (
+            <>
+              {/* Amount */}
+              <TextInput
+                mode="outlined"
+                label="Amount to Record"
+                keyboardType="decimal-pad"
+                value={creditPaymentAmount}
+                onChangeText={(v) => { setCreditPaymentAmount(v); setCreditPaymentError(null); }}
+                style={{ marginBottom: 12, backgroundColor: '#fff' }}
+                right={amountNum >= balance ? <TextInput.Affix text="Full" /> : undefined}
+              />
+
+              {/* Payment method */}
+              <Text style={{ fontSize: 12, fontWeight: '700', textTransform: 'uppercase', color: '#888', marginBottom: 8 }}>Payment Method</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+                {(['CASH', 'CARD', 'MOBILE_MONEY', 'BANK_TRANSFER'] as const).map((m) => (
+                  <Pressable
+                    key={m}
+                    onPress={() => setCreditPaymentMethod(m)}
+                    style={{
+                      paddingVertical: 8, paddingHorizontal: 14, borderRadius: 10,
+                      backgroundColor: creditPaymentMethod === m ? '#d6f3ee' : '#f0eef7',
+                      borderWidth: creditPaymentMethod === m ? 1.5 : 0,
+                      borderColor: '#1db8a0',
+                    }}
+                  >
+                    <Text style={{ fontWeight: '600', color: creditPaymentMethod === m ? '#1db8a0' : '#444', fontSize: 13 }}>
+                      {m.replace('_', ' ')}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+
+              {/* Notes */}
+              <TextInput
+                mode="outlined"
+                label="Notes (optional)"
+                value={creditPaymentNotes}
+                onChangeText={setCreditPaymentNotes}
+                style={{ marginBottom: 12, backgroundColor: '#fff' }}
+                multiline
+                numberOfLines={2}
+              />
+
+              {creditPaymentError && (
+                <View style={{ backgroundColor: '#fde3dc', borderRadius: 10, padding: 10, marginBottom: 12, flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                  <MaterialCommunityIcons name="alert-circle-outline" size={16} color="#d4380d" />
+                  <Text style={{ color: '#d4380d', fontSize: 13, flex: 1 }}>{creditPaymentError}</Text>
+                </View>
+              )}
+
+              <Button
+                mode="contained"
+                onPress={() => recordCreditMutation.mutate()}
+                loading={recordCreditMutation.isPending}
+                disabled={!amountValid || recordCreditMutation.isPending}
+                style={{ borderRadius: 12 }}
+                contentStyle={{ paddingVertical: 6 }}
+              >
+                Record Payment
+              </Button>
+            </>
+          )}
+
+          {/* Payment history */}
+          {history.length > 0 && (
+            <>
+              <Text style={{ fontSize: 12, fontWeight: '700', textTransform: 'uppercase', color: '#888', marginTop: 24, marginBottom: 10 }}>Payment History</Text>
+              {history.map((p) => (
+                <View key={p.id} style={{ backgroundColor: '#fff', borderRadius: 12, padding: 12, marginBottom: 8 }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                    <Text style={{ fontWeight: '700', fontSize: 14, color: '#1db8a0' }}>{formatCurrency(Number(p.amount))}</Text>
+                    <Text style={{ fontSize: 12, color: '#888' }}>{p.paymentMethod.replace('_', ' ')}</Text>
+                  </View>
+                  <Text style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>
+                    {new Date(p.createdAt).toLocaleString('en-KE')}
+                    {p.recordedBy ? ` · ${p.recordedBy.firstName} ${p.recordedBy.lastName}` : ''}
+                  </Text>
+                  {p.notes ? <Text style={{ fontSize: 12, color: '#666', marginTop: 4 }}>{p.notes}</Text> : null}
+                </View>
+              ))}
+            </>
+          )}
+        </ScrollView>
         {snackbarElement}
       </View>
     );
@@ -1893,6 +2107,26 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     borderBottomWidth: 1,
     borderBottomColor: '#f0eef7',
+  },
+  creditBanner: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 10,
+    backgroundColor: '#fff1e6',
+    borderBottomWidth: 1,
+    borderBottomColor: '#ffd591',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  creditBannerTitle: {
+    fontSize: 13,
+    fontWeight: '700' as const,
+    color: '#d4380d',
+  },
+  creditBannerAmount: {
+    fontSize: 12,
+    color: '#ad4a0d',
+    marginTop: 1,
   },
   ordersTitle: {
     fontSize: 16,

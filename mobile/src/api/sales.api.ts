@@ -216,4 +216,65 @@ export const salesApi = {
     const res = await apiClient.get(`/sales/invoices/${invoiceId}`);
     return res.data;
   },
+
+  getOutstandingCredit: async (): Promise<Array<{
+    id: string;
+    invoiceNo: string;
+    invoiceDate: string;
+    customer: { id: string; name: string; phone?: string } | null;
+    total: number;
+    amountPaid: number;
+    balance: number;
+  }>> => {
+    const res = await apiClient.get('/sales/invoices/credit/outstanding');
+    return res.data;
+  },
+
+  getCreditPayments: async (invoiceId: string): Promise<Array<{
+    id: string;
+    amount: number;
+    paymentMethod: string;
+    notes?: string;
+    createdAt: string;
+    recordedBy?: { firstName: string; lastName: string };
+  }>> => {
+    const res = await apiClient.get(`/sales/invoices/${invoiceId}/credit-payments`);
+    return res.data;
+  },
+
+  recordCreditPayment: async (
+    invoiceId: string,
+    dto: { amount: number; paymentMethod: string; notes?: string },
+  ): Promise<void> => {
+    await apiClient.post(`/sales/invoices/${invoiceId}/credit-payments`, dto);
+  },
+
+  getCustomerStatement: async (customerId: string): Promise<{
+    customer: {
+      id: string;
+      name: string;
+      phone?: string | null;
+      email?: string | null;
+      address?: string | null;
+      taxPin?: string | null;
+      invoices: Array<{
+        id: string;
+        invoiceNo: string;
+        invoiceDate: string;
+        total: number | string;
+        status: string;
+        paymentMethod?: string | null;
+        creditPayments: Array<{ id: string; amount: number | string; paymentMethod: string; createdAt: string }>;
+      }>;
+    };
+    summary: {
+      totalInvoices: number;
+      totalBilled: number;
+      totalPaid: number;
+      outstandingBalance: number;
+    };
+  }> => {
+    const res = await apiClient.get(`/sales/customers/${customerId}/statement`);
+    return res.data;
+  },
 };

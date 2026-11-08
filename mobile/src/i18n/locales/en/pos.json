@@ -21,6 +21,7 @@
   "errors": {
     "invalidMpesaNumber": "Enter a valid M-Pesa number, e.g. 2547XXXXXXXX",
     "mpesaRequiresInternet": "M-Pesa requires an internet connection.",
+    "creditRequiresCustomer": "Credit sales require a named customer. Search and select a customer before proceeding.",
     "noOfflineCustomer": "No customer available offline. Reconnect once to load the walk-in customer, or select a customer.",
     "saleFailed": "Failed to complete sale. Please try again.",
     "mpesaPaymentFailed": "M-Pesa payment failed",

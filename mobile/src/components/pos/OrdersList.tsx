@@ -25,10 +25,12 @@ interface OrdersListProps {
   recentInvoices: RecentInvoice[];
   offlineSales: OfflineSale[];
   isLoading: boolean;
+  outstandingCreditMap?: Map<string, { amountPaid: number; balance: number }>;
   onLoadOrder: (order: HeldOrder) => void;
   onDeleteOrder: (id: string) => void;
   onSelectInvoice: (invoiceId: string) => void;
   onRetryOfflineSale: (id: string) => void;
+  onRecordCreditPayment?: (invoice: RecentInvoice) => void;
 }
 
 type Row =
@@ -58,10 +60,12 @@ export const OrdersList: React.FC<OrdersListProps> = ({
   recentInvoices,
   offlineSales,
   isLoading,
+  outstandingCreditMap,
   onLoadOrder,
   onDeleteOrder,
   onSelectInvoice,
   onRetryOfflineSale,
+  onRecordCreditPayment,
 }) => {
   const { t } = useTranslation('pos');
   const OFFLINE_STATUS_STYLE = getOfflineStatusStyle(t);
@@ -169,6 +173,9 @@ export const OrdersList: React.FC<OrdersListProps> = ({
         }
 
         const { invoice } = item;
+        const isCreditPending = invoice.status === 'APPROVED' && invoice.paymentMethod === 'CREDIT';
+        const creditInfo = isCreditPending ? outstandingCreditMap?.get(invoice.id) : undefined;
+        const displayAmount = creditInfo != null ? (Number(creditInfo.balance) || 0) : Number(invoice.total) || 0;
         return (
           <Pressable
             style={styles.row}
@@ -183,15 +190,37 @@ export const OrdersList: React.FC<OrdersListProps> = ({
                 {invoice.customer?.name ?? t('common:walkInCustomer')}
               </Text>
             </View>
-            <Text style={styles.rowTotal}>{formatCurrency(invoice.total)}</Text>
-            <Chip style={styles.statusDone} textStyle={styles.statusDoneText}>
-              {invoice.status}
+            <View style={styles.rowAmountCol}>
+              <Text style={[styles.rowTotal, isCreditPending && creditInfo != null && styles.rowTotalCredit]}>
+                {formatCurrency(displayAmount)}
+              </Text>
+              {isCreditPending && creditInfo != null && (
+                <Text style={styles.rowBalanceLabel}>balance</Text>
+              )}
+            </View>
+            <Chip
+              style={isCreditPending ? styles.statusCredit : styles.statusDone}
+              textStyle={isCreditPending ? styles.statusCreditText : styles.statusDoneText}
+            >
+              {isCreditPending ? 'CREDIT' : invoice.status}
             </Chip>
-            <MaterialCommunityIcons
-              name="chevron-right"
-              size={18}
-              color={brand.textMuted}
-            />
+            {isCreditPending && onRecordCreditPayment ? (
+              <Button
+                mode="contained"
+                compact
+                onPress={() => onRecordCreditPayment(invoice)}
+                style={styles.payButton}
+                labelStyle={{ fontSize: 12 }}
+              >
+                Pay
+              </Button>
+            ) : (
+              <MaterialCommunityIcons
+                name="chevron-right"
+                size={18}
+                color={brand.textMuted}
+              />
+            )}
           </Pressable>
         );
       }}
@@ -240,10 +269,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: brand.textMuted,
   },
+  rowAmountCol: {
+    alignItems: 'flex-end',
+  },
   rowTotal: {
     fontSize: 13,
     fontWeight: '700',
     color: brand.textDark,
+  },
+  rowTotalCredit: {
+    color: '#d4380d',
+  },
+  rowBalanceLabel: {
+    fontSize: 10,
+    color: '#d4380d',
+    marginTop: 1,
   },
   statusHeld: {
     backgroundColor: '#fbf1de',
@@ -258,5 +298,16 @@ const styles = StyleSheet.create({
   statusDoneText: {
     color: brand.gradientEnd,
     fontSize: 11,
+  },
+  statusCredit: {
+    backgroundColor: '#fff1e6',
+  },
+  statusCreditText: {
+    color: '#d4380d',
+    fontSize: 11,
+  },
+  payButton: {
+    borderRadius: 8,
+    backgroundColor: brand.gradientEnd,
   },
 });

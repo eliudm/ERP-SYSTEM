@@ -271,18 +271,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
           !showCreateCustomerForm && (
             <View style={styles.customerResults}>
               {customerResults.length === 0 ? (
-                <>
-                  <Text style={styles.hint}>{t('noCustomerMatchesHint')}</Text>
-                  <Button
-                    mode="text"
-                    icon="account-plus-outline"
-                    onPress={onOpenCreateCustomerForm}
-                    style={styles.createCustomerButton}
-                    contentStyle={{ justifyContent: 'flex-start' }}
-                  >
-                    {t('createCustomerNamed', { name: customerQuery.trim() })}
-                  </Button>
-                </>
+                <Text style={styles.hint}>{t('noCustomerMatchesHint')}</Text>
               ) : (
                 customerResults.map((c) => (
                   <Pressable
@@ -298,6 +287,15 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
                   </Pressable>
                 ))
               )}
+              <Button
+                mode="text"
+                icon="account-plus-outline"
+                onPress={onOpenCreateCustomerForm}
+                style={styles.createCustomerButton}
+                contentStyle={{ justifyContent: 'flex-start' }}
+              >
+                {t('createCustomerNamed', { name: customerQuery.trim() })}
+              </Button>
             </View>
           )}
 
@@ -359,11 +357,19 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
         )}
 
         {!showCreateCustomerForm && (
-          <Text style={styles.hint}>
-            {selectedCustomer
-              ? t('selectedCustomerHint', { name: selectedCustomer.name })
-              : t('willUseWalkIn')}
-          </Text>
+          <>
+            <Text style={styles.hint}>
+              {selectedCustomer
+                ? t('selectedCustomerHint', { name: selectedCustomer.name })
+                : t('willUseWalkIn')}
+            </Text>
+            {paymentMethod === 'CREDIT' && !selectedCustomer && (
+              <View style={styles.creditWarning}>
+                <MaterialCommunityIcons name="alert-circle-outline" size={16} color="#d4380d" />
+                <Text style={styles.creditWarningText}>{t('errors.creditRequiresCustomer')}</Text>
+              </View>
+            )}
+          </>
         )}
 
         {warehouses.length > 1 && (
@@ -534,6 +540,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: brand.textMuted,
     marginTop: 4,
+  },
+  creditWarning: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+    padding: 10,
+    backgroundColor: '#fde3dc',
+    borderRadius: 10,
+  },
+  creditWarningText: {
+    flex: 1,
+    fontSize: 12,
+    color: '#d4380d',
+    fontWeight: '600',
   },
   stageRow: {
     flexDirection: 'row',
