@@ -18,6 +18,7 @@
     "customerCreateFailed": "Imeshindwa kuunda mteja",
     "tillMatchCancelled": "Kulinganisha Till kumesitishwa — mauzo yamerekodiwa lakini bado hayajalipwa."
   },
+  "creditNeedsCustomer": "Inahitaji mteja mwenye jina",
   "errors": {
     "invalidMpesaNumber": "Weka namba sahihi ya M-Pesa, mfano 2547XXXXXXXX",
     "mpesaRequiresInternet": "M-Pesa inahitaji muunganisho wa mtandao.",
