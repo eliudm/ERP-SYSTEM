@@ -145,10 +145,19 @@ export class MobileService {
   }
 
   // ─── RECENT INVOICES (for mobile sales view) ─────────────
-  async getRecentInvoices(limit = 20) {
+  async getRecentInvoices(limit = 50, dateFrom?: string, dateTo?: string) {
+    const where: Record<string, unknown> = {};
+    if (dateFrom || dateTo) {
+      where.invoiceDate = {
+        ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
+        ...(dateTo ? { lte: new Date(dateTo) } : {}),
+      };
+    }
+
     const invoices = await this.prisma.salesInvoice.findMany({
       take: limit,
-      orderBy: { createdAt: 'desc' },
+      where,
+      orderBy: { invoiceDate: 'desc' },
       select: {
         id: true,
         invoiceNo: true,

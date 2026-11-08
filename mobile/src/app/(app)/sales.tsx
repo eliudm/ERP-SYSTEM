@@ -5,6 +5,7 @@ import {
   FlatList,
   RefreshControl,
   Pressable,
+  ScrollView,
 } from 'react-native';
 import {
   Text,
@@ -20,6 +21,38 @@ import { mobileApi, RecentInvoice } from '../../api/mobile.api';
 import { OrderDetail } from '../../components/pos/OrderDetail';
 import { useOrderDetailActions } from '../../hooks/useOrderDetailActions';
 import { brand } from '../../theme';
+
+type DateFilter = 'today' | 'week' | 'month' | 'all';
+
+const DATE_FILTERS: { key: DateFilter; label: string }[] = [
+  { key: 'today', label: 'Today' },
+  { key: 'week', label: 'This Week' },
+  { key: 'month', label: 'This Month' },
+  { key: 'all', label: 'All Time' },
+];
+
+function getDateRange(filter: DateFilter): { dateFrom?: string; dateTo?: string } {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const toISO = (d: Date) =>
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+  if (filter === 'all') return {};
+
+  const from = new Date(now);
+  if (filter === 'today') {
+    from.setHours(0, 0, 0, 0);
+  } else if (filter === 'week') {
+    const day = now.getDay(); // 0=Sun
+    from.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
+    from.setHours(0, 0, 0, 0);
+  } else if (filter === 'month') {
+    from.setDate(1);
+    from.setHours(0, 0, 0, 0);
+  }
+
+  return { dateFrom: toISO(from), dateTo: toISO(now) };
+}
 
 const formatCurrency = (value: number) =>
   `KES ${value.toLocaleString('en-KE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
@@ -111,17 +144,18 @@ const InvoiceRow: React.FC<{ invoice: RecentInvoice; onPress: () => void }> = ({
 
 export default function SalesScreen() {
   const [query, setQuery] = useState('');
-  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(
-    null,
-  );
+  const [dateFilter, setDateFilter] = useState<DateFilter>('today');
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ visible: boolean; message: string }>({
     visible: false,
     message: '',
   });
 
+  const { dateFrom, dateTo } = getDateRange(dateFilter);
+
   const { data, isLoading, isRefetching, refetch } = useQuery({
-    queryKey: ['recent-invoices'],
-    queryFn: () => mobileApi.getRecentInvoices(30),
+    queryKey: ['recent-invoices', dateFilter],
+    queryFn: () => mobileApi.getRecentInvoices(200, dateFrom, dateTo),
   });
 
   const orderDetail = useOrderDetailActions(selectedInvoiceId, (message) =>
@@ -139,6 +173,8 @@ export default function SalesScreen() {
       return invoiceNo.includes(q) || customerName.includes(q);
     });
   }, [invoices, query]);
+
+  const totalRevenue = filtered.reduce((sum, inv) => sum + inv.total, 0);
 
   if (selectedInvoiceId) {
     return (
@@ -189,6 +225,51 @@ export default function SalesScreen() {
           inputStyle={styles.searchInput}
         />
       </View>
+
+      {/* Date filter chips */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.filterRow}
+      >
+        {DATE_FILTERS.map((f) => (
+          <Pressable
+            key={f.key}
+            onPress={() => setDateFilter(f.key)}
+            style={[
+              styles.filterChip,
+              dateFilter === f.key && styles.filterChipActive,
+            ]}
+          >
+            <Text style={[
+              styles.filterChipText,
+              dateFilter === f.key && styles.filterChipTextActive,
+            ]}>
+              {f.label}
+            </Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+
+      {/* Summary banner */}
+      {!isLoading && (
+        <View style={styles.summaryBanner}>
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryValue}>
+              {`KES ${totalRevenue.toLocaleString('en-KE', { minimumFractionDigits: 0 })}`}
+            </Text>
+            <Text style={styles.summaryLabel}>Revenue</Text>
+          </View>
+          <View style={styles.summaryDivider} />
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryValue}>{filtered.length}</Text>
+            <Text style={styles.summaryLabel}>
+              {filtered.length === 1 ? 'Invoice' : 'Invoices'}
+            </Text>
+          </View>
+        </View>
+      )}
+
       <FlatList
         data={filtered}
         keyExtractor={(item) => item.id}
@@ -209,15 +290,25 @@ export default function SalesScreen() {
         }
         ListEmptyComponent={
           <View style={styles.emptyWrap}>
+            <MaterialCommunityIcons
+              name="receipt-text-outline"
+              size={44}
+              color={brand.gradientEnd}
+              style={{ opacity: 0.5 }}
+            />
             <Text style={styles.emptyTitle}>
-              {invoices.length === 0
-                ? 'No invoices yet'
-                : 'No matching invoices'}
+              {query ? 'No matching invoices' : 'No invoices found'}
             </Text>
             <Text style={styles.emptySubtitle}>
-              {invoices.length === 0
-                ? 'Recent sales invoices will show up here.'
-                : 'Try a different invoice number or customer name.'}
+              {query
+                ? 'Try a different invoice number or customer name.'
+                : dateFilter === 'today'
+                  ? 'No sales recorded today.'
+                  : dateFilter === 'week'
+                    ? 'No sales this week.'
+                    : dateFilter === 'month'
+                      ? 'No sales this month.'
+                      : 'No invoices yet.'}
             </Text>
           </View>
         }
@@ -251,6 +342,59 @@ const styles = StyleSheet.create({
   searchInput: {
     fontSize: 14,
     minHeight: 0,
+  },
+  filterRow: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 8,
+    flexDirection: 'row',
+  },
+  filterChip: {
+    paddingVertical: 7,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: '#ede9fe',
+  },
+  filterChipActive: {
+    backgroundColor: brand.gradientEnd,
+  },
+  filterChipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: brand.textMuted,
+  },
+  filterChipTextActive: {
+    color: '#fff',
+  },
+  summaryBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 16,
+    marginBottom: 4,
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    gap: 24,
+  },
+  summaryItem: {
+    alignItems: 'center',
+  },
+  summaryValue: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: brand.textDark,
+  },
+  summaryLabel: {
+    fontSize: 11,
+    color: brand.textMuted,
+    marginTop: 1,
+  },
+  summaryDivider: {
+    width: 1,
+    height: 28,
+    backgroundColor: '#e8e4e0',
   },
   content: {
     padding: 16,

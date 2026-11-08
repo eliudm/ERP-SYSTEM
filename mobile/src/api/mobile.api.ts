@@ -70,9 +70,13 @@ export const mobileApi = {
     return res.data;
   },
 
-  getRecentInvoices: async (limit = 20): Promise<RecentInvoice[]> => {
+  getRecentInvoices: async (
+    limit = 50,
+    dateFrom?: string,
+    dateTo?: string,
+  ): Promise<RecentInvoice[]> => {
     const res = await apiClient.get('/mobile/recent-invoices', {
-      params: { limit },
+      params: { limit, dateFrom, dateTo },
     });
     return res.data;
   },

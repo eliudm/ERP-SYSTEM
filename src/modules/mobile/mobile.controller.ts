@@ -28,11 +28,17 @@ export class MobileController {
     return this.mobileService.quickSearch(query);
   }
 
-  @ApiOperation({ summary: 'Get the most recent invoices, limited by count' })
+  @ApiOperation({ summary: 'Get invoices, optionally filtered by date range' })
   @Get('recent-invoices')
-  getRecentInvoices(@Query('limit') limit?: string) {
+  getRecentInvoices(
+    @Query('limit') limit?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+  ) {
     return this.mobileService.getRecentInvoices(
-      limit ? parseInt(limit, 10) : 20,
+      limit ? parseInt(limit, 10) : 50,
+      dateFrom,
+      dateTo,
     );
   }
 
