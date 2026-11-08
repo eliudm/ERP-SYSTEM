@@ -123,6 +123,31 @@ export const DashboardPage: React.FC = () => {
     },
   ];
 
+  const getPeriodLabel = (): { title: string; sub: string } => {
+    const today = dayjs().format('YYYY-MM-DD');
+    const yesterday = dayjs().subtract(1, 'day').format('YYYY-MM-DD');
+    const weekStart = dayjs().startOf('week').format('YYYY-MM-DD');
+    const monthStart = dayjs().startOf('month').format('YYYY-MM-DD');
+    const yearStart = dayjs().startOf('year').format('YYYY-MM-DD');
+
+    if (startDate === today && endDate === today)
+      return { title: 'Revenue Today', sub: "Today's sales" };
+    if (startDate === yesterday && endDate === yesterday)
+      return { title: 'Revenue Yesterday', sub: "Yesterday's sales" };
+    if (startDate === weekStart && endDate === today)
+      return { title: 'Revenue This Week', sub: "This week's sales" };
+    if (startDate === monthStart && endDate === today)
+      return { title: 'Revenue This Month', sub: "This month's sales" };
+    if (startDate === yearStart && endDate === today)
+      return { title: 'Revenue This Year', sub: `Year to date ${currentYear}` };
+    return {
+      title: 'Revenue',
+      sub: `${dateRange[0].format('D MMM')} – ${dateRange[1].format('D MMM YYYY')}`,
+    };
+  };
+
+  const periodLabel = getPeriodLabel();
+
   const { data: summary, isLoading } = useQuery({
     queryKey: ['sales-summary', startDate, endDate],
     queryFn: () => salesApi.getSalesSummary(startDate, endDate),
@@ -342,14 +367,14 @@ export const DashboardPage: React.FC = () => {
         <Col xs={24} sm={12} lg={6}>
           <Card bordered={false} style={{ borderRadius: 24, background: 'rgba(255,255,255,0.72)' }}>
             <Statistic
-              title={t('totalRevenue')}
+              title={periodLabel.title}
               value={Number(summary?.totalRevenue || 0)}
               formatter={(v) => formatCurrency(Number(v))}
               prefix={<DollarOutlined />}
               valueStyle={{ color: '#52c41a' }}
             />
             <Text type="secondary" style={{ fontSize: 12 }}>
-              <ArrowUpOutlined style={{ color: '#52c41a' }} /> {t('ytd', { year: currentYear })}
+              <ArrowUpOutlined style={{ color: '#52c41a' }} /> {periodLabel.sub}
             </Text>
           </Card>
         </Col>
@@ -363,7 +388,7 @@ export const DashboardPage: React.FC = () => {
               valueStyle={{ color: '#1677ff' }}
             />
             <Text type="secondary" style={{ fontSize: 12 }}>
-              {t('totalInvoicesDesc')}
+              {periodLabel.sub}
             </Text>
           </Card>
         </Col>
@@ -393,7 +418,7 @@ export const DashboardPage: React.FC = () => {
               valueStyle={{ color: '#52c41a' }}
             />
             <Text type="secondary" style={{ fontSize: 12 }}>
-              {t('totalCollectedDesc')}
+              {periodLabel.sub}
             </Text>
           </Card>
         </Col>
