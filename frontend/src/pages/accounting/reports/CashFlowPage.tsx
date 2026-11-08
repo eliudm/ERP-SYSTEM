@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import {
   Card, Typography, Space, Table,
-  DatePicker, Button, Statistic, Row, Col,
+  DatePicker, Button, Statistic, Row, Col, Tag, Tooltip,
 } from 'antd';
-import { SearchOutlined } from '@ant-design/icons';
+import {
+  SearchOutlined, DownloadOutlined,
+} from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { accountingApi } from '../../../api/accounting.api';
@@ -12,52 +14,39 @@ import { formatCurrency, formatDate } from '../../../utils/format';
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
 
-interface Transaction {
-  description: string;
-  amount: number;
+type DayRow = {
   date: string;
-}
+  cash: number;
+  card: number;
+  mobileMoney: number;
+  bankTransfer: number;
+  creditSales: number;
+  creditPayments: number;
+  total: number;
+};
 
-const txColumns = [
-  { title: 'Date', dataIndex: 'date', key: 'date', render: (v: string) => formatDate(v) },
-  { title: 'Description', dataIndex: 'description', key: 'description' },
-  {
-    title: 'Amount (KES)',
-    dataIndex: 'amount',
-    key: 'amount',
-    align: 'right' as const,
-    render: (v: number) => (
-      <Text style={{ color: v >= 0 ? '#52c41a' : '#f5222d' }}>{formatCurrency(v)}</Text>
-    ),
-  },
+const STAT_COLS: { key: keyof DayRow; label: string; color: string; tip: string }[] = [
+  { key: 'cash',          label: 'Cash',             color: '#52c41a', tip: 'Direct cash sales' },
+  { key: 'mobileMoney',   label: 'M-Pesa',           color: '#1677ff', tip: 'Mobile Money / STK / Till' },
+  { key: 'card',          label: 'Card',             color: '#722ed1', tip: 'Card / POS terminal' },
+  { key: 'bankTransfer',  label: 'Bank Transfer',    color: '#13c2c2', tip: 'EFT / RTGS / SWIFT' },
+  { key: 'creditSales',   label: 'Credit Sales',     color: '#fa8c16', tip: 'Goods dispatched on credit — cash not yet collected' },
+  { key: 'creditPayments',label: 'Credit Collected', color: '#eb2f96', tip: 'Cash received against previously outstanding credit invoices' },
 ];
 
-const ActivitySection: React.FC<{
-  title: string;
-  total: number;
-  transactions: Transaction[];
-  loading: boolean;
-}> = ({ title, total, transactions, loading }) => (
-  <Card
-    title={
-      <Space>
-        <Text strong>{title}</Text>
-        <Text strong style={{ color: total >= 0 ? '#52c41a' : '#f5222d' }}>
-          {formatCurrency(total)}
-        </Text>
-      </Space>
-    }
-  >
-    <Table
-      columns={txColumns}
-      dataSource={transactions}
-      rowKey={(r) => `${r.date}-${r.description}-${r.amount}`}
-      loading={loading}
-      pagination={false}
-      locale={{ emptyText: 'No transactions in this period' }}
-    />
-  </Card>
-);
+const exportCsv = (rows: DayRow[]) => {
+  const header = 'Date,Cash,M-Pesa,Card,Bank Transfer,Credit Sales,Credit Collected,Total';
+  const lines = rows.map((r) =>
+    [r.date, r.cash, r.mobileMoney, r.card, r.bankTransfer, r.creditSales, r.creditPayments, r.total].join(','),
+  );
+  const blob = new Blob([[header, ...lines].join('\n')], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'daily-collections.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+};
 
 export const CashFlowPage: React.FC = () => {
   const [dates, setDates] = useState<[string, string]>([
@@ -66,14 +55,96 @@ export const CashFlowPage: React.FC = () => {
   ]);
 
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ['cash-flow', dates],
-    queryFn: () => accountingApi.getCashFlow(dates[0], dates[1]),
+    queryKey: ['daily-collections', dates],
+    queryFn: () => accountingApi.getDailyCollections(dates[0], dates[1]),
   });
+
+  const rows = data?.rows ?? [];
+  const totals = data?.totals;
+
+  const columns = [
+    {
+      title: 'Date',
+      dataIndex: 'date',
+      key: 'date',
+      fixed: 'left' as const,
+      width: 110,
+      render: (v: string) => <Text strong>{formatDate(v)}</Text>,
+    },
+    {
+      title: <Tooltip title="Direct cash sales"><span style={{ color: '#52c41a' }}>💵 Cash</span></Tooltip>,
+      dataIndex: 'cash',
+      key: 'cash',
+      align: 'right' as const,
+      render: (v: number) => v > 0 ? <Text style={{ color: '#52c41a' }}>{formatCurrency(v)}</Text> : <Text type="secondary">—</Text>,
+    },
+    {
+      title: <Tooltip title="Mobile Money / STK / Till"><span style={{ color: '#1677ff' }}>📱 M-Pesa</span></Tooltip>,
+      dataIndex: 'mobileMoney',
+      key: 'mobileMoney',
+      align: 'right' as const,
+      render: (v: number) => v > 0 ? <Text style={{ color: '#1677ff' }}>{formatCurrency(v)}</Text> : <Text type="secondary">—</Text>,
+    },
+    {
+      title: <Tooltip title="Card / POS terminal"><span style={{ color: '#722ed1' }}>💳 Card</span></Tooltip>,
+      dataIndex: 'card',
+      key: 'card',
+      align: 'right' as const,
+      render: (v: number) => v > 0 ? <Text style={{ color: '#722ed1' }}>{formatCurrency(v)}</Text> : <Text type="secondary">—</Text>,
+    },
+    {
+      title: <Tooltip title="EFT / RTGS"><span style={{ color: '#13c2c2' }}>🏦 Bank</span></Tooltip>,
+      dataIndex: 'bankTransfer',
+      key: 'bankTransfer',
+      align: 'right' as const,
+      render: (v: number) => v > 0 ? <Text style={{ color: '#13c2c2' }}>{formatCurrency(v)}</Text> : <Text type="secondary">—</Text>,
+    },
+    {
+      title: <Tooltip title="Goods dispatched on credit"><span style={{ color: '#fa8c16' }}>📑 Credit Sales</span></Tooltip>,
+      dataIndex: 'creditSales',
+      key: 'creditSales',
+      align: 'right' as const,
+      render: (v: number) => v > 0 ? <Text style={{ color: '#fa8c16' }}>{formatCurrency(v)}</Text> : <Text type="secondary">—</Text>,
+    },
+    {
+      title: <Tooltip title="Cash collected on outstanding credit"><span style={{ color: '#eb2f96' }}>✅ Credit Collected</span></Tooltip>,
+      dataIndex: 'creditPayments',
+      key: 'creditPayments',
+      align: 'right' as const,
+      render: (v: number) => v > 0 ? <Text style={{ color: '#eb2f96' }}>{formatCurrency(v)}</Text> : <Text type="secondary">—</Text>,
+    },
+    {
+      title: 'Daily Total',
+      dataIndex: 'total',
+      key: 'total',
+      align: 'right' as const,
+      fixed: 'right' as const,
+      width: 130,
+      render: (v: number) => (
+        <Text strong style={{ fontSize: 13 }}>{formatCurrency(v)}</Text>
+      ),
+    },
+  ];
+
+  const tableData: (DayRow & { key: string })[] = [
+    ...rows.map((r) => ({ ...r, key: r.date })),
+    ...(totals && rows.length > 0 ? [{
+      key: '__totals__',
+      date: 'TOTALS',
+      cash: totals.cash,
+      card: totals.card,
+      mobileMoney: totals.mobileMoney,
+      bankTransfer: totals.bankTransfer,
+      creditSales: totals.creditSales,
+      creditPayments: totals.creditPayments,
+      total: totals.total,
+    }] : []),
+  ];
 
   return (
     <Space direction="vertical" style={{ width: '100%' }} size="large">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Title level={4} style={{ margin: 0 }}>Cash Flow Statement</Title>
+        <Title level={4} style={{ margin: 0 }}>Daily Cash Collections</Title>
         <Space>
           <RangePicker
             defaultValue={[dayjs().startOf('month'), dayjs()]}
@@ -87,72 +158,61 @@ export const CashFlowPage: React.FC = () => {
             onClick={() => refetch()}
             loading={isLoading}
           >
-            Generate
+            Run
           </Button>
+          {rows.length > 0 && (
+            <Button icon={<DownloadOutlined />} onClick={() => exportCsv(rows)}>
+              Export CSV
+            </Button>
+          )}
         </Space>
       </div>
 
-      <Row gutter={16}>
-        <Col span={6}>
-          <Card>
+      {/* Summary stat cards */}
+      <Row gutter={[12, 12]}>
+        {STAT_COLS.map((col) => (
+          <Col key={col.key} xs={12} sm={8} md={4}>
+            <Tooltip title={col.tip}>
+              <Card size="small" style={{ borderTop: `3px solid ${col.color}` }}>
+                <Statistic
+                  title={col.label}
+                  value={totals ? totals[col.key as keyof typeof totals] : 0}
+                  formatter={(v) => formatCurrency(Number(v))}
+                  valueStyle={{ color: col.color, fontSize: 15 }}
+                />
+              </Card>
+            </Tooltip>
+          </Col>
+        ))}
+        <Col xs={12} sm={8} md={4}>
+          <Card size="small" style={{ borderTop: '3px solid #262626', backgroundColor: '#fafafa' }}>
             <Statistic
-              title="Operating"
-              value={data?.operating?.total || 0}
+              title="Grand Total"
+              value={totals?.total ?? 0}
               formatter={(v) => formatCurrency(Number(v))}
-              valueStyle={{ color: (data?.operating?.total || 0) >= 0 ? '#52c41a' : '#f5222d' }}
-            />
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card>
-            <Statistic
-              title="Investing"
-              value={data?.investing?.total || 0}
-              formatter={(v) => formatCurrency(Number(v))}
-              valueStyle={{ color: (data?.investing?.total || 0) >= 0 ? '#52c41a' : '#f5222d' }}
-            />
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card>
-            <Statistic
-              title="Financing"
-              value={data?.financing?.total || 0}
-              formatter={(v) => formatCurrency(Number(v))}
-              valueStyle={{ color: (data?.financing?.total || 0) >= 0 ? '#52c41a' : '#f5222d' }}
-            />
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card>
-            <Statistic
-              title="Net Change in Cash"
-              value={data?.netChange || 0}
-              formatter={(v) => formatCurrency(Number(v))}
-              valueStyle={{ color: (data?.netChange || 0) >= 0 ? '#52c41a' : '#f5222d' }}
+              valueStyle={{ fontSize: 15, fontWeight: 700 }}
             />
           </Card>
         </Col>
       </Row>
 
-      <ActivitySection
-        title="Operating Activities"
-        total={data?.operating?.total || 0}
-        transactions={data?.operating?.transactions || []}
-        loading={isLoading}
-      />
-      <ActivitySection
-        title="Investing Activities"
-        total={data?.investing?.total || 0}
-        transactions={data?.investing?.transactions || []}
-        loading={isLoading}
-      />
-      <ActivitySection
-        title="Financing Activities"
-        total={data?.financing?.total || 0}
-        transactions={data?.financing?.transactions || []}
-        loading={isLoading}
-      />
+      {/* Daily breakdown table */}
+      <Card>
+        <Table
+          columns={columns}
+          dataSource={tableData}
+          loading={isLoading}
+          pagination={false}
+          scroll={{ x: 900 }}
+          size="small"
+          rowClassName={(r) => r.key === '__totals__' ? 'totals-row' : ''}
+          locale={{ emptyText: 'No collections in selected period' }}
+          style={{ fontVariantNumeric: 'tabular-nums' }}
+        />
+        <style>{`
+          .totals-row td { background: #f6f6f6 !important; font-weight: 700; border-top: 2px solid #e0e0e0; }
+        `}</style>
+      </Card>
     </Space>
   );
 };

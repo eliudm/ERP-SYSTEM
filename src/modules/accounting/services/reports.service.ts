@@ -514,6 +514,95 @@ export class ReportsService {
     };
   }
 
+  // ─── DAILY COLLECTIONS BY PAYMENT MODE ───────────────────
+  async getDailyCollections(startDate: string, endDate: string) {
+    const NAIROBI_MS = 3 * 60 * 60 * 1000;
+    const start = new Date(
+      new Date(`${startDate}T00:00:00.000Z`).getTime() - NAIROBI_MS,
+    );
+    const end = new Date(
+      new Date(`${endDate}T23:59:59.999Z`).getTime() - NAIROBI_MS,
+    );
+
+    const [paidInvoices, creditPayments] = await Promise.all([
+      this.prisma.salesInvoice.findMany({
+        where: { status: 'PAID', paidAt: { gte: start, lte: end } },
+        select: { paidAt: true, paymentMethod: true, total: true },
+      }),
+      this.prisma.creditPayment.findMany({
+        where: { createdAt: { gte: start, lte: end } },
+        select: { createdAt: true, paymentMethod: true, amount: true },
+      }),
+    ]);
+
+    type DayBucket = {
+      CASH: number; CARD: number; MOBILE_MONEY: number;
+      BANK_TRANSFER: number; CREDIT: number; CREDIT_PAYMENTS: number;
+    };
+    const dayMap = new Map<string, DayBucket>();
+    const bucket = (date: string): DayBucket => {
+      if (!dayMap.has(date)) {
+        dayMap.set(date, {
+          CASH: 0, CARD: 0, MOBILE_MONEY: 0,
+          BANK_TRANSFER: 0, CREDIT: 0, CREDIT_PAYMENTS: 0,
+        });
+      }
+      return dayMap.get(date)!;
+    };
+
+    for (const inv of paidInvoices) {
+      if (!inv.paidAt || !inv.paymentMethod) continue;
+      const d = new Date(inv.paidAt.getTime() + NAIROBI_MS)
+        .toISOString()
+        .slice(0, 10);
+      const b = bucket(d);
+      b[inv.paymentMethod as keyof DayBucket] =
+        (b[inv.paymentMethod as keyof DayBucket] || 0) + Number(inv.total);
+    }
+
+    for (const cp of creditPayments) {
+      const d = new Date(cp.createdAt.getTime() + NAIROBI_MS)
+        .toISOString()
+        .slice(0, 10);
+      const b = bucket(d);
+      b.CREDIT_PAYMENTS += Number(cp.amount);
+    }
+
+    const rows = Array.from(dayMap.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, b]) => ({
+        date,
+        cash: b.CASH,
+        card: b.CARD,
+        mobileMoney: b.MOBILE_MONEY,
+        bankTransfer: b.BANK_TRANSFER,
+        creditSales: b.CREDIT,
+        creditPayments: b.CREDIT_PAYMENTS,
+        total:
+          b.CASH + b.CARD + b.MOBILE_MONEY +
+          b.BANK_TRANSFER + b.CREDIT + b.CREDIT_PAYMENTS,
+      }));
+
+    const zero = {
+      cash: 0, card: 0, mobileMoney: 0,
+      bankTransfer: 0, creditSales: 0, creditPayments: 0, total: 0,
+    };
+    const totals = rows.reduce(
+      (acc, r) => ({
+        cash: acc.cash + r.cash,
+        card: acc.card + r.card,
+        mobileMoney: acc.mobileMoney + r.mobileMoney,
+        bankTransfer: acc.bankTransfer + r.bankTransfer,
+        creditSales: acc.creditSales + r.creditSales,
+        creditPayments: acc.creditPayments + r.creditPayments,
+        total: acc.total + r.total,
+      }),
+      zero,
+    );
+
+    return { period: { startDate: start, endDate: end }, rows, totals };
+  }
+
   // ─── TRIAL BALANCE ────────────────────────────────────────
   async getTrialBalance(asOf?: string) {
     const asOfDate = asOf ? new Date(asOf) : new Date();

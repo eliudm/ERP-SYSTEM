@@ -108,6 +108,25 @@ export const accountingApi = {
     return res.data;
   },
 
+  getDailyCollections: async (startDate: string, endDate: string) => {
+    const res = await apiClient.get('/accounting/reports/daily-collections', {
+      params: { startDate, endDate },
+    });
+    return res.data as {
+      rows: Array<{
+        date: string;
+        cash: number; card: number; mobileMoney: number;
+        bankTransfer: number; creditSales: number; creditPayments: number;
+        total: number;
+      }>;
+      totals: {
+        cash: number; card: number; mobileMoney: number;
+        bankTransfer: number; creditSales: number; creditPayments: number;
+        total: number;
+      };
+    };
+  },
+
   // Expenses
   getExpenses: async (
     page = 1,

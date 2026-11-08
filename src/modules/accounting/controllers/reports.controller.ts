@@ -85,4 +85,13 @@ export class ReportsController {
   getTrialBalance(@Query('asOf') asOf?: string) {
     return this.reportsService.getTrialBalance(asOf);
   }
+
+  @ApiOperation({ summary: 'Get daily collections broken down by payment mode' })
+  @Get('daily-collections')
+  getDailyCollections(
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+  ) {
+    return this.reportsService.getDailyCollections(startDate, endDate);
+  }
 }
