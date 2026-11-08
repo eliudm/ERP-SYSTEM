@@ -16,6 +16,7 @@ import {
   Snackbar,
 } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { mobileApi, RecentInvoice } from '../../api/mobile.api';
 import { OrderDetail } from '../../components/pos/OrderDetail';
@@ -23,12 +24,21 @@ import { useOrderDetailActions } from '../../hooks/useOrderDetailActions';
 import { brand } from '../../theme';
 
 type DateFilter = 'today' | 'week' | 'month' | 'all';
+type StatusFilter = 'ALL' | 'PAID' | 'APPROVED' | 'DRAFT' | 'VOID';
 
 const DATE_FILTERS: { key: DateFilter; label: string }[] = [
   { key: 'today', label: 'Today' },
   { key: 'week', label: 'This Week' },
   { key: 'month', label: 'This Month' },
   { key: 'all', label: 'All Time' },
+];
+
+const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
+  { key: 'ALL', label: 'All' },
+  { key: 'PAID', label: 'Paid' },
+  { key: 'APPROVED', label: 'Pending' },
+  { key: 'DRAFT', label: 'Draft' },
+  { key: 'VOID', label: 'Void' },
 ];
 
 function getDateRange(filter: DateFilter): { dateFrom?: string; dateTo?: string } {
@@ -155,9 +165,22 @@ const InvoiceRow: React.FC<{ invoice: RecentInvoice; onPress: () => void }> = ({
   </Pressable>
 );
 
+function parseDateFilter(v: string | undefined): DateFilter {
+  if (v === 'week' || v === 'month' || v === 'all') return v;
+  return 'today';
+}
+
+function parseStatusFilter(v: string | undefined): StatusFilter {
+  if (v === 'PAID' || v === 'APPROVED' || v === 'DRAFT' || v === 'VOID') return v;
+  return 'ALL';
+}
+
 export default function SalesScreen() {
+  const params = useLocalSearchParams<{ filter?: string; status?: string }>();
+
   const [query, setQuery] = useState('');
-  const [dateFilter, setDateFilter] = useState<DateFilter>('today');
+  const [dateFilter, setDateFilter] = useState<DateFilter>(() => parseDateFilter(params.filter));
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(() => parseStatusFilter(params.status));
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ visible: boolean; message: string }>({
     visible: false,
@@ -178,14 +201,18 @@ export default function SalesScreen() {
   const invoices = data ?? [];
 
   const filtered = useMemo(() => {
+    let result = invoices;
+    if (statusFilter !== 'ALL') {
+      result = result.filter((inv) => inv.status === statusFilter);
+    }
     const q = query.trim().toLowerCase();
-    if (!q) return invoices;
-    return invoices.filter((inv) => {
+    if (!q) return result;
+    return result.filter((inv) => {
       const invoiceNo = inv.invoiceNo?.toLowerCase() ?? '';
       const customerName = inv.customer?.name?.toLowerCase() ?? '';
       return invoiceNo.includes(q) || customerName.includes(q);
     });
-  }, [invoices, query]);
+  }, [invoices, query, statusFilter]);
 
   const totalRevenue = filtered.reduce((sum, inv) => sum + inv.total, 0);
   const collectedRevenue = filtered
@@ -265,6 +292,33 @@ export default function SalesScreen() {
               style={[
                 styles.filterChipText,
                 dateFilter === f.key && styles.filterChipTextActive,
+              ]}
+            >
+              {f.label}
+            </Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+
+      {/* Status filter chips */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.statusFilterRow}
+      >
+        {STATUS_FILTERS.map((f) => (
+          <Pressable
+            key={f.key}
+            onPress={() => setStatusFilter(f.key)}
+            style={[
+              styles.statusChipBtn,
+              statusFilter === f.key && styles.statusChipBtnActive,
+            ]}
+          >
+            <Text
+              style={[
+                styles.statusChipBtnText,
+                statusFilter === f.key && styles.statusChipBtnTextActive,
               ]}
             >
               {f.label}
@@ -403,6 +457,32 @@ const styles = StyleSheet.create({
     color: brand.textMuted,
   },
   filterChipTextActive: {
+    color: '#fff',
+  },
+  statusFilterRow: {
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+    gap: 8,
+    flexDirection: 'row',
+  },
+  statusChipBtn: {
+    paddingVertical: 5,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    backgroundColor: '#f0eef7',
+    borderWidth: 1,
+    borderColor: '#e0ddf0',
+  },
+  statusChipBtnActive: {
+    backgroundColor: brand.textDark,
+    borderColor: brand.textDark,
+  },
+  statusChipBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: brand.textMuted,
+  },
+  statusChipBtnTextActive: {
     color: '#fff',
   },
   summaryBanner: {
