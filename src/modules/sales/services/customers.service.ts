@@ -261,8 +261,8 @@ export class CustomersService {
       include: {
         invoices: {
           where: { status: { not: 'VOID' } },
-          include: { items: true },
-          orderBy: { invoiceDate: 'asc' },
+          include: { items: true, creditPayments: true },
+          orderBy: { invoiceDate: 'desc' },
         },
       },
     });
@@ -274,9 +274,16 @@ export class CustomersService {
       0,
     );
 
-    const totalPaid = customer.invoices
-      .filter((inv) => inv.status === 'PAID')
-      .reduce((sum, inv) => sum + Number(inv.total), 0);
+    // PAID invoices: full total collected.
+    // APPROVED invoices: only the credit payments made so far.
+    const totalPaid = customer.invoices.reduce((sum, inv) => {
+      if (inv.status === 'PAID') return sum + Number(inv.total);
+      const creditPaid = inv.creditPayments.reduce(
+        (s, p) => s + Number(p.amount),
+        0,
+      );
+      return sum + creditPaid;
+    }, 0);
 
     return {
       customer,

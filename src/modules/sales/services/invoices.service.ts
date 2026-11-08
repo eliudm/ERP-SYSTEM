@@ -226,6 +226,21 @@ export class InvoicesService {
       );
     }
 
+    // Block credit sales for walk-in / anonymous customers
+    if (paymentMethod === PaymentMethod.CREDIT) {
+      const customerName = invoice.customer?.name?.trim().toLowerCase() ?? '';
+      const isWalkIn =
+        !invoice.customer ||
+        customerName === 'walk-in customer' ||
+        customerName === 'walk in customer' ||
+        customerName === 'walk in';
+      if (isWalkIn) {
+        throw new BadRequestException(
+          'Credit sales require a named customer. Walk-in customers cannot be used for credit transactions.',
+        );
+      }
+    }
+
     const warehouse = warehouseId
       ? await this.prisma.warehouse.findFirst({
           where: { id: warehouseId, isActive: true },
@@ -411,7 +426,8 @@ export class InvoicesService {
 
     // For instant-settlement methods, mark as paid immediately.
     // MOBILE_MONEY is settled asynchronously via M-Pesa callback.
-    if (paymentMethod && paymentMethod !== PaymentMethod.MOBILE_MONEY) {
+    // CREDIT stays APPROVED — payment is collected later via recordCreditPayment().
+    if (paymentMethod && paymentMethod !== PaymentMethod.MOBILE_MONEY && paymentMethod !== PaymentMethod.CREDIT) {
       return this.markAsPaid(id, paymentMethod, userId);
     }
 
@@ -533,6 +549,12 @@ export class InvoicesService {
     if (invoice.status !== InvoiceStatus.APPROVED) {
       throw new BadRequestException(
         'Only APPROVED invoices can be marked as paid',
+      );
+    }
+
+    if (paymentMethod === PaymentMethod.CREDIT) {
+      throw new BadRequestException(
+        'Cannot mark an invoice as paid using Credit. Use "Record Credit Payment" to collect payment on a credit sale.',
       );
     }
 
@@ -708,13 +730,20 @@ export class InvoicesService {
 
   // ─── GET SALES SUMMARY ───────────────────────────────────
   async getSalesSummary(startDate: string, endDate: string) {
+    // Kenya is UTC+3. `new Date("2026-11-08")` parses to midnight UTC, which
+    // is 03:00 EAT — invoices from that calendar day in Nairobi would all be
+    // AFTER the lte cutoff and missed. Anchor each boundary to the Kenya day.
+    const NAIROBI_OFFSET_MS = 3 * 60 * 60 * 1000;
+    const start = new Date(
+      new Date(`${startDate}T00:00:00.000Z`).getTime() - NAIROBI_OFFSET_MS,
+    );
+    const end = new Date(
+      new Date(`${endDate}T23:59:59.999Z`).getTime() - NAIROBI_OFFSET_MS,
+    );
     const invoices = await this.prisma.salesInvoice.findMany({
       where: {
         status: { not: InvoiceStatus.VOID },
-        invoiceDate: {
-          gte: new Date(startDate),
-          lte: new Date(endDate),
-        },
+        invoiceDate: { gte: start, lte: end },
       },
     });
 
@@ -855,5 +884,97 @@ export class InvoicesService {
       invoicesMissingCostData,
       byPaymentMethod,
     };
+  }
+
+  // ─── CREDIT PAYMENT RECORDING ────────────────────────────
+  async recordCreditPayment(
+    invoiceId: string,
+    dto: { amount: number; paymentMethod: PaymentMethod; notes?: string },
+    userId?: string,
+  ) {
+    const invoice = await this.prisma.salesInvoice.findUnique({
+      where: { id: invoiceId },
+      include: { creditPayments: true },
+    });
+
+    if (!invoice) throw new NotFoundException('Invoice not found');
+    if (invoice.status !== InvoiceStatus.APPROVED) {
+      throw new BadRequestException('Invoice is not in APPROVED (outstanding credit) state');
+    }
+
+    const tenantId = invoice.tenantId;
+
+    // Tag legacy invoices (paymentMethod = null) as CREDIT the first time a
+    // credit payment is recorded against them so the data stays consistent.
+    if (!invoice.paymentMethod) {
+      await this.prisma.salesInvoice.update({
+        where: { id: invoiceId },
+        data: { paymentMethod: PaymentMethod.CREDIT },
+      });
+    }
+    const totalPaid =
+      invoice.creditPayments.reduce((sum, p) => sum + Number(p.amount), 0) + dto.amount;
+
+    const payment = await this.prisma.creditPayment.create({
+      data: {
+        tenantId,
+        invoiceId,
+        amount: dto.amount,
+        paymentMethod: dto.paymentMethod,
+        notes: dto.notes,
+        recordedById: userId,
+      },
+    });
+
+    // If fully (or over) paid, settle the invoice
+    if (totalPaid >= Number(invoice.total)) {
+      await this.markAsPaid(invoiceId, dto.paymentMethod, userId);
+    }
+
+    await this.auditService.log({
+      userId,
+      action: 'RECORD_CREDIT_PAYMENT',
+      tableName: 'credit_payments',
+      recordId: payment.id,
+      newValues: { invoiceId, amount: dto.amount, paymentMethod: dto.paymentMethod },
+    });
+
+    return payment;
+  }
+
+  async getCreditPayments(invoiceId: string) {
+    return this.prisma.creditPayment.findMany({
+      where: { invoiceId },
+      orderBy: { createdAt: 'asc' },
+      include: { recordedBy: { select: { firstName: true, lastName: true } } },
+    });
+  }
+
+  async getOutstandingCredit() {
+    const invoices = await this.prisma.salesInvoice.findMany({
+      // All APPROVED invoices are outstanding — this includes legacy invoices
+      // created before the CREDIT paymentMethod was introduced (paymentMethod = null)
+      // as well as new explicit credit sales (paymentMethod = CREDIT).
+      where: { status: InvoiceStatus.APPROVED },
+      include: {
+        customer: { select: { id: true, name: true, phone: true } },
+        creditPayments: true,
+      },
+      orderBy: { invoiceDate: 'desc' },
+    });
+
+    return invoices.map((inv) => {
+      const paid = inv.creditPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+      const balance = Number(inv.total) - paid;
+      return {
+        id: inv.id,
+        invoiceNo: inv.invoiceNo,
+        invoiceDate: inv.invoiceDate,
+        customer: inv.customer,
+        total: Number(inv.total),
+        amountPaid: paid,
+        balance,
+      };
+    });
   }
 }

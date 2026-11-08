@@ -172,6 +172,16 @@ export class InvoicesController {
     return this.mpesaService.unmatchTillPayment(tillPaymentId);
   }
 
+  // GET /sales/invoices/credit/outstanding
+  @ApiOperation({ summary: 'List all outstanding (unpaid) credit invoices' })
+  @Get('credit/outstanding')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN, Role.ACCOUNTANT, Role.SALES_USER)
+  @AllowPosUser()
+  getOutstandingCredit() {
+    return this.invoicesService.getOutstandingCredit();
+  }
+
   // GET /sales/invoices/:id
   @ApiOperation({ summary: 'Get a sales invoice by ID' })
   @Get(':id')
@@ -248,5 +258,29 @@ export class InvoicesController {
     @Req() req: any,
   ) {
     return this.invoicesService.void(id, reason, req.user?.id);
+  }
+
+  // GET /sales/invoices/:id/credit-payments
+  @ApiOperation({ summary: 'List credit payment history for an invoice' })
+  @Get(':id/credit-payments')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN, Role.ACCOUNTANT, Role.SALES_USER)
+  @AllowPosUser()
+  getCreditPayments(@Param('id') id: string) {
+    return this.invoicesService.getCreditPayments(id);
+  }
+
+  // POST /sales/invoices/:id/credit-payments
+  @ApiOperation({ summary: 'Record a partial or full payment against a credit invoice' })
+  @Post(':id/credit-payments')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN, Role.ACCOUNTANT, Role.SALES_USER)
+  @AllowPosUser()
+  recordCreditPayment(
+    @Param('id') id: string,
+    @Body() dto: { amount: number; paymentMethod: PaymentMethod; notes?: string },
+    @Req() req: any,
+  ) {
+    return this.invoicesService.recordCreditPayment(id, dto, req.user?.id);
   }
 }
