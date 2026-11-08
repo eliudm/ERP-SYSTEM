@@ -1561,6 +1561,18 @@ export default function PosScreen() {
               <Text style={styles.productPrice}>
                 {formatCurrency(item.unitPrice)}
               </Text>
+              {!outOfStock && (
+                <Text
+                  style={[
+                    styles.stockCount,
+                    item.stockQuantity <= 5 && styles.stockCountLow,
+                  ]}
+                >
+                  {item.stockQuantity <= 5
+                    ? `${item.stockQuantity} left`
+                    : `${item.stockQuantity} in stock`}
+                </Text>
+              )}
             </Pressable>
           );
         }}
@@ -1927,6 +1939,15 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     fontWeight: '700',
     color: brand.gradientEnd,
+  },
+  stockCount: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#0d7a66',
+    marginTop: 3,
+  },
+  stockCountLow: {
+    color: '#ad7a14',
   },
   cartDock: {
     position: 'absolute',
