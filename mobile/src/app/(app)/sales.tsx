@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef, useCallback } from 'react';
 import {
   View,
   StyleSheet,
@@ -6,6 +6,7 @@ import {
   RefreshControl,
   Pressable,
   ScrollView,
+  Animated,
 } from 'react-native';
 import {
   Text,
@@ -67,6 +68,16 @@ function getDateRange(filter: DateFilter): { dateFrom?: string; dateTo?: string 
   return { dateFrom: toISO(from), dateTo: toISO(now) };
 }
 
+function parseDateFilter(v: string | undefined): DateFilter {
+  if (v === 'week' || v === 'month' || v === 'all') return v;
+  return 'today';
+}
+
+function parseStatusFilter(v: string | undefined): StatusFilter {
+  if (v === 'PAID' || v === 'PENDING' || v === 'DRAFT' || v === 'VOID') return v;
+  return 'ALL';
+}
+
 const formatCurrency = (value: number) =>
   `KES ${value.toLocaleString('en-KE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
@@ -101,32 +112,21 @@ const StatusChip: React.FC<{ status: string }> = ({ status }) => {
   );
 };
 
-const ETIMS_STYLES: Record<
-  string,
-  { fg: string; icon: string; label: string }
-> = {
+const ETIMS_STYLES: Record<string, { fg: string; icon: string; label: string }> = {
   SUCCESS: { fg: '#0d7a66', icon: 'check-decagram', label: 'KRA eTIMS' },
   SUBMITTED: { fg: '#2452c7', icon: 'progress-clock', label: 'KRA pending' },
   PENDING: { fg: '#ad7a14', icon: 'clock-outline', label: 'KRA pending' },
   FAILED: { fg: '#d4380d', icon: 'alert-circle-outline', label: 'KRA failed' },
 };
 
-const EtimsBadge: React.FC<{ status: RecentInvoice['etimsStatus'] }> = ({
-  status,
-}) => {
+const EtimsBadge: React.FC<{ status: RecentInvoice['etimsStatus'] }> = ({ status }) => {
   if (!status) return null;
   const style = ETIMS_STYLES[status];
   if (!style) return null;
   return (
     <View style={styles.etimsBadge}>
-      <MaterialCommunityIcons
-        name={style.icon as never}
-        size={12}
-        color={style.fg}
-      />
-      <Text style={[styles.etimsBadgeText, { color: style.fg }]}>
-        {style.label}
-      </Text>
+      <MaterialCommunityIcons name={style.icon as never} size={12} color={style.fg} />
+      <Text style={[styles.etimsBadgeText, { color: style.fg }]}>{style.label}</Text>
     </View>
   );
 };
@@ -168,27 +168,50 @@ const InvoiceRow: React.FC<{ invoice: RecentInvoice; onPress: () => void }> = ({
   </Pressable>
 );
 
-function parseDateFilter(v: string | undefined): DateFilter {
-  if (v === 'week' || v === 'month' || v === 'all') return v;
-  return 'today';
-}
-
-function parseStatusFilter(v: string | undefined): StatusFilter {
-  if (v === 'PAID' || v === 'PENDING' || v === 'DRAFT' || v === 'VOID') return v;
-  return 'ALL';
-}
-
 export default function SalesScreen() {
   const params = useLocalSearchParams<{ filter?: string; status?: string }>();
 
   const [query, setQuery] = useState('');
   const [dateFilter, setDateFilter] = useState<DateFilter>(() => parseDateFilter(params.filter));
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>(() => parseStatusFilter(params.status));
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(() =>
+    parseStatusFilter(params.status),
+  );
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ visible: boolean; message: string }>({
     visible: false,
     message: '',
   });
+
+  // ── collapsible header ──────────────────────────────────────
+  const collapseAnim = useRef(new Animated.Value(1)).current;
+  const headerExpandedRef = useRef(true);
+  const lastScrollYRef = useRef(0);
+
+  const onListScroll = useCallback(
+    (e: { nativeEvent: { contentOffset: { y: number } } }) => {
+      const y = e.nativeEvent.contentOffset.y;
+      const dy = y - lastScrollYRef.current;
+      lastScrollYRef.current = y;
+
+      if (dy > 8 && headerExpandedRef.current && y > 60) {
+        headerExpandedRef.current = false;
+        Animated.timing(collapseAnim, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: false,
+        }).start();
+      } else if (dy < -8 && !headerExpandedRef.current) {
+        headerExpandedRef.current = true;
+        Animated.timing(collapseAnim, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: false,
+        }).start();
+      }
+    },
+    [collapseAnim],
+  );
+  // ───────────────────────────────────────────────────────────
 
   const { dateFrom, dateTo } = getDateRange(dateFilter);
 
@@ -278,105 +301,113 @@ export default function SalesScreen() {
         />
       </View>
 
-      {/* Date filter chips — always visible, horizontal scroll */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.filterRow}
+      {/* Collapsible: filter chips + summary banner */}
+      <Animated.View
+        style={{
+          maxHeight: collapseAnim.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0, 220],
+          }),
+          opacity: collapseAnim,
+          overflow: 'hidden',
+        }}
       >
-        {DATE_FILTERS.map((f) => (
-          <Pressable
-            key={f.key}
-            onPress={() => setDateFilter(f.key)}
-            style={[
-              styles.filterChip,
-              dateFilter === f.key && styles.filterChipActive,
-            ]}
-          >
-            <Text
-              style={[
-                styles.filterChipText,
-                dateFilter === f.key && styles.filterChipTextActive,
-              ]}
+        {/* Date filter chips */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterRow}
+        >
+          {DATE_FILTERS.map((f) => (
+            <Pressable
+              key={f.key}
+              onPress={() => setDateFilter(f.key)}
+              style={[styles.filterChip, dateFilter === f.key && styles.filterChipActive]}
             >
-              {f.label}
-            </Text>
-          </Pressable>
-        ))}
-      </ScrollView>
-
-      {/* Status filter chips */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.statusFilterRow}
-      >
-        {STATUS_FILTERS.map((f) => (
-          <Pressable
-            key={f.key}
-            onPress={() => setStatusFilter(f.key)}
-            style={[
-              styles.statusChipBtn,
-              statusFilter === f.key && styles.statusChipBtnActive,
-            ]}
-          >
-            <Text
-              style={[
-                styles.statusChipBtnText,
-                statusFilter === f.key && styles.statusChipBtnTextActive,
-              ]}
-            >
-              {f.label}
-            </Text>
-          </Pressable>
-        ))}
-      </ScrollView>
-
-      {/* Summary banner — always visible */}
-      <View style={styles.summaryBanner}>
-        <View style={styles.summaryItem}>
-          <Text style={styles.summaryValue} numberOfLines={1} adjustsFontSizeToFit>
-            {formatCurrency(totalRevenue)}
-          </Text>
-          <Text style={styles.summaryLabel}>{filtered.length} Sales</Text>
-        </View>
-        <View style={styles.summaryDivider} />
-        <View style={styles.summaryItem}>
-          <Text
-            style={[styles.summaryValue, { color: '#0d7a66' }]}
-            numberOfLines={1}
-            adjustsFontSizeToFit
-          >
-            {formatCurrency(collectedRevenue)}
-          </Text>
-          <Text style={styles.summaryLabel}>Collected</Text>
-        </View>
-        {creditRevenue > 0 && (
-          <>
-            <View style={styles.summaryDivider} />
-            <View style={styles.summaryItem}>
               <Text
-                style={[styles.summaryValue, { color: '#ad7a14' }]}
-                numberOfLines={1}
-                adjustsFontSizeToFit
+                style={[
+                  styles.filterChipText,
+                  dateFilter === f.key && styles.filterChipTextActive,
+                ]}
               >
-                {formatCurrency(creditRevenue)}
+                {f.label}
               </Text>
-              <Text style={styles.summaryLabel}>On Credit</Text>
-            </View>
-          </>
-        )}
-      </View>
+            </Pressable>
+          ))}
+        </ScrollView>
+
+        {/* Status filter chips */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.statusFilterRow}
+        >
+          {STATUS_FILTERS.map((f) => (
+            <Pressable
+              key={f.key}
+              onPress={() => setStatusFilter(f.key)}
+              style={[
+                styles.statusChipBtn,
+                statusFilter === f.key && styles.statusChipBtnActive,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.statusChipBtnText,
+                  statusFilter === f.key && styles.statusChipBtnTextActive,
+                ]}
+              >
+                {f.label}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+
+        {/* Summary banner */}
+        <View style={styles.summaryBanner}>
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryValue} numberOfLines={1} adjustsFontSizeToFit>
+              {formatCurrency(totalRevenue)}
+            </Text>
+            <Text style={styles.summaryLabel}>{filtered.length} Sales</Text>
+          </View>
+          <View style={styles.summaryDivider} />
+          <View style={styles.summaryItem}>
+            <Text
+              style={[styles.summaryValue, { color: '#0d7a66' }]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+            >
+              {formatCurrency(collectedRevenue)}
+            </Text>
+            <Text style={styles.summaryLabel}>Collected</Text>
+          </View>
+          {creditRevenue > 0 && (
+            <>
+              <View style={styles.summaryDivider} />
+              <View style={styles.summaryItem}>
+                <Text
+                  style={[styles.summaryValue, { color: '#ad7a14' }]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                >
+                  {formatCurrency(creditRevenue)}
+                </Text>
+                <Text style={styles.summaryLabel}>On Credit</Text>
+              </View>
+            </>
+          )}
+        </View>
+      </Animated.View>
 
       <FlatList
         data={filtered}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.content}
+        onScroll={onListScroll}
+        scrollEventThrottle={16}
         renderItem={({ item }) => (
-          <InvoiceRow
-            invoice={item}
-            onPress={() => setSelectedInvoiceId(item.id)}
-          />
+          <InvoiceRow invoice={item} onPress={() => setSelectedInvoiceId(item.id)} />
         )}
         refreshControl={
           <RefreshControl
@@ -441,61 +472,70 @@ const styles = StyleSheet.create({
     fontSize: 14,
     minHeight: 0,
   },
+  // ── date filter chips ───────────────────────────────────────
   filterRow: {
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingTop: 10,
+    paddingBottom: 6,
     gap: 8,
     flexDirection: 'row',
   },
   filterChip: {
-    paddingVertical: 7,
-    paddingHorizontal: 16,
+    flexShrink: 0,
+    paddingVertical: 8,
+    paddingHorizontal: 18,
     borderRadius: 20,
-    backgroundColor: '#ede9fe',
+    backgroundColor: '#ffffff',
+    borderWidth: 1.5,
+    borderColor: '#d9d4e8',
   },
   filterChipActive: {
     backgroundColor: brand.gradientEnd,
+    borderColor: brand.gradientEnd,
   },
   filterChipText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: brand.textMuted,
+    fontSize: 14,
+    fontWeight: '700',
+    color: brand.textDark,
   },
   filterChipTextActive: {
     color: '#fff',
   },
+  // ── status filter chips ─────────────────────────────────────
   statusFilterRow: {
     paddingHorizontal: 16,
-    paddingBottom: 8,
+    paddingBottom: 10,
     gap: 8,
     flexDirection: 'row',
   },
   statusChipBtn: {
-    paddingVertical: 5,
-    paddingHorizontal: 14,
+    flexShrink: 0,
+    paddingVertical: 6,
+    paddingHorizontal: 16,
     borderRadius: 20,
-    backgroundColor: '#f0eef7',
-    borderWidth: 1,
-    borderColor: '#e0ddf0',
+    backgroundColor: '#ffffff',
+    borderWidth: 1.5,
+    borderColor: '#d9d4e8',
   },
   statusChipBtnActive: {
     backgroundColor: brand.textDark,
     borderColor: brand.textDark,
   },
   statusChipBtnText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: brand.textMuted,
+    fontSize: 13,
+    fontWeight: '700',
+    color: brand.textDark,
   },
   statusChipBtnTextActive: {
     color: '#fff',
   },
+  // ── summary banner ──────────────────────────────────────────
   summaryBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     marginHorizontal: 16,
-    marginBottom: 4,
+    marginBottom: 6,
     paddingVertical: 10,
     paddingHorizontal: 16,
     backgroundColor: '#fff',
@@ -522,6 +562,7 @@ const styles = StyleSheet.create({
     height: 28,
     backgroundColor: '#e8e4e0',
   },
+  // ── list ────────────────────────────────────────────────────
   content: {
     padding: 16,
     paddingTop: 8,
