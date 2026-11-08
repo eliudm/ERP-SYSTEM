@@ -1,18 +1,22 @@
 import { apiClient } from './client';
 
+export interface ProfitAndLossAccount {
+  code: string;
+  name: string;
+  balance: number;
+}
+
 export interface ProfitAndLoss {
   period: { startDate: string; endDate: string };
   revenue: {
-    lines: { code: string; name: string; amount: number }[];
+    accounts: ProfitAndLossAccount[];
     total: number;
   };
   expenses: {
-    lines: { code: string; name: string; amount: number }[];
+    accounts: ProfitAndLossAccount[];
     total: number;
   };
-  grossProfit: number;
-  netProfit: number;
-  netProfitMargin: number;
+  profitBeforeTax: number;
 }
 
 export interface ProfitTrendPoint {

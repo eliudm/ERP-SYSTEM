@@ -155,7 +155,9 @@ export default function AnalyticsScreen() {
   };
 
   const pl = plQuery.data;
-  const netPositive = (pl?.netProfit ?? 0) >= 0;
+  const profit = pl?.profitBeforeTax ?? 0;
+  const margin = pl && pl.revenue.total > 0 ? (profit / pl.revenue.total) * 100 : 0;
+  const netPositive = profit >= 0;
 
   return (
     <ScrollView
@@ -183,13 +185,13 @@ export default function AnalyticsScreen() {
             <SummaryCard label="Revenue" value={formatCurrency(pl?.revenue.total ?? 0)} />
             <SummaryCard label="Expenses" value={formatCurrency(pl?.expenses.total ?? 0)} />
             <SummaryCard
-              label="Net Profit"
-              value={formatCurrency(pl?.netProfit ?? 0)}
+              label="Profit Before Tax"
+              value={formatCurrency(profit)}
               tone={netPositive ? 'positive' : 'negative'}
             />
             <SummaryCard
               label="Margin"
-              value={`${(pl?.netProfitMargin ?? 0).toFixed(1)}%`}
+              value={`${margin.toFixed(1)}%`}
               tone={netPositive ? 'positive' : 'negative'}
             />
           </View>
