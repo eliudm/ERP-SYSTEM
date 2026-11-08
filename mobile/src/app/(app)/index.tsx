@@ -98,7 +98,7 @@ export default function DashboardScreen() {
           label={t('salesToday')}
           value={formatCurrency(data?.salesToday.amount ?? 0)}
           icon="cash-multiple"
-          onPress={() => router.push('/sales?filter=today')}
+          onPress={() => router.push('/product-sales?filter=today')}
         />
         <Stat
           label={t('invoicesToday')}

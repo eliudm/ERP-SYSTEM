@@ -168,6 +168,53 @@ export class MobileService {
     }));
   }
 
+  // ─── PRODUCT SALES BREAKDOWN by date range ───────────────
+  async getProductSales(dateFrom?: string, dateTo?: string) {
+    const where: Record<string, unknown> = {
+      invoice: { status: { in: ['APPROVED', 'PAID'] } },
+    };
+
+    if (dateFrom || dateTo) {
+      const invoiceDate: Record<string, Date> = {};
+      if (dateFrom) invoiceDate.gte = new Date(dateFrom + 'T00:00:00.000Z');
+      if (dateTo) invoiceDate.lte = new Date(dateTo + 'T23:59:59.999Z');
+      where.invoice = { ...where.invoice as object, invoiceDate };
+    } else {
+      const now = new Date();
+      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      where.invoice = {
+        ...where.invoice as object,
+        invoiceDate: { gte: startOfToday, lte: now },
+      };
+    }
+
+    const items = await this.prisma.salesInvoiceItem.groupBy({
+      by: ['productId'],
+      where,
+      _sum: { quantity: true, lineTotal: true },
+      _count: true,
+      orderBy: { _sum: { lineTotal: 'desc' } },
+    });
+
+    if (items.length === 0) return [];
+
+    const productIds = items.map((i) => i.productId);
+    const products = await this.prisma.product.findMany({
+      where: { id: { in: productIds } },
+      select: { id: true, name: true, code: true },
+    });
+    const productMap = new Map(products.map((p) => [p.id, p]));
+
+    return items.map((item) => ({
+      productId: item.productId,
+      productName: productMap.get(item.productId)?.name ?? 'Unknown',
+      productCode: productMap.get(item.productId)?.code ?? '',
+      qtySold: Number(item._sum.quantity ?? 0),
+      revenue: Number(item._sum.lineTotal ?? 0),
+      invoiceCount: item._count,
+    }));
+  }
+
   // ─── SYNC CHECK: return counts for offline-capable apps ──
   async getSyncStatus() {
     const [productCount, customerCount, lastInvoice] = await Promise.all([

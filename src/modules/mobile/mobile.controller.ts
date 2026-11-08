@@ -36,6 +36,15 @@ export class MobileController {
     );
   }
 
+  @ApiOperation({ summary: 'Get product sales breakdown for a date range' })
+  @Get('product-sales')
+  getProductSales(
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+  ) {
+    return this.mobileService.getProductSales(dateFrom, dateTo);
+  }
+
   @ApiOperation({ summary: 'Get the current mobile sync status' })
   @Get('sync-status')
   getSyncStatus() {

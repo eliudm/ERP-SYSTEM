@@ -45,6 +45,15 @@ export interface RecentInvoice {
   etimsStatus: 'PENDING' | 'SUBMITTED' | 'SUCCESS' | 'FAILED' | null;
 }
 
+export interface ProductSaleRow {
+  productId: string;
+  productName: string;
+  productCode: string;
+  qtySold: number;
+  revenue: number;
+  invoiceCount: number;
+}
+
 export interface SyncStatus {
   productCount: number;
   customerCount: number;
@@ -77,6 +86,16 @@ export const mobileApi = {
   ): Promise<RecentInvoice[]> => {
     const res = await apiClient.get('/mobile/recent-invoices', {
       params: { limit, dateFrom, dateTo },
+    });
+    return res.data;
+  },
+
+  getProductSales: async (
+    dateFrom?: string,
+    dateTo?: string,
+  ): Promise<ProductSaleRow[]> => {
+    const res = await apiClient.get('/mobile/product-sales', {
+      params: { dateFrom, dateTo },
     });
     return res.data;
   },
