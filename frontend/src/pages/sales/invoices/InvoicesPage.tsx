@@ -8,6 +8,7 @@ import {
   PlusOutlined, SearchOutlined,
   CheckOutlined, DollarOutlined,
   StopOutlined, EyeOutlined,
+  MobileOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
@@ -118,6 +119,21 @@ export const InvoicesPage: React.FC = () => {
       dataIndex: 'status',
       key: 'status',
       render: (v: string) => <Tag color={getStatusColor(v)}>{v}</Tag>,
+    },
+    {
+      title: 'Source',
+      dataIndex: 'source',
+      key: 'source',
+      render: (v: string | null) =>
+        v === 'MOBILE' ? (
+          <Tooltip title="Sold via Android app">
+            <Tag icon={<MobileOutlined />} color="blue">Mobile</Tag>
+          </Tooltip>
+        ) : v === 'WEB' ? (
+          <Tag color="default">Web</Tag>
+        ) : (
+          <Text type="secondary">—</Text>
+        ),
     },
     {
       title: 'Payment',

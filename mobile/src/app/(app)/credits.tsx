@@ -1,13 +1,14 @@
-import React, { useCallback, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   StyleSheet,
-  FlatList,
   Pressable,
   RefreshControl,
   ScrollView,
   Modal,
   TextInput as RNTextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Text, Button, ActivityIndicator, Divider } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -41,6 +42,8 @@ const PAYMENT_METHODS = [
   { key: 'BANK_TRANSFER', label: 'Bank' },
 ] as const;
 
+type MpesaStage = 'idle' | 'sending' | 'waiting' | 'failed';
+
 type CreditInvoice = {
   id: string;
   invoiceNo: string;
@@ -62,6 +65,15 @@ export default function CreditsScreen() {
   const [payMethod, setPayMethod] = useState<string>('CASH');
   const [payNotes, setPayNotes] = useState('');
   const [payError, setPayError] = useState<string | null>(null);
+
+  // M-Pesa state
+  const [mpesaChannel, setMpesaChannel] = useState<'STK' | 'TILL'>('STK');
+  const [stkPhone, setStkPhone] = useState('');
+  const [mpesaStage, setMpesaStage] = useState<MpesaStage>('idle');
+
+  // ScrollView ref for scrolling to expanded card
+  const listRef = useRef<ScrollView>(null);
+  const cardOffsets = useRef<Record<string, number>>({});
 
   // Customer detail modal
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
@@ -90,6 +102,26 @@ export default function CreditsScreen() {
     enabled: !!selectedCustomerId,
   });
 
+  // STK status polling — active only while waiting for M-Pesa confirmation
+  const { data: mpesaStatus } = useQuery({
+    queryKey: ['mpesa-status', expandedId],
+    queryFn: () => salesApi.getMpesaStatus(expandedId!),
+    enabled: !!expandedId && mpesaStage === 'waiting',
+    refetchInterval: 3000,
+  });
+
+  // Till payments polling — active while TILL mode is open and idle
+  const { data: tillPayments = [] } = useQuery({
+    queryKey: ['till-payments'],
+    queryFn: () => salesApi.getPendingTillPayments(),
+    enabled:
+      !!expandedId &&
+      payMethod === 'MOBILE_MONEY' &&
+      mpesaChannel === 'TILL' &&
+      mpesaStage === 'idle',
+    refetchInterval: 5000,
+  });
+
   const recordPaymentMutation = useMutation({
     mutationFn: ({ invoiceId, amount, paymentMethod, notes }: { invoiceId: string; amount: number; paymentMethod: string; notes?: string }) =>
       salesApi.recordCreditPayment(invoiceId, { amount, paymentMethod, notes }),
@@ -99,16 +131,71 @@ export default function CreditsScreen() {
       setPayMethod('CASH');
       setPayNotes('');
       setPayError(null);
+      setMpesaStage('idle');
+      setStkPhone('');
       queryClient.invalidateQueries({ queryKey: ['outstanding-credit'] });
       queryClient.invalidateQueries({ queryKey: ['customer-statement'] });
     },
     onError: (err: any) => {
       setPayError(err?.response?.data?.message || 'Payment failed — please try again');
+      setMpesaStage('idle');
     },
   });
 
+  const matchTillMutation = useMutation({
+    mutationFn: ({ tillPaymentId, invoiceId }: { tillPaymentId: string; invoiceId: string }) =>
+      salesApi.matchTillPayment(tillPaymentId, invoiceId),
+    onSuccess: (_, { invoiceId }) => {
+      const amount = parseFloat(payAmount);
+      recordPaymentMutation.mutate({
+        invoiceId,
+        amount: isNaN(amount) ? 0 : amount,
+        paymentMethod: 'MOBILE_MONEY',
+        notes: payNotes.trim() || undefined,
+      });
+    },
+    onError: (err: any) => {
+      setPayError(err?.response?.data?.message || 'Failed to match till payment');
+    },
+  });
+
+  // Scroll expanded card into view so the form isn't hidden behind the keyboard
+  useEffect(() => {
+    if (!expandedId) return;
+    const y = cardOffsets.current[expandedId];
+    if (y != null) {
+      setTimeout(() => {
+        listRef.current?.scrollTo({ y: Math.max(0, y - 16), animated: true });
+      }, 150);
+    }
+  }, [expandedId]);
+
+  // React to STK polling result
+  useEffect(() => {
+    if (mpesaStage !== 'waiting' || !mpesaStatus || !expandedId) return;
+    const status = mpesaStatus.mpesa?.status;
+    if (status === 'SUCCESS') {
+      const amount = parseFloat(payAmount);
+      recordPaymentMutation.mutate({
+        invoiceId: expandedId,
+        amount: isNaN(amount) ? 0 : amount,
+        paymentMethod: 'MOBILE_MONEY',
+        notes: payNotes.trim() || undefined,
+      });
+    } else if (status === 'FAILED') {
+      setMpesaStage('failed');
+      setPayError(mpesaStatus.mpesa?.resultDesc ?? 'M-Pesa payment failed — please try again');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mpesaStatus]);
+
   const totalBalance = invoices.reduce((s: number, inv: CreditInvoice) => s + inv.balance, 0);
   const totalInvoiced = invoices.reduce((s: number, inv: CreditInvoice) => s + inv.total, 0);
+
+  const resetMpesa = () => {
+    setMpesaStage('idle');
+    setPayError(null);
+  };
 
   const toggleExpand = (inv: CreditInvoice) => {
     if (expandedId === inv.id) {
@@ -119,6 +206,49 @@ export default function CreditsScreen() {
       setPayMethod('CASH');
       setPayNotes('');
       setPayError(null);
+      setMpesaStage('idle');
+      setStkPhone('');
+    }
+  };
+
+  const handleMethodChange = (key: string, inv: CreditInvoice) => {
+    setPayMethod(key);
+    setPayError(null);
+    if (key === 'MOBILE_MONEY') {
+      const phone = inv.customer?.phone ?? '';
+      setStkPhone(phone);
+      setMpesaChannel(phone ? 'STK' : 'TILL');
+      setMpesaStage('idle');
+    }
+  };
+
+  const handleStkPush = async (inv: CreditInvoice) => {
+    const amount = parseFloat(payAmount);
+    if (isNaN(amount) || amount <= 0) {
+      setPayError('Enter a valid amount');
+      return;
+    }
+    if (amount > inv.balance) {
+      setPayError(`Amount cannot exceed balance of ${fmt(inv.balance)}`);
+      return;
+    }
+    const phone = stkPhone.trim();
+    if (!phone) {
+      setPayError('Enter a phone number');
+      return;
+    }
+    setPayError(null);
+    setMpesaStage('sending');
+    try {
+      await salesApi.initiateMpesaStkPush(inv.id, {
+        phoneNumber: phone,
+        accountReference: inv.invoiceNo,
+        amount,
+      });
+      setMpesaStage('waiting');
+    } catch (err: any) {
+      setMpesaStage('failed');
+      setPayError(err?.response?.data?.message || 'Failed to initiate M-Pesa push');
     }
   };
 
@@ -148,6 +278,7 @@ export default function CreditsScreen() {
     const hasCustomer = item.customer != null;
     const amountNum = parseFloat(payAmount);
     const amountValid = !isNaN(amountNum) && amountNum > 0 && amountNum <= item.balance;
+    const isMpesa = payMethod === 'MOBILE_MONEY';
 
     return (
       <View style={styles.card}>
@@ -207,6 +338,7 @@ export default function CreditsScreen() {
                 onChangeText={(v) => { setPayAmount(v); setPayError(null); }}
                 placeholder="0.00"
                 placeholderTextColor="#bbb"
+                editable={mpesaStage === 'idle' || mpesaStage === 'failed'}
               />
             </View>
 
@@ -216,11 +348,12 @@ export default function CreditsScreen() {
               {PAYMENT_METHODS.map((m) => (
                 <Pressable
                   key={m.key}
-                  onPress={() => setPayMethod(m.key)}
+                  onPress={() => handleMethodChange(m.key, item)}
                   style={[
                     styles.methodChip,
                     payMethod === m.key && styles.methodChipActive,
                   ]}
+                  disabled={mpesaStage === 'sending' || mpesaStage === 'waiting'}
                 >
                   <Text style={[styles.methodLabel, payMethod === m.key && styles.methodLabelActive]}>
                     {m.label}
@@ -229,16 +362,137 @@ export default function CreditsScreen() {
               ))}
             </View>
 
-            {/* Notes */}
-            <RNTextInput
-              style={styles.notesInput}
-              value={payNotes}
-              onChangeText={setPayNotes}
-              placeholder="Notes (optional)"
-              placeholderTextColor="#bbb"
-              multiline
-              numberOfLines={2}
-            />
+            {/* M-Pesa panel */}
+            {isMpesa ? (
+              <View style={styles.mpesaPanel}>
+                {/* Channel toggle */}
+                <View style={styles.channelRow}>
+                  <Pressable
+                    style={[styles.channelBtn, mpesaChannel === 'STK' && styles.channelBtnActive]}
+                    onPress={() => { setMpesaChannel('STK'); resetMpesa(); }}
+                    disabled={mpesaStage === 'sending' || mpesaStage === 'waiting'}
+                  >
+                    <MaterialCommunityIcons
+                      name="cellphone-arrow-down"
+                      size={14}
+                      color={mpesaChannel === 'STK' ? '#fff' : brand.gradientEnd}
+                    />
+                    <Text style={[styles.channelLabel, mpesaChannel === 'STK' && styles.channelLabelActive]}>
+                      STK Push
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.channelBtn, mpesaChannel === 'TILL' && styles.channelBtnActive]}
+                    onPress={() => { setMpesaChannel('TILL'); resetMpesa(); }}
+                    disabled={mpesaStage === 'sending' || mpesaStage === 'waiting'}
+                  >
+                    <MaterialCommunityIcons
+                      name="cash-register"
+                      size={14}
+                      color={mpesaChannel === 'TILL' ? '#fff' : brand.gradientEnd}
+                    />
+                    <Text style={[styles.channelLabel, mpesaChannel === 'TILL' && styles.channelLabelActive]}>
+                      Till / BuyGoods
+                    </Text>
+                  </Pressable>
+                </View>
+
+                {/* STK Push flow */}
+                {mpesaChannel === 'STK' && (
+                  <View>
+                    {(mpesaStage === 'idle' || mpesaStage === 'failed') && (
+                      <>
+                        <Text style={styles.sectionLabel}>CUSTOMER PHONE (M-PESA)</Text>
+                        <View style={styles.phoneBox}>
+                          <MaterialCommunityIcons name="phone" size={16} color={brand.gradientEnd} />
+                          <RNTextInput
+                            style={styles.phoneInput}
+                            keyboardType="phone-pad"
+                            value={stkPhone}
+                            onChangeText={(v) => { setStkPhone(v); setPayError(null); }}
+                            placeholder="e.g. 0712345678"
+                            placeholderTextColor="#bbb"
+                          />
+                        </View>
+                      </>
+                    )}
+
+                    {mpesaStage === 'waiting' && (
+                      <View style={styles.waitingBox}>
+                        <ActivityIndicator size={22} color={brand.gradientEnd} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.waitingTitle}>Waiting for M-Pesa...</Text>
+                          <Text style={styles.waitingSubtitle}>
+                            Prompt sent to {stkPhone}. Customer should enter PIN.
+                          </Text>
+                        </View>
+                      </View>
+                    )}
+
+                    {mpesaStage === 'sending' && (
+                      <View style={styles.waitingBox}>
+                        <ActivityIndicator size={22} color={brand.gradientEnd} />
+                        <Text style={styles.waitingTitle}>Sending STK push...</Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+
+                {/* Till flow */}
+                {mpesaChannel === 'TILL' && (
+                  <View>
+                    {tillPayments.length === 0 ? (
+                      <View style={styles.waitingBox}>
+                        <ActivityIndicator size={18} color={brand.gradientEnd} />
+                        <Text style={styles.waitingTitle}>Waiting for till payment...</Text>
+                      </View>
+                    ) : (
+                      <>
+                        <Text style={styles.sectionLabel}>MATCH A TILL PAYMENT</Text>
+                        {tillPayments.map((tp) => (
+                          <Pressable
+                            key={tp.id}
+                            style={styles.tillRow}
+                            onPress={() => matchTillMutation.mutate({ tillPaymentId: tp.id, invoiceId: item.id })}
+                            disabled={matchTillMutation.isPending}
+                          >
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.tillAmount}>
+                                {fmt(tp.amount)}
+                              </Text>
+                              <Text style={styles.tillMeta}>
+                                {tp.payerName} · {tp.msisdn}
+                              </Text>
+                              {tp.billRefNumber ? (
+                                <Text style={styles.tillRef}>Ref: {tp.billRefNumber}</Text>
+                              ) : null}
+                            </View>
+                            {matchTillMutation.isPending ? (
+                              <ActivityIndicator size={18} color={brand.gradientEnd} />
+                            ) : (
+                              <View style={styles.matchBtn}>
+                                <Text style={styles.matchLabel}>Match</Text>
+                              </View>
+                            )}
+                          </Pressable>
+                        ))}
+                      </>
+                    )}
+                  </View>
+                )}
+              </View>
+            ) : (
+              /* Notes for non-M-Pesa */
+              <RNTextInput
+                style={styles.notesInput}
+                value={payNotes}
+                onChangeText={setPayNotes}
+                placeholder="Notes (optional)"
+                placeholderTextColor="#bbb"
+                multiline
+                numberOfLines={2}
+              />
+            )}
 
             {/* Error */}
             {payError && (
@@ -256,17 +510,36 @@ export default function CreditsScreen() {
               >
                 <Text style={styles.cancelLabel}>Cancel</Text>
               </Pressable>
-              <Pressable
-                style={[styles.recordBtn, (!amountValid || recordPaymentMutation.isPending) && styles.recordBtnDisabled]}
-                onPress={() => handleRecord(item)}
-                disabled={!amountValid || recordPaymentMutation.isPending}
-              >
-                {recordPaymentMutation.isPending && expandedId === item.id ? (
-                  <ActivityIndicator size={16} color="#fff" />
-                ) : (
-                  <Text style={styles.recordLabel}>Record Payment</Text>
-                )}
-              </Pressable>
+
+              {isMpesa ? (
+                mpesaChannel === 'STK' && (mpesaStage === 'idle' || mpesaStage === 'failed') ? (
+                  <Pressable
+                    style={[styles.recordBtn, !amountValid && styles.recordBtnDisabled]}
+                    onPress={() => void handleStkPush(item)}
+                    disabled={!amountValid}
+                  >
+                    <MaterialCommunityIcons name="cellphone-arrow-down" size={16} color="#fff" />
+                    <Text style={styles.recordLabel}>Send STK Push</Text>
+                  </Pressable>
+                ) : mpesaChannel === 'STK' && mpesaStage === 'waiting' ? (
+                  <View style={[styles.recordBtn, styles.recordBtnDisabled, { flexDirection: 'row', gap: 8 }]}>
+                    <ActivityIndicator size={16} color="#fff" />
+                    <Text style={styles.recordLabel}>Waiting...</Text>
+                  </View>
+                ) : null
+              ) : (
+                <Pressable
+                  style={[styles.recordBtn, (!amountValid || recordPaymentMutation.isPending) && styles.recordBtnDisabled]}
+                  onPress={() => handleRecord(item)}
+                  disabled={!amountValid || recordPaymentMutation.isPending}
+                >
+                  {recordPaymentMutation.isPending && expandedId === item.id ? (
+                    <ActivityIndicator size={16} color="#fff" />
+                  ) : (
+                    <Text style={styles.recordLabel}>Record Payment</Text>
+                  )}
+                </Pressable>
+              )}
             </View>
           </View>
         )}
@@ -286,7 +559,11 @@ export default function CreditsScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+    >
       {/* Summary banner */}
       <View style={styles.banner}>
         <View style={styles.bannerLeft}>
@@ -306,27 +583,37 @@ export default function CreditsScreen() {
         />
       </View>
 
-      <FlatList
-        data={invoices}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
+      <ScrollView
+        ref={listRef as any}
         contentContainerStyle={styles.list}
+        keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl
             refreshing={isRefetching}
-            onRefresh={refetch}
+            onRefresh={() => void refetch()}
             colors={[brand.gradientEnd]}
           />
         }
-        ListEmptyComponent={
+      >
+        {invoices.length === 0 ? (
           <View style={styles.empty}>
             <MaterialCommunityIcons name="check-circle-outline" size={48} color={brand.gradientEnd} />
             <Text style={styles.emptyText}>No outstanding credit invoices</Text>
           </View>
-        }
-      />
+        ) : (
+          invoices.map((item: CreditInvoice) => (
+            <View
+              key={item.id}
+              style={{ marginBottom: 10 }}
+              onLayout={(e) => { cardOffsets.current[item.id] = e.nativeEvent.layout.y; }}
+            >
+              {renderItem({ item })}
+            </View>
+          ))
+        )}
+      </ScrollView>
 
-      {/* Customer Detail Modal */}
+      {/* Customer detail modal — rendered outside KeyboardAvoidingView so it covers the full screen */}
       <Modal
         visible={!!selectedCustomerId}
         animationType="slide"
@@ -421,12 +708,12 @@ export default function CreditsScreen() {
           ) : null}
         </View>
       </Modal>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8f5ef' },
+  container: { flex: 1, backgroundColor: '#f8f5ef', overflow: 'hidden' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   banner: {
     flexDirection: 'row', alignItems: 'center',
@@ -504,11 +791,48 @@ const styles = StyleSheet.create({
   },
   cancelLabel: { fontSize: 14, fontWeight: '600', color: '#555' },
   recordBtn: {
-    flex: 2, paddingVertical: 12, alignItems: 'center', borderRadius: 10,
-    backgroundColor: brand.gradientEnd,
+    flex: 2, paddingVertical: 12, alignItems: 'center', justifyContent: 'center',
+    borderRadius: 10, backgroundColor: brand.gradientEnd, flexDirection: 'row', gap: 6,
   },
   recordBtnDisabled: { opacity: 0.45 },
   recordLabel: { fontSize: 14, fontWeight: '700', color: '#fff' },
+
+  // M-Pesa panel
+  mpesaPanel: { marginBottom: 10 },
+  channelRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  channelBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, paddingVertical: 9, borderRadius: 10,
+    borderWidth: 1.5, borderColor: brand.gradientEnd, backgroundColor: '#f8f5ef',
+  },
+  channelBtnActive: { backgroundColor: brand.gradientEnd },
+  channelLabel: { fontSize: 13, fontWeight: '700', color: brand.gradientEnd },
+  channelLabelActive: { color: '#fff' },
+  phoneBox: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    borderWidth: 1.5, borderColor: brand.gradientEnd, borderRadius: 10,
+    paddingHorizontal: 14, paddingVertical: 10, marginBottom: 12,
+  },
+  phoneInput: { flex: 1, fontSize: 16, color: brand.textDark, padding: 0 },
+  waitingBox: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: '#f0faf7', borderRadius: 10, padding: 14, marginBottom: 12,
+  },
+  waitingTitle: { fontSize: 14, fontWeight: '700', color: brand.textDark },
+  waitingSubtitle: { fontSize: 12, color: brand.textMuted, marginTop: 2 },
+  tillRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingVertical: 10, paddingHorizontal: 12,
+    borderWidth: 1, borderColor: '#e0dde8', borderRadius: 10, marginBottom: 8,
+  },
+  tillAmount: { fontSize: 15, fontWeight: '700', color: brand.textDark },
+  tillMeta: { fontSize: 12, color: brand.textMuted, marginTop: 2 },
+  tillRef: { fontSize: 11, color: brand.textMuted },
+  matchBtn: {
+    paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8,
+    backgroundColor: brand.gradientEnd,
+  },
+  matchLabel: { fontSize: 13, fontWeight: '700', color: '#fff' },
 
   empty: { paddingTop: 80, alignItems: 'center', gap: 12 },
   emptyText: { fontSize: 14, color: brand.textMuted },

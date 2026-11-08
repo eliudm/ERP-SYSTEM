@@ -356,8 +356,7 @@ export const AppLayout: React.FC = () => {
         {/* Navigation Menu */}
         <div
           style={{
-            flex: 1,
-            minHeight: 0,
+            height: 'calc(100vh - 32px - 64px)',
             overflowY: 'auto',
             overflowX: 'hidden',
             scrollbarWidth: 'thin',

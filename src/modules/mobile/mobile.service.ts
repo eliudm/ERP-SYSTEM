@@ -51,12 +51,18 @@ export class MobileService {
   // ─── COMPACT DASHBOARD for mobile ────────────────────────
   async getMobileDashboard() {
     const now = new Date();
+    // Anchor to Nairobi calendar day (UTC+3) to match getSalesSummary and P&L.
+    const NAIROBI_OFFSET_MS = 3 * 60 * 60 * 1000;
+    const todayStr = new Date(now.getTime() + NAIROBI_OFFSET_MS)
+      .toISOString()
+      .slice(0, 10);
     const startOfToday = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
+      new Date(`${todayStr}T00:00:00.000Z`).getTime() - NAIROBI_OFFSET_MS,
     );
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthStr = `${todayStr.slice(0, 7)}-01`;
+    const startOfMonth = new Date(
+      new Date(`${monthStr}T00:00:00.000Z`).getTime() - NAIROBI_OFFSET_MS,
+    );
 
     const [
       salesToday,
@@ -71,7 +77,7 @@ export class MobileService {
           invoiceDate: { gte: startOfToday, lte: now },
           status: { in: ['APPROVED', 'PAID'] },
         },
-        _sum: { total: true },
+        _sum: { subtotal: true },
         _count: true,
       }),
       this.prisma.salesInvoice.aggregate({
@@ -79,7 +85,7 @@ export class MobileService {
           invoiceDate: { gte: startOfMonth, lte: now },
           status: { in: ['APPROVED', 'PAID'] },
         },
-        _sum: { total: true },
+        _sum: { subtotal: true },
       }),
       this.prisma.salesInvoice.count({
         where: { status: { in: ['DRAFT', 'APPROVED', 'SENT'] } },
@@ -104,10 +110,10 @@ export class MobileService {
 
     return {
       salesToday: {
-        amount: Number(salesToday._sum.total ?? 0),
+        amount: Number(salesToday._sum.subtotal ?? 0),
         count: salesToday._count,
       },
-      salesThisMonth: Number(salesThisMonth._sum.total ?? 0),
+      salesThisMonth: Number(salesThisMonth._sum.subtotal ?? 0),
       pendingInvoices,
       pendingApprovals,
       lowStockCount,

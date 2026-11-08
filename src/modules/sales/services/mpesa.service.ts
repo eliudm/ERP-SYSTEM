@@ -144,7 +144,7 @@ export class MpesaService {
       `${this.shortcode}${this.passkey}${timestamp}`,
     ).toString('base64');
 
-    const amount = Number(invoice.total);
+    const amount = dto.amount ?? Number(invoice.total);
     const accountReference =
       dto.accountReference || invoice.invoiceNo || invoice.customer.name;
     const transactionDesc =

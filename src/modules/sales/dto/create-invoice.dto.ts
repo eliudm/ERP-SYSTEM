@@ -65,6 +65,12 @@ export class CreateInvoiceDto {
   @IsString()
   clientRef?: string;
 
+  // Origin channel — "WEB", "MOBILE", etc. Set by the caller; nullable for
+  // legacy invoices created before this field existed.
+  @IsOptional()
+  @IsString()
+  source?: string;
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => CreateInvoiceItemDto)

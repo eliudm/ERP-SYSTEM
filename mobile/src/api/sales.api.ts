@@ -137,6 +137,7 @@ export const salesApi = {
       phoneNumber: string;
       accountReference?: string;
       description?: string;
+      amount?: number;
     },
   ): Promise<void> => {
     await apiClient.post(`/sales/invoices/${invoiceId}/mpesa/stk-push`, data);

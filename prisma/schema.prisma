@@ -351,6 +351,8 @@ model SalesInvoice {
   // Nullable: every non-offline caller (web, API integrations) never sets it,
   // and Postgres treats multiple NULLs as distinct under a unique index.
   clientRef         String?
+  // Origin channel — "WEB", "MOBILE", etc. Null means legacy/unknown.
+  source            String?
   // Who processed the sale and which POS session it fell within — both
   // nullable since non-POS (Sales module) invoices have neither.
   cashierId         String?

@@ -777,7 +777,8 @@ export default function PosScreen() {
       setCheckoutStage(t('checkoutStage.creatingInvoice'));
       const invoice = await salesApi.createInvoice({
         customerId: customer.id,
-        invoiceDate: new Date().toISOString(),
+        invoiceDate: new Date().toISOString().slice(0, 10),
+        source: 'MOBILE',
         items: items.map((i) => ({
           productId: i.productId,
           quantity: i.quantity,

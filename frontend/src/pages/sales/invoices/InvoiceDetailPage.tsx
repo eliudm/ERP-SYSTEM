@@ -5,7 +5,7 @@ import {
 } from 'antd';
 import {
   ArrowLeftOutlined, PrinterOutlined, CheckOutlined,
-  DollarOutlined, StopOutlined, RollbackOutlined,
+  DollarOutlined, StopOutlined, RollbackOutlined, MobileOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -223,6 +223,13 @@ export const InvoiceDetailPage: React.FC = () => {
             {invoice.paymentMethod ? <Tag>{PAYMENT_METHOD_ICONS[invoice.paymentMethod]} {PAYMENT_METHOD_LABELS[invoice.paymentMethod]}</Tag> : '—'}
           </Descriptions.Item>
           <Descriptions.Item label="Paid At">{invoice.paidAt ? formatDate(invoice.paidAt) : '—'}</Descriptions.Item>
+          <Descriptions.Item label="Source">
+            {invoice.source === 'MOBILE' ? (
+              <Tag icon={<MobileOutlined />} color="blue">Mobile</Tag>
+            ) : invoice.source === 'WEB' ? (
+              <Tag color="default">Web</Tag>
+            ) : '—'}
+          </Descriptions.Item>
         </Descriptions>
       </Card>
 

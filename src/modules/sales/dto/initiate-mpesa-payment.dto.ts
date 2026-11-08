@@ -1,4 +1,6 @@
-import { IsNotEmpty, IsOptional, IsString, Matches } from 'class-validator';
+import {
+  IsNotEmpty, IsNumber, IsOptional, IsPositive, IsString, Matches,
+} from 'class-validator';
 
 export class InitiateMpesaPaymentDto {
   @IsString()
@@ -15,4 +17,10 @@ export class InitiateMpesaPaymentDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  // Override the default invoice.total — used for partial credit payments.
+  @IsOptional()
+  @IsNumber()
+  @IsPositive()
+  amount?: number;
 }

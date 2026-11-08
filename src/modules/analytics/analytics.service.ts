@@ -36,8 +36,13 @@ export class AnalyticsService {
     endDate: string,
     granularity: 'day' | 'month' = 'month',
   ) {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
+    const NAIROBI_OFFSET_MS = 3 * 60 * 60 * 1000;
+    const start = new Date(
+      new Date(`${startDate}T00:00:00.000Z`).getTime() - NAIROBI_OFFSET_MS,
+    );
+    const end = new Date(
+      new Date(`${endDate}T23:59:59.999Z`).getTime() - NAIROBI_OFFSET_MS,
+    );
 
     const invoices = await this.prisma.salesInvoice.findMany({
       where: {
@@ -100,8 +105,13 @@ export class AnalyticsService {
     endDate: string,
     granularity: 'day' | 'month' = 'month',
   ) {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
+    const NAIROBI_OFFSET_MS = 3 * 60 * 60 * 1000;
+    const start = new Date(
+      new Date(`${startDate}T00:00:00.000Z`).getTime() - NAIROBI_OFFSET_MS,
+    );
+    const end = new Date(
+      new Date(`${endDate}T23:59:59.999Z`).getTime() - NAIROBI_OFFSET_MS,
+    );
 
     const lines = await this.prisma.journalLine.findMany({
       where: {
@@ -155,8 +165,13 @@ export class AnalyticsService {
     endDate: string,
     granularity: 'day' | 'month' = 'month',
   ) {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
+    const NAIROBI_OFFSET_MS = 3 * 60 * 60 * 1000;
+    const start = new Date(
+      new Date(`${startDate}T00:00:00.000Z`).getTime() - NAIROBI_OFFSET_MS,
+    );
+    const end = new Date(
+      new Date(`${endDate}T23:59:59.999Z`).getTime() - NAIROBI_OFFSET_MS,
+    );
 
     const journalLines = await this.prisma.journalLine.findMany({
       where: {
@@ -231,8 +246,13 @@ export class AnalyticsService {
     endDate: string,
     limit = 10,
   ) {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
+    const NAIROBI_OFFSET_MS = 3 * 60 * 60 * 1000;
+    const start = new Date(
+      new Date(`${startDate}T00:00:00.000Z`).getTime() - NAIROBI_OFFSET_MS,
+    );
+    const end = new Date(
+      new Date(`${endDate}T23:59:59.999Z`).getTime() - NAIROBI_OFFSET_MS,
+    );
 
     const items = await this.prisma.salesInvoiceItem.findMany({
       where: {
@@ -295,8 +315,13 @@ export class AnalyticsService {
     endDate: string,
     limit = 10,
   ) {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
+    const NAIROBI_OFFSET_MS = 3 * 60 * 60 * 1000;
+    const start = new Date(
+      new Date(`${startDate}T00:00:00.000Z`).getTime() - NAIROBI_OFFSET_MS,
+    );
+    const end = new Date(
+      new Date(`${endDate}T23:59:59.999Z`).getTime() - NAIROBI_OFFSET_MS,
+    );
 
     const invoices = await this.prisma.salesInvoice.findMany({
       where: {

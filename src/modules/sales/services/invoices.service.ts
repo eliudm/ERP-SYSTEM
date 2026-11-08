@@ -152,6 +152,7 @@ export class InvoicesService {
           notes: dto.notes,
           paymentMethod: dto.paymentMethod ?? null,
           clientRef: dto.clientRef ?? null,
+          source: dto.source ?? null,
           items: { create: itemsData },
         },
         include: {
@@ -742,7 +743,7 @@ export class InvoicesService {
     );
     const invoices = await this.prisma.salesInvoice.findMany({
       where: {
-        status: { not: InvoiceStatus.VOID },
+        status: { in: [InvoiceStatus.APPROVED, InvoiceStatus.PAID] },
         invoiceDate: { gte: start, lte: end },
       },
     });

@@ -768,6 +768,7 @@ export const POSPage: React.FC = () => {
       createInvoiceMutation.mutate({
         customerId: resolvedCustomerId,
         invoiceDate: dayjs().format('YYYY-MM-DD'),
+        source: 'WEB',
         items: cart.map((i) => ({
           productId: i.productId,
           quantity: i.quantity,

@@ -167,6 +167,7 @@ export interface Invoice {
     sessionRef: string;
     branch?: { id: string; name: string; code: string } | null;
   } | null;
+  source?: string | null;
 }
 
 // ─── QUOTES / SALES ORDERS ───────────────────────────────

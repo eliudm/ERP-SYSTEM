@@ -251,23 +251,22 @@ export default function SalesScreen() {
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.filterRow}
       >
-        {DATE_FILTERS.map((f) => (
-          <Pressable
-            key={f.key}
-            onPress={() => setDateFilter(f.key)}
-            style={[
-              styles.filterChip,
-              dateFilter === f.key && styles.filterChipActive,
-            ]}
-          >
-            <Text style={[
-              styles.filterChipText,
-              dateFilter === f.key && styles.filterChipTextActive,
-            ]}>
+        {DATE_FILTERS.map((f) => {
+          const active = dateFilter === f.key;
+          return (
+            <Chip
+              key={f.key}
+              onPress={() => setDateFilter(f.key)}
+              selected={active}
+              style={[styles.filterChip, active && styles.filterChipActive]}
+              textStyle={[styles.filterChipText, active && styles.filterChipTextActive]}
+              showSelectedOverlay={false}
+              showSelectedCheck={false}
+            >
               {f.label}
-            </Text>
-          </Pressable>
-        ))}
+            </Chip>
+          );
+        })}
       </ScrollView>
 
       {/* Summary banner */}
@@ -380,21 +379,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   filterChip: {
-    paddingVertical: 7,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    backgroundColor: '#ede9fe',
+    backgroundColor: '#ffffff',
+    borderWidth: 1.5,
+    borderColor: '#b8b0d8',
   },
   filterChipActive: {
     backgroundColor: brand.gradientEnd,
+    borderColor: brand.gradientEnd,
   },
   filterChipText: {
     fontSize: 13,
-    fontWeight: '600',
-    color: brand.textMuted,
+    fontWeight: '700',
+    color: brand.textDark,
   },
   filterChipTextActive: {
-    color: '#fff',
+    color: '#ffffff',
+    fontWeight: '700',
   },
   summaryBanner: {
     flexDirection: 'row',

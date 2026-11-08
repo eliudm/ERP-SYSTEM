@@ -108,8 +108,15 @@ export class JournalEntriesService {
 
   // ─── GET P&L ─────────────────────────────────────────────
   async getProfitAndLoss(startDate: string, endDate: string) {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
+    // Anchor to Nairobi day boundaries (UTC+3) so entries with a time
+    // component (mobile POS sends full ISO datetimes) are not excluded.
+    const NAIROBI_OFFSET_MS = 3 * 60 * 60 * 1000;
+    const start = new Date(
+      new Date(`${startDate}T00:00:00.000Z`).getTime() - NAIROBI_OFFSET_MS,
+    );
+    const end = new Date(
+      new Date(`${endDate}T23:59:59.999Z`).getTime() - NAIROBI_OFFSET_MS,
+    );
 
     const lines = await this.prisma.journalLine.findMany({
       where: {
