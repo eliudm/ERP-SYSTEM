@@ -57,6 +57,7 @@ import StockTransfersPage from './pages/inventory/StockTransfersPage';
 import StockCountsPage from './pages/inventory/StockCountsPage';
 import LotsPage from './pages/inventory/LotsPage';
 import SerialNumbersPage from './pages/inventory/SerialNumbersPage';
+import { StockValuationPage } from './pages/inventory/StockValuationPage';
 import CreditNotesPage from './pages/sales/CreditNotesPage';
 import PriceListsPage from './pages/sales/PriceListsPage';
 // POS Module
@@ -160,6 +161,7 @@ const App: React.FC = () => {
           <Route path="inventory/counts" element={<StockCountsPage />} />
           <Route path="inventory/lots" element={<LotsPage />} />
           <Route path="inventory/serials" element={<SerialNumbersPage />} />
+          <Route path="inventory/valuation" element={<StockValuationPage />} />
           {/* Procurement */}
           <Route path="procurement/suppliers" element={<SuppliersPage />} />
           <Route path="procurement/purchase-orders" element={<PurchaseOrdersPage />} />

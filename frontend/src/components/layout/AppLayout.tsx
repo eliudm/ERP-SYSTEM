@@ -107,6 +107,7 @@ export const AppLayout: React.FC = () => {
         { key: '/inventory/counts', label: t('inventory.stockCounts'), posAllowed: false },
         { key: '/inventory/lots', label: t('inventory.lots'), posAllowed: false },
         { key: '/inventory/serials', label: t('inventory.serialNumbers'), posAllowed: false },
+        { key: '/inventory/valuation', label: t('inventory.stockValuation'), posAllowed: false },
       ],
     },
     {

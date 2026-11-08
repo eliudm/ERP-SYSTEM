@@ -43,7 +43,8 @@
     "stockTransfers": "Transferts de stock",
     "stockCounts": "Inventaires physiques",
     "lots": "Lots",
-    "serialNumbers": "Numéros de série"
+    "serialNumbers": "Numéros de série",
+    "stockValuation": "Valorisation du stock"
   },
   "purchase": {
     "title": "Achats",

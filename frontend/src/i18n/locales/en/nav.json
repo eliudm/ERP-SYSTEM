@@ -43,7 +43,8 @@
     "stockTransfers": "Stock Transfers",
     "stockCounts": "Stock Counts",
     "lots": "Lots",
-    "serialNumbers": "Serial Numbers"
+    "serialNumbers": "Serial Numbers",
+    "stockValuation": "Stock Valuation"
   },
   "purchase": {
     "title": "Purchase",

@@ -43,7 +43,8 @@
     "stockTransfers": "Uhamishaji wa Bidhaa",
     "stockCounts": "Hesabu ya Bidhaa Ghalani",
     "lots": "Makundi",
-    "serialNumbers": "Namba za Mfululizo"
+    "serialNumbers": "Namba za Mfululizo",
+    "stockValuation": "Thamani ya Bidhaa Ghalani"
   },
   "purchase": {
     "title": "Ununuzi",
