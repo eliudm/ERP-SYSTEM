@@ -710,15 +710,19 @@ export class ReportsService {
     const invoices = await this.prisma.salesInvoice.findMany({
       where: {
         status: { in: ['PAID', 'APPROVED'] },
-        paymentMethod: { not: null },
         invoiceDate: { gte: start, lte: end },
+        OR: [
+          { paymentMethod: { not: null } },
+          { creditPayments: { some: {} } },
+        ],
       },
       select: {
         cashierId: true,
-        cashier: { select: { name: true } },
+        cashier: { select: { firstName: true, lastName: true } },
         paymentMethod: true,
         total: true,
         cogsAmount: true,
+        creditPayments: { select: { id: true } },
       },
     });
 
@@ -732,13 +736,18 @@ export class ReportsService {
 
     for (const inv of invoices) {
       const id = inv.cashierId ?? '__none__';
-      const name = (inv.cashier as any)?.name ?? 'No Cashier';
+      const c = inv.cashier;
+      const name = c ? `${c.firstName} ${c.lastName}`.trim() : 'No Cashier';
       if (!map.has(id)) {
         map.set(id, { name, CASH: 0, CARD: 0, MOBILE_MONEY: 0, BANK_TRANSFER: 0, CREDIT: 0, total: 0, cogs: 0 });
       }
       const b = map.get(id)!;
-      const method = inv.paymentMethod as keyof Bucket;
-      (b[method] as number) = ((b[method] as number) || 0) + Number(inv.total);
+      // Treat as CREDIT if paymentMethod is CREDIT or if it has credit payments
+      const isCreditSale = inv.paymentMethod === 'CREDIT' || (inv as any).creditPayments?.length > 0;
+      const method = (isCreditSale ? 'CREDIT' : inv.paymentMethod) as keyof Bucket;
+      if (method) {
+        (b[method] as number) = ((b[method] as number) || 0) + Number(inv.total);
+      }
       b.total += Number(inv.total);
       b.cogs += Number(inv.cogsAmount ?? 0);
     }
@@ -794,7 +803,7 @@ export class ReportsService {
         invoiceNo: true,
         invoiceDate: true,
         paymentMethod: true,
-        cashier: { select: { name: true } },
+        cashier: { select: { firstName: true, lastName: true } },
         customer: { select: { name: true } },
         items: {
           select: {
@@ -813,17 +822,20 @@ export class ReportsService {
         const qty = Number(item.quantity);
         const unitPrice = Number(item.unitPrice);
         const lineTotal = Number(item.lineTotal);
-        const costPrice = Number((item.product as any)?.costPrice ?? 0);
+        const costPrice = Number(item.product?.costPrice ?? 0);
         const lineCogs = costPrice * qty;
         const grossProfit = lineTotal - lineCogs;
+        const cashierName = inv.cashier
+          ? `${inv.cashier.firstName} ${inv.cashier.lastName}`.trim()
+          : 'N/A';
         return {
           date: inv.invoiceDate.toISOString().slice(0, 10),
           invoiceNo: inv.invoiceNo,
-          cashier: (inv.cashier as any)?.name ?? 'N/A',
-          customer: (inv.customer as any)?.name ?? 'Walk-in',
+          cashier: cashierName,
+          customer: inv.customer?.name ?? 'Walk-in',
           paymentMethod: inv.paymentMethod ?? 'CREDIT',
-          productCode: (item.product as any)?.code ?? '',
-          productName: (item.product as any)?.name ?? 'Unknown',
+          productCode: item.product?.code ?? '',
+          productName: item.product?.name ?? 'Unknown',
           quantity: qty,
           unitPrice,
           costPrice,
