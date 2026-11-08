@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   View,
   StyleSheet,
@@ -7,11 +7,21 @@ import {
   RefreshControl,
   ScrollView,
   Modal,
+  KeyboardAvoidingView,
+  Platform,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from 'react-native';
-import { Text, Button, ActivityIndicator, Divider, Chip } from 'react-native-paper';
+import {
+  Text,
+  Button,
+  ActivityIndicator,
+  Divider,
+  TextInput,
+  Snackbar,
+} from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useRouter } from 'expo-router';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { salesApi } from '../../api/sales.api';
 import { brand } from '../../theme';
 
@@ -33,6 +43,13 @@ const STATUS_COLOR: Record<string, string> = {
   VOID: '#cf1322',
 };
 
+const PAY_METHODS = [
+  { value: 'CASH', label: 'Cash' },
+  { value: 'CARD', label: 'Card' },
+  { value: 'MOBILE_MONEY', label: 'M-Pesa' },
+  { value: 'BANK_TRANSFER', label: 'Bank' },
+];
+
 type CreditInvoice = {
   id: string;
   invoiceNo: string;
@@ -44,9 +61,17 @@ type CreditInvoice = {
 };
 
 export default function CreditsScreen() {
-  const router = useRouter();
   const queryClient = useQueryClient();
+
+  // Customer detail sheet state
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+
+  // Payment modal state
+  const [payInvoice, setPayInvoice] = useState<CreditInvoice | null>(null);
+  const [payAmount, setPayAmount] = useState('');
+  const [payMethod, setPayMethod] = useState('CASH');
+  const [payNotes, setPayNotes] = useState('');
+  const [snackbar, setSnackbar] = useState({ visible: false, message: '', isError: false });
 
   const {
     data: invoices = [],
@@ -57,7 +82,7 @@ export default function CreditsScreen() {
     queryKey: ['outstanding-credit'],
     queryFn: () => salesApi.getOutstandingCredit(),
     refetchInterval: 60000,
-    select: (data: Array<{ id: string; invoiceNo: string; invoiceDate: string; customer: { id: string; name: string; phone?: string } | null; total: number; amountPaid: number; balance: number }>) =>
+    select: (data) =>
       data.map((inv) => ({
         ...inv,
         total: safeNum(inv.total),
@@ -71,6 +96,45 @@ export default function CreditsScreen() {
     queryFn: () => salesApi.getCustomerStatement(selectedCustomerId!),
     enabled: !!selectedCustomerId,
   });
+
+  const recordMutation = useMutation({
+    mutationFn: (invoiceId: string) =>
+      salesApi.recordCreditPayment(invoiceId, {
+        amount: parseFloat(payAmount),
+        paymentMethod: payMethod,
+        notes: payNotes.trim() || undefined,
+      }),
+    onSuccess: () => {
+      setPayInvoice(null);
+      void queryClient.invalidateQueries({ queryKey: ['outstanding-credit'] });
+      void queryClient.invalidateQueries({ queryKey: ['customer-statement'] });
+      void queryClient.invalidateQueries({ queryKey: ['mobile-dashboard'] });
+      setSnackbar({ visible: true, message: 'Payment recorded successfully', isError: false });
+    },
+    onError: (err: any) => {
+      setSnackbar({
+        visible: true,
+        message: (err?.response?.data?.message as string) ?? 'Failed to record payment.',
+        isError: true,
+      });
+    },
+  });
+
+  const openPayForm = (inv: CreditInvoice) => {
+    setPayInvoice(inv);
+    setPayAmount(inv.balance.toFixed(2));
+    setPayMethod('CASH');
+    setPayNotes('');
+  };
+
+  const submitPayment = () => {
+    const amount = parseFloat(payAmount);
+    if (!payInvoice || isNaN(amount) || amount <= 0) {
+      setSnackbar({ visible: true, message: 'Enter a valid payment amount', isError: true });
+      return;
+    }
+    recordMutation.mutate(payInvoice.id);
+  };
 
   const totalBalance = invoices.reduce((s: number, inv: CreditInvoice) => s + inv.balance, 0);
   const totalInvoiced = invoices.reduce((s: number, inv: CreditInvoice) => s + inv.total, 0);
@@ -92,11 +156,7 @@ export default function CreditsScreen() {
                 {item.customer?.name ?? 'Walk-in Customer'}
               </Text>
               {hasCustomer && (
-                <MaterialCommunityIcons
-                  name="chevron-right"
-                  size={16}
-                  color={brand.gradientEnd}
-                />
+                <MaterialCommunityIcons name="chevron-right" size={16} color={brand.gradientEnd} />
               )}
             </View>
             <Text style={styles.invoiceMeta}>
@@ -115,14 +175,10 @@ export default function CreditsScreen() {
           </View>
           <Text style={styles.paidLabel}>{paidPct.toFixed(0)}% paid</Text>
           <Pressable
-            style={styles.payIcon}
-            onPress={(e) => { e.stopPropagation?.(); router.navigate('/pos'); }}
+            style={styles.payIconBtn}
+            onPress={(e) => { e.stopPropagation?.(); openPayForm(item); }}
           >
-            <MaterialCommunityIcons
-              name="cash-plus"
-              size={22}
-              color={brand.gradientEnd}
-            />
+            <MaterialCommunityIcons name="cash-plus" size={22} color={brand.gradientEnd} />
           </Pressable>
         </View>
       </Pressable>
@@ -150,9 +206,7 @@ export default function CreditsScreen() {
           </Text>
           <Text style={styles.bannerTotal}>{fmt(totalBalance)} outstanding</Text>
           {totalInvoiced > 0 && (
-            <Text style={styles.bannerSub}>
-              of {fmt(totalInvoiced)} total invoiced
-            </Text>
+            <Text style={styles.bannerSub}>of {fmt(totalInvoiced)} total invoiced</Text>
           )}
         </View>
         <MaterialCommunityIcons
@@ -168,6 +222,7 @@ export default function CreditsScreen() {
         keyExtractor={(item) => item.id}
         renderItem={renderItem}
         contentContainerStyle={styles.list}
+        keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl
             refreshing={isRefetching}
@@ -177,17 +232,126 @@ export default function CreditsScreen() {
         }
         ListEmptyComponent={
           <View style={styles.empty}>
-            <MaterialCommunityIcons
-              name="check-circle-outline"
-              size={48}
-              color={brand.gradientEnd}
-            />
+            <MaterialCommunityIcons name="check-circle-outline" size={48} color={brand.gradientEnd} />
             <Text style={styles.emptyText}>No outstanding credit invoices</Text>
           </View>
         }
       />
 
-      {/* Customer Detail Modal */}
+      {/* ── Payment modal ── */}
+      <Modal
+        visible={!!payInvoice}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setPayInvoice(null)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <TouchableWithoutFeedback onPress={() => setPayInvoice(null)}>
+            <View style={styles.modalBackdrop} />
+          </TouchableWithoutFeedback>
+
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={styles.paySheet}>
+              {/* Handle */}
+              <View style={styles.sheetHandle} />
+
+              <Text style={styles.paySheetTitle}>Record Payment</Text>
+              {payInvoice && (
+                <Text style={styles.paySheetMeta}>
+                  {payInvoice.customer?.name ?? 'Walk-in'} · {payInvoice.invoiceNo}
+                </Text>
+              )}
+
+              {payInvoice && (
+                <View style={styles.balanceRow}>
+                  <View style={styles.balanceItem}>
+                    <Text style={styles.balanceItemLabel}>Balance due</Text>
+                    <Text style={[styles.balanceItemValue, { color: '#cf1322' }]}>
+                      {fmt(payInvoice.balance)}
+                    </Text>
+                  </View>
+                  <View style={styles.balanceItem}>
+                    <Text style={styles.balanceItemLabel}>Total invoice</Text>
+                    <Text style={styles.balanceItemValue}>{fmt(payInvoice.total)}</Text>
+                  </View>
+                  <View style={styles.balanceItem}>
+                    <Text style={styles.balanceItemLabel}>Already paid</Text>
+                    <Text style={[styles.balanceItemValue, { color: '#389e0d' }]}>
+                      {fmt(payInvoice.amountPaid)}
+                    </Text>
+                  </View>
+                </View>
+              )}
+
+              <TextInput
+                mode="outlined"
+                label="Amount (KES)"
+                keyboardType="numeric"
+                returnKeyType="done"
+                value={payAmount}
+                onChangeText={setPayAmount}
+                style={styles.payInput}
+                dense
+              />
+
+              <Text style={styles.methodLabel}>Payment Method</Text>
+              <View style={styles.methodRow}>
+                {PAY_METHODS.map((m) => (
+                  <Pressable
+                    key={m.value}
+                    style={[styles.methodChip, payMethod === m.value && styles.methodChipActive]}
+                    onPress={() => setPayMethod(m.value)}
+                  >
+                    <Text
+                      style={[
+                        styles.methodChipText,
+                        payMethod === m.value && styles.methodChipTextActive,
+                      ]}
+                    >
+                      {m.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+
+              <TextInput
+                mode="outlined"
+                label="Notes (optional)"
+                value={payNotes}
+                onChangeText={setPayNotes}
+                returnKeyType="done"
+                onSubmitEditing={Keyboard.dismiss}
+                style={styles.payInput}
+                dense
+              />
+
+              <View style={styles.payActions}>
+                <Button
+                  mode="text"
+                  onPress={() => setPayInvoice(null)}
+                  disabled={recordMutation.isPending}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  mode="contained"
+                  onPress={submitPayment}
+                  loading={recordMutation.isPending}
+                  disabled={recordMutation.isPending}
+                  style={styles.confirmBtn}
+                >
+                  Confirm Payment
+                </Button>
+              </View>
+            </View>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* ── Customer detail modal ── */}
       <Modal
         visible={!!selectedCustomerId}
         animationType="slide"
@@ -198,9 +362,7 @@ export default function CreditsScreen() {
             <Pressable onPress={() => setSelectedCustomerId(null)} style={styles.closeBtn}>
               <MaterialCommunityIcons name="close" size={24} color={brand.textDark} />
             </Pressable>
-            <Text style={styles.sheetTitle}>
-              {statementCustomer?.name ?? 'Customer'}
-            </Text>
+            <Text style={styles.sheetTitle}>{statementCustomer?.name ?? 'Customer'}</Text>
             <View style={{ width: 36 }} />
           </View>
 
@@ -210,7 +372,6 @@ export default function CreditsScreen() {
             </View>
           ) : statementCustomer ? (
             <ScrollView contentContainerStyle={styles.sheetContent}>
-              {/* Contact info */}
               <View style={styles.contactRow}>
                 {statementCustomer.phone ? (
                   <View style={styles.contactItem}>
@@ -226,7 +387,6 @@ export default function CreditsScreen() {
                 ) : null}
               </View>
 
-              {/* Summary stats */}
               {statementSummary && (
                 <View style={styles.statsRow}>
                   <View style={styles.statBox}>
@@ -256,7 +416,8 @@ export default function CreditsScreen() {
               {statementCustomer.invoices.map((inv) => {
                 const total = safeNum(inv.total);
                 const creditPaid = (inv.creditPayments ?? []).reduce(
-                  (s: number, p: { amount: number | string }) => s + safeNum(p.amount), 0,
+                  (s: number, p: { amount: number | string }) => s + safeNum(p.amount),
+                  0,
                 );
                 const balance = inv.status === 'PAID' ? 0 : total - creditPaid;
                 const statusColor = STATUS_COLOR[inv.status] ?? '#8c8c8c';
@@ -271,9 +432,7 @@ export default function CreditsScreen() {
                       <Text style={styles.invTotal}>{fmt(total)}</Text>
                       <View style={styles.invBottom}>
                         <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-                        <Text style={[styles.invStatus, { color: statusColor }]}>
-                          {inv.status}
-                        </Text>
+                        <Text style={[styles.invStatus, { color: statusColor }]}>{inv.status}</Text>
                         {balance > 0 && (
                           <Text style={styles.invBalance}>· owes {fmt(balance)}</Text>
                         )}
@@ -286,6 +445,15 @@ export default function CreditsScreen() {
           ) : null}
         </View>
       </Modal>
+
+      <Snackbar
+        visible={snackbar.visible}
+        onDismiss={() => setSnackbar((s) => ({ ...s, visible: false }))}
+        duration={4000}
+        style={snackbar.isError ? { backgroundColor: '#d4380d' } : undefined}
+      >
+        {snackbar.message}
+      </Snackbar>
     </View>
   );
 }
@@ -305,7 +473,7 @@ const styles = StyleSheet.create({
   bannerCount: { fontSize: 14, color: '#1a7a68', fontWeight: '600' },
   bannerTotal: { fontSize: 22, fontWeight: '800', color: brand.textDark, marginTop: 2 },
   bannerSub: { fontSize: 12, color: '#1a7a68', marginTop: 2 },
-  list: { padding: 16, gap: 10 },
+  list: { padding: 16, gap: 10, flexGrow: 1 },
   card: {
     backgroundColor: '#ffffff',
     borderRadius: 14,
@@ -326,15 +494,70 @@ const styles = StyleSheet.create({
   balanceAmount: { fontSize: 15, fontWeight: '700', color: '#d4380d' },
   dateLabel: { fontSize: 11, color: brand.textMuted },
   progressRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  progressBar: {
-    flex: 1, height: 6, backgroundColor: '#e8e4f0',
-    borderRadius: 3, overflow: 'hidden',
-  },
+  progressBar: { flex: 1, height: 6, backgroundColor: '#e8e4f0', borderRadius: 3, overflow: 'hidden' },
   progressFill: { height: 6, backgroundColor: brand.gradientEnd, borderRadius: 3 },
   paidLabel: { fontSize: 11, color: brand.textMuted, minWidth: 54 },
-  payIcon: { padding: 2 },
+  payIconBtn: { padding: 4 },
   empty: { paddingTop: 80, alignItems: 'center', gap: 12 },
   emptyText: { fontSize: 14, color: brand.textMuted },
+
+  // Payment bottom sheet
+  modalOverlay: { flex: 1, justifyContent: 'flex-end' },
+  modalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)' },
+  paySheet: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 20,
+    paddingBottom: Platform.OS === 'ios' ? 36 : 24,
+    paddingTop: 12,
+    gap: 12,
+  },
+  sheetHandle: {
+    alignSelf: 'center',
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#e0dce8',
+    marginBottom: 4,
+  },
+  paySheetTitle: { fontSize: 17, fontWeight: '700', color: brand.textDark },
+  paySheetMeta: { fontSize: 13, color: brand.textMuted, marginTop: -6 },
+  balanceRow: {
+    flexDirection: 'row',
+    backgroundColor: '#f8f5ef',
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  balanceItem: { flex: 1, alignItems: 'center', paddingVertical: 10 },
+  balanceItemLabel: { fontSize: 10, color: brand.textMuted, marginBottom: 2 },
+  balanceItemValue: { fontSize: 13, fontWeight: '700', color: brand.textDark },
+  payInput: { backgroundColor: '#fff' },
+  methodLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    color: brand.textMuted,
+    marginBottom: -4,
+  },
+  methodRow: { flexDirection: 'row', gap: 8 },
+  methodChip: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: '#f0eef7',
+    alignItems: 'center',
+  },
+  methodChipActive: {
+    backgroundColor: '#d6f3ee',
+    borderWidth: 1.5,
+    borderColor: brand.gradientEnd,
+  },
+  methodChipText: { fontSize: 12, fontWeight: '600', color: brand.textMuted },
+  methodChipTextActive: { color: brand.gradientEnd },
+  payActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8 },
+  confirmBtn: { borderRadius: 10 },
 
   // Customer detail sheet
   sheetContainer: { flex: 1, backgroundColor: '#fff' },
@@ -363,8 +586,10 @@ const styles = StyleSheet.create({
   },
   statBox: { flex: 1, padding: 14, alignItems: 'center' },
   statBoxMiddle: {
-    borderLeftWidth: 1, borderRightWidth: 1,
-    borderLeftColor: '#e8e4e0', borderRightColor: '#e8e4e0',
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderLeftColor: '#e8e4e0',
+    borderRightColor: '#e8e4e0',
   },
   statLabel: { fontSize: 11, color: brand.textMuted, marginBottom: 4 },
   statValue: { fontSize: 13, fontWeight: '700', color: brand.textDark },
