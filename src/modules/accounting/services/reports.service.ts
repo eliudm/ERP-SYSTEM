@@ -531,7 +531,7 @@ export class ReportsService {
     const [paidInvoices, creditPayments] = await Promise.all([
       this.prisma.salesInvoice.findMany({
         where: {
-          status: 'PAID',
+          status: { in: ['PAID', 'APPROVED'] },
           paymentMethod: { not: null },
           invoiceDate: { gte: start, lte: end },
         },
