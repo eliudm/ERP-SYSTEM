@@ -516,26 +516,29 @@ export class ReportsService {
 
   // ─── DAILY COLLECTIONS BY PAYMENT MODE ───────────────────
   async getDailyCollections(startDate: string, endDate: string) {
+    // invoiceDate is stored as midnight UTC (date-only string → DateTime),
+    // so simple midnight-UTC boundaries match it exactly — same pattern
+    // used by getSalesSummary and every other working report here.
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    // Credit payments use real timestamps; cover full day with +1-day end.
+    const creditEnd = new Date(endDate);
+    creditEnd.setDate(creditEnd.getDate() + 1);
+
     const NAIROBI_MS = 3 * 60 * 60 * 1000;
-    // Cover the full calendar range in UTC, slightly wider than the Nairobi
-    // window so no early-morning or late-evening sales fall outside the query.
-    const start = new Date(`${startDate}T00:00:00.000Z`);
-    const end = new Date(`${endDate}T23:59:59.999Z`);
 
     const [paidInvoices, creditPayments] = await Promise.all([
       this.prisma.salesInvoice.findMany({
         where: {
           status: 'PAID',
-          // paidAt may be null on older records — fall back to updatedAt
-          OR: [
-            { paidAt: { gte: start, lte: end } },
-            { paidAt: null, updatedAt: { gte: start, lte: end } },
-          ],
+          paymentMethod: { not: null },
+          invoiceDate: { gte: start, lte: end },
         },
-        select: { paidAt: true, updatedAt: true, paymentMethod: true, total: true },
+        select: { invoiceDate: true, paymentMethod: true, total: true },
       }),
       this.prisma.creditPayment.findMany({
-        where: { createdAt: { gte: start, lte: end } },
+        where: { createdAt: { gte: start, lt: creditEnd } },
         select: { createdAt: true, paymentMethod: true, amount: true },
       }),
     ]);
@@ -557,18 +560,15 @@ export class ReportsService {
 
     for (const inv of paidInvoices) {
       if (!inv.paymentMethod) continue;
-      const paidDt = inv.paidAt ?? inv.updatedAt;
-      const d = new Date(paidDt.getTime() + NAIROBI_MS)
-        .toISOString()
-        .slice(0, 10);
-      // Only include dates within the requested range
-      if (d < startDate || d > endDate) continue;
+      // invoiceDate stored as midnight UTC → slice gives the YYYY-MM-DD key
+      const d = inv.invoiceDate.toISOString().slice(0, 10);
       const b = bucket(d);
       b[inv.paymentMethod as keyof DayBucket] =
         (b[inv.paymentMethod as keyof DayBucket] || 0) + Number(inv.total);
     }
 
     for (const cp of creditPayments) {
+      // Credit payments have real timestamps — convert to Nairobi calendar day
       const d = new Date(cp.createdAt.getTime() + NAIROBI_MS)
         .toISOString()
         .slice(0, 10);
