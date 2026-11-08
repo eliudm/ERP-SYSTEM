@@ -18,6 +18,7 @@
     "customerCreateFailed": "Failed to create customer",
     "tillMatchCancelled": "Till matching cancelled — the sale is recorded but still unpaid."
   },
+  "creditNeedsCustomer": "Requires a named customer",
   "errors": {
     "invalidMpesaNumber": "Enter a valid M-Pesa number, e.g. 2547XXXXXXXX",
     "mpesaRequiresInternet": "M-Pesa requires an internet connection.",

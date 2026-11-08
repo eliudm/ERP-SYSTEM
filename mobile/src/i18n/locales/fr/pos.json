@@ -18,6 +18,7 @@
     "customerCreateFailed": "Impossible de créer le client",
     "tillMatchCancelled": "Rapprochement Till annulé — la vente est enregistrée mais pas encore payée."
   },
+  "creditNeedsCustomer": "Nécessite un client identifié",
   "errors": {
     "invalidMpesaNumber": "Saisissez un numéro M-Pesa valide, ex. 2547XXXXXXXX",
     "mpesaRequiresInternet": "M-Pesa nécessite une connexion internet.",

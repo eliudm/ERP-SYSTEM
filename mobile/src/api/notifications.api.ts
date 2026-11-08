@@ -2,7 +2,7 @@ import { apiClient } from './client';
 
 export interface Notification {
   id: string;
-  type: 'LOW_STOCK' | 'OUT_OF_STOCK' | 'SYSTEM';
+  type: 'LOW_STOCK' | 'OUT_OF_STOCK' | 'SYSTEM' | 'CREDIT_OVERDUE';
   title: string;
   message: string;
   productId?: string;
