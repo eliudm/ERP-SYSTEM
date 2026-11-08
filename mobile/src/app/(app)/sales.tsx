@@ -118,6 +118,9 @@ const EtimsBadge: React.FC<{ status: RecentInvoice['etimsStatus'] }> = ({
   );
 };
 
+const isCredit = (inv: RecentInvoice) =>
+  inv.paymentMethod === 'CREDIT' || (inv.status === 'APPROVED' && !inv.paymentMethod);
+
 const InvoiceRow: React.FC<{ invoice: RecentInvoice; onPress: () => void }> = ({
   invoice,
   onPress,
@@ -126,7 +129,15 @@ const InvoiceRow: React.FC<{ invoice: RecentInvoice; onPress: () => void }> = ({
     <Card style={styles.card} mode="contained">
       <Card.Content style={styles.cardContent}>
         <View style={styles.cardLeft}>
-          <Text style={styles.invoiceNo}>{invoice.invoiceNo}</Text>
+          <View style={styles.invoiceNoRow}>
+            <Text style={styles.invoiceNo}>{invoice.invoiceNo}</Text>
+            {isCredit(invoice) && (
+              <View style={styles.creditBadge}>
+                <MaterialCommunityIcons name="clock-outline" size={10} color="#ad7a14" />
+                <Text style={styles.creditBadgeText}>CREDIT</Text>
+              </View>
+            )}
+          </View>
           <Text style={styles.customerName} numberOfLines={1}>
             {invoice.customer?.name ?? 'Walk-in Customer'}
           </Text>
@@ -134,7 +145,9 @@ const InvoiceRow: React.FC<{ invoice: RecentInvoice; onPress: () => void }> = ({
           <EtimsBadge status={invoice.etimsStatus} />
         </View>
         <View style={styles.cardRight}>
-          <Text style={styles.total}>{formatCurrency(invoice.total)}</Text>
+          <Text style={[styles.total, isCredit(invoice) && styles.totalCredit]}>
+            {formatCurrency(invoice.total)}
+          </Text>
           <StatusChip status={invoice.status} />
         </View>
       </Card.Content>
@@ -175,6 +188,12 @@ export default function SalesScreen() {
   }, [invoices, query]);
 
   const totalRevenue = filtered.reduce((sum, inv) => sum + inv.total, 0);
+  const collectedRevenue = filtered
+    .filter((inv) => inv.status === 'PAID')
+    .reduce((sum, inv) => sum + inv.total, 0);
+  const creditRevenue = filtered
+    .filter((inv) => isCredit(inv))
+    .reduce((sum, inv) => sum + inv.total, 0);
 
   if (selectedInvoiceId) {
     return (
@@ -258,15 +277,26 @@ export default function SalesScreen() {
             <Text style={styles.summaryValue}>
               {`KES ${totalRevenue.toLocaleString('en-KE', { minimumFractionDigits: 0 })}`}
             </Text>
-            <Text style={styles.summaryLabel}>Revenue</Text>
+            <Text style={styles.summaryLabel}>{filtered.length} Sales</Text>
           </View>
           <View style={styles.summaryDivider} />
           <View style={styles.summaryItem}>
-            <Text style={styles.summaryValue}>{filtered.length}</Text>
-            <Text style={styles.summaryLabel}>
-              {filtered.length === 1 ? 'Invoice' : 'Invoices'}
+            <Text style={[styles.summaryValue, { color: '#0d7a66' }]}>
+              {`KES ${collectedRevenue.toLocaleString('en-KE', { minimumFractionDigits: 0 })}`}
             </Text>
+            <Text style={styles.summaryLabel}>Collected</Text>
           </View>
+          {creditRevenue > 0 && (
+            <>
+              <View style={styles.summaryDivider} />
+              <View style={styles.summaryItem}>
+                <Text style={[styles.summaryValue, { color: '#ad7a14' }]}>
+                  {`KES ${creditRevenue.toLocaleString('en-KE', { minimumFractionDigits: 0 })}`}
+                </Text>
+                <Text style={styles.summaryLabel}>On Credit</Text>
+              </View>
+            </>
+          )}
         </View>
       )}
 
@@ -419,10 +449,30 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     gap: 6,
   },
+  invoiceNoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   invoiceNo: {
     fontSize: 15,
     fontWeight: '700',
     color: brand.textDark,
+  },
+  creditBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#fff3d6',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  creditBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#ad7a14',
+    letterSpacing: 0.5,
   },
   customerName: {
     fontSize: 13,
@@ -447,6 +497,9 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: brand.textDark,
+  },
+  totalCredit: {
+    color: '#ad7a14',
   },
   statusChip: {
     height: 26,
