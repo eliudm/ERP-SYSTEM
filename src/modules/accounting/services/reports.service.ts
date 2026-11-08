@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../prisma.service';
 import { AccountType, PaymentMethod } from '@prisma/client';
+import { getCurrentTenantId } from '../../../tenant-context';
 
 @Injectable()
 export class ReportsService {
@@ -528,18 +529,40 @@ export class ReportsService {
 
     const NAIROBI_MS = 3 * 60 * 60 * 1000;
 
-    const [paidInvoices, creditPayments] = await Promise.all([
+    const tenantId = getCurrentTenantId();
+
+    const [paidInvoices, creditInvoices, creditPayments] = await Promise.all([
+      // Cash / Card / M-Pesa / Bank invoices (never credit)
       this.prisma.salesInvoice.findMany({
         where: {
           status: { in: ['PAID', 'APPROVED'] },
-          paymentMethod: { not: null },
+          paymentMethod: { not: null, notIn: ['CREDIT'] },
           invoiceDate: { gte: start, lte: end },
         },
         select: { invoiceDate: true, paymentMethod: true, total: true },
       }),
+      // Credit sales: any invoice that ever had a credit component.
+      // We use the presence of creditPayments OR current paymentMethod=CREDIT
+      // so that fully-settled credit invoices (whose paymentMethod was
+      // overwritten by markAsPaid) are still counted as credit sales.
+      this.prisma.salesInvoice.findMany({
+        where: {
+          invoiceDate: { gte: start, lte: end },
+          OR: [
+            { paymentMethod: 'CREDIT' },
+            { creditPayments: { some: {} } },
+          ],
+        },
+        select: { id: true, invoiceDate: true, total: true },
+      }),
+      // Credit payments (cash collected on outstanding credit).
+      // CreditPayment is NOT tenant-scoped, so we filter tenantId manually.
       this.prisma.creditPayment.findMany({
-        where: { createdAt: { gte: start, lt: creditEnd } },
-        select: { createdAt: true, paymentMethod: true, amount: true },
+        where: {
+          ...(tenantId ? { tenantId } : {}),
+          createdAt: { gte: start, lt: creditEnd },
+        },
+        select: { createdAt: true, amount: true },
       }),
     ]);
 
@@ -560,11 +583,20 @@ export class ReportsService {
 
     for (const inv of paidInvoices) {
       if (!inv.paymentMethod) continue;
-      // invoiceDate stored as midnight UTC → slice gives the YYYY-MM-DD key
       const d = inv.invoiceDate.toISOString().slice(0, 10);
       const b = bucket(d);
       b[inv.paymentMethod as keyof DayBucket] =
         (b[inv.paymentMethod as keyof DayBucket] || 0) + Number(inv.total);
+    }
+
+    // Deduplicate credit invoices (OR clause can return same row twice if
+    // the invoice has both paymentMethod=CREDIT and credit payments)
+    const seenCreditInvoices = new Set<string>();
+    for (const inv of creditInvoices) {
+      if (seenCreditInvoices.has(inv.id)) continue;
+      seenCreditInvoices.add(inv.id);
+      const d = inv.invoiceDate.toISOString().slice(0, 10);
+      bucket(d).CREDIT += Number(inv.total);
     }
 
     for (const cp of creditPayments) {
