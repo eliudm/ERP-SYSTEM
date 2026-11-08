@@ -38,7 +38,7 @@ export const POSCreditPage: React.FC = () => {
   const { data: outstanding = [], isLoading, error } = useQuery({
     queryKey: ['outstanding-credit'],
     queryFn: () => salesApi.getOutstandingCredit(),
-    refetchInterval: 60000,
+    refetchInterval: 30000,
     retry: 1,
   });
 
