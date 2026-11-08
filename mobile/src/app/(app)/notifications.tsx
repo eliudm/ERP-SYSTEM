@@ -9,7 +9,10 @@ import {
 } from 'react-native';
 import { Text, ActivityIndicator, Button } from 'react-native-paper';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { notificationsApi, Notification } from '../../api/notifications.api';
+import { salesApi } from '../../api/sales.api';
 import { brand } from '../../theme';
 
 const TYPE_META: Record<
@@ -19,6 +22,7 @@ const TYPE_META: Record<
   LOW_STOCK: { label: 'Low stock', color: '#ad7a14', bg: '#fff3e0' },
   OUT_OF_STOCK: { label: 'Out of stock', color: '#d4380d', bg: '#fde3df' },
   SYSTEM: { label: 'System', color: '#1d61c9', bg: '#e3edfb' },
+  CREDIT_OVERDUE: { label: 'Credit due', color: '#d4380d', bg: '#fde3df' },
 };
 
 const formatTimestamp = (iso: string): string => {
@@ -45,6 +49,21 @@ export default function NotificationsScreen() {
     queryKey: ['notifications'],
     queryFn: () => notificationsApi.getAll(1, 50),
   });
+
+  const { data: creditData } = useQuery({
+    queryKey: ['outstanding-credit'],
+    queryFn: () => salesApi.getOutstandingCredit(),
+    staleTime: 5 * 60 * 1000,
+  });
+  const unpaidCredits = creditData ?? [];
+  const creditBalance = unpaidCredits.reduce(
+    (sum, inv) => {
+      const bal = Number(inv.balance);
+      const tot = Number(inv.total);
+      return sum + (isNaN(bal) ? (isNaN(tot) ? 0 : tot) : bal);
+    },
+    0,
+  );
 
   const markReadMutation = useMutation({
     mutationFn: (id: string) => notificationsApi.markRead(id),
@@ -130,30 +149,58 @@ export default function NotificationsScreen() {
         />
       }
       ListHeaderComponent={
-        <View style={styles.headerRow}>
-          <View>
-            <Text style={styles.headerTitle}>Notifications</Text>
-            <Text style={styles.headerSubtitle}>
-              {unreadCount > 0
-                ? `${unreadCount} unread`
-                : "You're all caught up"}
-            </Text>
+        <>
+          <View style={styles.headerRow}>
+            <View>
+              <Text style={styles.headerTitle}>Notifications</Text>
+              <Text style={styles.headerSubtitle}>
+                {unreadCount > 0
+                  ? `${unreadCount} unread`
+                  : "You're all caught up"}
+              </Text>
+            </View>
+            <Button
+              mode="text"
+              compact
+              disabled={unreadCount === 0 || markAllReadMutation.isPending}
+              loading={markAllReadMutation.isPending}
+              onPress={() => markAllReadMutation.mutate()}
+            >
+              Mark all read
+            </Button>
           </View>
-          <Button
-            mode="text"
-            compact
-            disabled={unreadCount === 0 || markAllReadMutation.isPending}
-            loading={markAllReadMutation.isPending}
-            onPress={() => markAllReadMutation.mutate()}
-          >
-            Mark all read
-          </Button>
-        </View>
+
+          {unpaidCredits.length > 0 && (
+            <Pressable
+              style={styles.creditAlert}
+              onPress={() => router.push('/credits')}
+            >
+              <View style={styles.creditAlertLeft}>
+                <MaterialCommunityIcons
+                  name="account-clock-outline"
+                  size={22}
+                  color="#d4380d"
+                />
+                <View style={styles.creditAlertText}>
+                  <Text style={styles.creditAlertTitle}>Credit Accounts Due</Text>
+                  <Text style={styles.creditAlertSub}>
+                    {`${unpaidCredits.length} invoice${unpaidCredits.length !== 1 ? 's' : ''} · KES ${creditBalance.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} outstanding`}
+                  </Text>
+                </View>
+              </View>
+              <MaterialCommunityIcons
+                name="chevron-right"
+                size={18}
+                color="#d4380d"
+              />
+            </Pressable>
+          )}
+        </>
       }
       ListEmptyComponent={
         <View style={styles.emptyWrap}>
           <Text style={styles.emptyEmoji}>🔔</Text>
-          <Text style={styles.emptyTitle}>You're all caught up</Text>
+          <Text style={styles.emptyTitle}>{"You're all caught up"}</Text>
           <Text style={styles.emptySubtitle}>
             New alerts will show up here.
           </Text>
@@ -194,6 +241,35 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: brand.textMuted,
     marginTop: 2,
+  },
+  creditAlert: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#fde3dc',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 10,
+  },
+  creditAlertLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  creditAlertText: {
+    flex: 1,
+  },
+  creditAlertTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#d4380d',
+  },
+  creditAlertSub: {
+    fontSize: 12,
+    color: '#d4380d',
+    marginTop: 2,
+    opacity: 0.85,
   },
   row: {
     borderRadius: 16,
