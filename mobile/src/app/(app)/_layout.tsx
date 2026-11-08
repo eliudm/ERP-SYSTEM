@@ -1,21 +1,31 @@
 import React, { useEffect } from 'react';
 import { Tabs, usePathname, router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { View, Text, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { useQuery } from '@tanstack/react-query';
 import { brand } from '../../theme';
 import { useSession } from '../../providers/SessionProvider';
+import { salesApi } from '../../api/sales.api';
 
 // Routes a POS-only account's token is actually allowed to call
 // server-side (see src/modules/auth/guards/jwt-auth.guard.ts on the
 // backend) — mirrors frontend/src/components/layout/AppLayout.tsx's
 // `posAllowed` menu filtering on the web app.
-const POS_ONLY_ALLOWED_PATHS = ['/pos', '/profile'];
+const POS_ONLY_ALLOWED_PATHS = ['/pos', '/credits', '/profile'];
 
 export default function AppTabsLayout() {
   const { user } = useSession();
   const { t } = useTranslation('nav');
   const isPosOnly = user?.posOnly === true;
   const pathname = usePathname();
+
+  const { data: outstandingCredit } = useQuery({
+    queryKey: ['outstanding-credit'],
+    queryFn: () => salesApi.getOutstandingCredit(),
+    refetchInterval: 60000,
+  });
+  const creditBadgeCount = outstandingCredit?.length ?? 0;
 
   useEffect(() => {
     if (isPosOnly && !POS_ONLY_ALLOWED_PATHS.includes(pathname)) {
@@ -87,6 +97,29 @@ export default function AppTabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="credits"
+        options={{
+          title: t('tabs.credits'),
+          href: isPosOnly ? null : undefined,
+          tabBarIcon: ({ color, size }) => (
+            <View>
+              <MaterialCommunityIcons
+                name="account-clock-outline"
+                color={color as string}
+                size={size}
+              />
+              {creditBadgeCount > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>
+                    {creditBadgeCount > 99 ? '99+' : creditBadgeCount}
+                  </Text>
+                </View>
+              )}
+            </View>
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="profile"
         options={{
           title: t('tabs.profile'),
@@ -102,3 +135,23 @@ export default function AppTabsLayout() {
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  badge: {
+    position: 'absolute',
+    top: -4,
+    right: -8,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#d4380d',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  badgeText: {
+    color: '#fff',
+    fontSize: 9,
+    fontWeight: '700',
+  },
+});
