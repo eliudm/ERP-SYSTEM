@@ -62,6 +62,7 @@ import PriceListsPage from './pages/sales/PriceListsPage';
 // POS Module
 import { POSDashboardPage } from './pages/pos/POSDashboardPage';
 import { POSOrdersPage } from './pages/pos/POSOrdersPage';
+import { POSCreditPage } from './pages/pos/POSCreditPage';
 import { POSProductsPage } from './pages/pos/POSProductsPage';
 import { POSReportingPage } from './pages/pos/POSReportingPage';
 import { POSConfigurationPage } from './pages/pos/POSConfigurationPage';
@@ -78,6 +79,7 @@ import ApprovalsPage from './pages/workflow/ApprovalsPage';
 import NotificationsPage from './pages/notifications/NotificationsPage';
 import BomsPage from './pages/mrp/BomsPage';
 import WorkOrdersPage from './pages/mrp/WorkOrdersPage';
+import { ProfilePage } from './pages/profile/ProfilePage';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -130,6 +132,7 @@ const App: React.FC = () => {
           <Route path="pos/dashboard" element={<POSDashboardPage />} />
           <Route path="pos/session" element={<POSPage />} />
           <Route path="pos/orders" element={<POSOrdersPage />} />
+          <Route path="pos/credit" element={<POSCreditPage />} />
           <Route path="pos/products" element={<POSProductsPage />} />
           <Route path="pos/reporting" element={<POSReportingPage />} />
           <Route path="pos/configuration" element={<POSConfigurationPage />} />
@@ -197,6 +200,8 @@ const App: React.FC = () => {
           <Route path="workflow/approvals" element={<ApprovalsPage />} />
           {/* Notifications */}
           <Route path="notifications" element={<NotificationsPage />} />
+          {/* Profile */}
+          <Route path="profile" element={<ProfilePage />} />
           {/* Accounting additions */}
           <Route path="accounting/budgets" element={<BudgetsPage />} />
           <Route path="accounting/tax-reports" element={<TaxReportsPage />} />

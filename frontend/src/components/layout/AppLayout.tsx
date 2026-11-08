@@ -53,6 +53,7 @@ export const AppLayout: React.FC = () => {
         { key: '/pos/dashboard', label: t('pos.dashboard'), posAllowed: true },
         { key: '/pos/session', label: t('pos.terminal'), posAllowed: true },
         { key: '/pos/orders', label: t('pos.orders'), posAllowed: true },
+        { key: '/pos/credit', label: t('pos.credit'), posAllowed: true },
         { key: '/pos/products', label: t('pos.products'), posAllowed: false },
         { key: '/pos/reporting', label: t('pos.reporting'), posAllowed: false },
         { key: '/pos/configuration', label: t('pos.configuration'), posAllowed: false },

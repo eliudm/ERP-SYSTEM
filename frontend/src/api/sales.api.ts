@@ -165,6 +165,39 @@ export const salesApi = {
     return res.data;
   },
 
+  getOutstandingCredit: async (): Promise<Array<{
+    id: string;
+    invoiceNo: string;
+    invoiceDate: string;
+    customer: { id: string; name: string; phone?: string } | null;
+    total: number;
+    amountPaid: number;
+    balance: number;
+  }>> => {
+    const res = await apiClient.get('/sales/invoices/credit/outstanding');
+    return res.data;
+  },
+
+  getCreditPayments: async (invoiceId: string): Promise<Array<{
+    id: string;
+    amount: number;
+    paymentMethod: PaymentMethod;
+    notes?: string;
+    createdAt: string;
+    recordedBy?: { firstName: string; lastName: string };
+  }>> => {
+    const res = await apiClient.get(`/sales/invoices/${invoiceId}/credit-payments`);
+    return res.data;
+  },
+
+  recordCreditPayment: async (
+    invoiceId: string,
+    dto: { amount: number; paymentMethod: PaymentMethod; notes?: string },
+  ) => {
+    const res = await apiClient.post(`/sales/invoices/${invoiceId}/credit-payments`, dto);
+    return res.data;
+  },
+
   getSalesSummary: async (startDate: string, endDate: string) => {
     const res = await apiClient.get('/sales/invoices/summary', {
       params: { startDate, endDate },
