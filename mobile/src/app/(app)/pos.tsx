@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Animated,
   AppState,
   AppStateStatus,
   View,
@@ -163,6 +164,27 @@ export default function PosScreen() {
     queryFn: () => salesApi.getDailySummary(today),
     enabled: screen === 'registerClose',
   });
+
+  // Collapsible header animation
+  const headerAnim = useRef(new Animated.Value(1)).current;
+  const headerExpandedRef = useRef(true);
+  const lastScrollYRef = useRef(0);
+
+  const onProductScroll = useCallback(
+    (e: { nativeEvent: { contentOffset: { y: number } } }) => {
+      const y = e.nativeEvent.contentOffset.y;
+      const dy = y - lastScrollYRef.current;
+      lastScrollYRef.current = y;
+      if (dy > 6 && headerExpandedRef.current && y > 40) {
+        headerExpandedRef.current = false;
+        Animated.timing(headerAnim, { toValue: 0, duration: 220, useNativeDriver: false }).start();
+      } else if (dy < -6 && !headerExpandedRef.current) {
+        headerExpandedRef.current = true;
+        Animated.timing(headerAnim, { toValue: 1, duration: 220, useNativeDriver: false }).start();
+      }
+    },
+    [headerAnim],
+  );
 
   const [search, setSearch] = useState('');
   const [categoryId, setCategoryId] = useState<string | null>(null);
@@ -1387,14 +1409,31 @@ export default function PosScreen() {
 
   return (
     <View style={styles.container}>
+      {/* ── Top bar: search collapses to icon when scrolled ── */}
       <View style={styles.topBar}>
-        <Searchbar
-          placeholder={t('searchPlaceholder')}
-          value={search}
-          onChangeText={setSearch}
-          style={styles.searchbarFlex}
-          inputStyle={styles.searchbarInput}
-        />
+        <Animated.View style={{ flex: headerAnim, overflow: 'hidden' }}>
+          <Searchbar
+            placeholder={t('searchPlaceholder')}
+            value={search}
+            onChangeText={setSearch}
+            style={styles.searchbarFlex}
+            inputStyle={styles.searchbarInput}
+          />
+        </Animated.View>
+        <Animated.View style={{
+          width: headerAnim.interpolate({ inputRange: [0, 0.4, 1], outputRange: [36, 0, 0] }),
+          opacity: headerAnim.interpolate({ inputRange: [0, 0.3, 1], outputRange: [1, 0, 0] }),
+          overflow: 'hidden',
+        }}>
+          <IconButton
+            icon="magnify"
+            size={20}
+            onPress={() => {
+              headerExpandedRef.current = true;
+              Animated.timing(headerAnim, { toValue: 1, duration: 220, useNativeDriver: false }).start();
+            }}
+          />
+        </Animated.View>
         <IconButton
           icon="archive-plus-outline"
           mode="outlined"
@@ -1416,82 +1455,89 @@ export default function PosScreen() {
         onPress={() => setScreen('orders')}
       />
 
-      {!register.isLoading && (
-        <Pressable
-          style={[
-            styles.registerBanner,
-            register.isOpen
-              ? styles.registerBannerOpen
-              : styles.registerBannerClosed,
-          ]}
-          onPress={() => {
-            setOpeningFloatInput('');
-            setCashCountedInput('');
-            setScreen(register.isOpen ? 'registerClose' : 'registerOpen');
-          }}
-        >
-          <MaterialCommunityIcons
-            name={register.isOpen ? 'cash-register' : 'lock-outline'}
-            size={16}
-            color={register.isOpen ? brand.gradientEnd : '#ad7a14'}
-          />
-          <Text
+      {/* ── Register banner + category chips collapse on scroll ── */}
+      <Animated.View style={{
+        maxHeight: headerAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 160] }),
+        opacity: headerAnim,
+        overflow: 'hidden',
+      }}>
+        {!register.isLoading && (
+          <Pressable
             style={[
-              styles.registerBannerText,
-              { color: register.isOpen ? brand.gradientEnd : '#ad7a14' },
+              styles.registerBanner,
+              register.isOpen
+                ? styles.registerBannerOpen
+                : styles.registerBannerClosed,
             ]}
+            onPress={() => {
+              setOpeningFloatInput('');
+              setCashCountedInput('');
+              setScreen(register.isOpen ? 'registerClose' : 'registerOpen');
+            }}
           >
-            {register.isOpen
-              ? t('registerBanner.openSince', {
-                  time: new Date(register.openedAt!).toLocaleTimeString(
-                    'en-KE',
-                    {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    },
-                  ),
-                })
-              : t('registerBanner.closedTapToOpen')}
-          </Text>
-        </Pressable>
-      )}
+            <MaterialCommunityIcons
+              name={register.isOpen ? 'cash-register' : 'lock-outline'}
+              size={16}
+              color={register.isOpen ? brand.gradientEnd : '#ad7a14'}
+            />
+            <Text
+              style={[
+                styles.registerBannerText,
+                { color: register.isOpen ? brand.gradientEnd : '#ad7a14' },
+              ]}
+            >
+              {register.isOpen
+                ? t('registerBanner.openSince', {
+                    time: new Date(register.openedAt!).toLocaleTimeString(
+                      'en-KE',
+                      {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      },
+                    ),
+                  })
+                : t('registerBanner.closedTapToOpen')}
+            </Text>
+          </Pressable>
+        )}
 
-      {categories.length > 0 && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.chipsRow}
-          contentContainerStyle={styles.chipsContent}
-        >
-          <Chip
-            selected={categoryId === null}
-            onPress={() => setCategoryId(null)}
-            style={styles.chip}
-            mode={categoryId === null ? 'flat' : 'outlined'}
-            textStyle={
-              categoryId === null ? styles.chipTextSelected : undefined
-            }
-            compact
+        {categories.length > 0 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.chipsRow}
+            contentContainerStyle={styles.chipsContent}
           >
-            {t('all')}
-          </Chip>
-          {categories.map((cat) => (
             <Chip
-              key={cat.id}
-              selected={categoryId === cat.id}
-              onPress={() => setCategoryId(cat.id)}
+              selected={categoryId === null}
+              onPress={() => setCategoryId(null)}
               style={styles.chip}
-              mode={categoryId === cat.id ? 'flat' : 'outlined'}
+              mode={categoryId === null ? 'flat' : 'outlined'}
               textStyle={
-                categoryId === cat.id ? styles.chipTextSelected : undefined
+                categoryId === null ? styles.chipTextSelected : undefined
               }
               compact
             >
-              {cat.name}
+              {t('all')}
             </Chip>
-          ))}
-        </ScrollView>
-      )}
+            {categories.map((cat) => (
+              <Chip
+                key={cat.id}
+                selected={categoryId === cat.id}
+                onPress={() => setCategoryId(cat.id)}
+                style={styles.chip}
+                mode={categoryId === cat.id ? 'flat' : 'outlined'}
+                textStyle={
+                  categoryId === cat.id ? styles.chipTextSelected : undefined
+                }
+                compact
+              >
+                {cat.name}
+              </Chip>
+            ))}
+          </ScrollView>
+        )}
+      </Animated.View>
 
       <FlatList
         data={filteredProducts}
@@ -1504,6 +1550,8 @@ export default function PosScreen() {
           styles.gridContent,
           { paddingBottom: cartExpanded && cart.length > 0 ? 340 : 96 },
         ]}
+        onScroll={onProductScroll}
+        scrollEventThrottle={16}
         ListHeaderComponent={
           !search.trim() && categories.length > 0
             ? () => (
