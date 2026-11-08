@@ -24,6 +24,7 @@ import { TrialBalancePage } from './pages/accounting/reports/TrialBalancePage';
 import { ProfitLossPage } from './pages/accounting/reports/ProfitLossPage';
 import { BalanceSheetPage } from './pages/accounting/reports/BalanceSheetPage';
 import { CashFlowPage } from './pages/accounting/reports/CashFlowPage';
+import { SalesReportPage } from './pages/accounting/reports/SalesReportPage';
 import { AgedReceivablesPage } from './pages/accounting/reports/AgedReceivablesPage';
 import { AgedPayablesPage } from './pages/accounting/reports/AgedPayablesPage';
 import { GeneralLedgerPage } from './pages/accounting/reports/GeneralLedgerPage';
@@ -213,6 +214,7 @@ const App: React.FC = () => {
           <Route path="accounting/aged-payables" element={<AgedPayablesPage />} />
           <Route path="accounting/general-ledger" element={<GeneralLedgerPage />} />
           <Route path="accounting/payment-modes" element={<PaymentModesPage />} />
+          <Route path="accounting/sales-report" element={<SalesReportPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>

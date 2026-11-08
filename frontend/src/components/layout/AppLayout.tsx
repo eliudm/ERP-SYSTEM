@@ -85,6 +85,7 @@ export const AppLayout: React.FC = () => {
         { key: '/accounting/pnl', label: t('accounting.profitLoss'), posAllowed: false },
         { key: '/accounting/balance-sheet', label: t('accounting.balanceSheet'), posAllowed: false },
         { key: '/accounting/cash-flow', label: 'Daily Collections', posAllowed: false },
+        { key: '/accounting/sales-report', label: 'Sales Reports', posAllowed: false },
         { key: '/accounting/general-ledger', label: t('accounting.generalLedger'), posAllowed: false },
         { key: '/accounting/aged-receivables', label: t('accounting.agedReceivables'), posAllowed: false },
         { key: '/accounting/aged-payables', label: t('accounting.agedPayables'), posAllowed: false },

@@ -108,6 +108,38 @@ export const accountingApi = {
     return res.data;
   },
 
+  getCashierSummary: async (startDate: string, endDate: string) => {
+    const res = await apiClient.get('/accounting/reports/cashier-summary', {
+      params: { startDate, endDate },
+    });
+    return res.data as {
+      rows: Array<{
+        cashierName: string; cash: number; card: number; mobileMoney: number;
+        bankTransfer: number; credit: number; total: number;
+        grossProfit: number; profitMargin: number;
+      }>;
+      totals: {
+        cash: number; card: number; mobileMoney: number; bankTransfer: number;
+        credit: number; total: number; grossProfit: number; profitMargin: number;
+      };
+    };
+  },
+
+  getFullSalesReport: async (startDate: string, endDate: string) => {
+    const res = await apiClient.get('/accounting/reports/full-sales', {
+      params: { startDate, endDate },
+    });
+    return res.data as {
+      rows: Array<{
+        date: string; invoiceNo: string; cashier: string; customer: string;
+        paymentMethod: string; productCode: string; productName: string;
+        quantity: number; unitPrice: number; costPrice: number;
+        lineTotal: number; grossProfit: number; profitMargin: number;
+      }>;
+      totals: { revenue: number; cogs: number; grossProfit: number; profitMargin: number };
+    };
+  },
+
   getDailyCollections: async (startDate: string, endDate: string) => {
     const res = await apiClient.get('/accounting/reports/daily-collections', {
       params: { startDate, endDate },

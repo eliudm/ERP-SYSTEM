@@ -94,4 +94,22 @@ export class ReportsController {
   ) {
     return this.reportsService.getDailyCollections(startDate, endDate);
   }
+
+  @ApiOperation({ summary: 'Get cashier sales summary with payment method breakdown and profit margin' })
+  @Get('cashier-summary')
+  getCashierSummary(
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+  ) {
+    return this.reportsService.getCashierSummary(startDate, endDate);
+  }
+
+  @ApiOperation({ summary: 'Get full sales report with product-level detail and profit margin' })
+  @Get('full-sales')
+  getFullSalesReport(
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+  ) {
+    return this.reportsService.getFullSalesReport(startDate, endDate);
+  }
 }

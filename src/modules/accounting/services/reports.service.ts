@@ -669,4 +669,152 @@ export class ReportsService {
       isBalanced: Math.abs(totalDebit - totalCredit) < 0.01,
     };
   }
+
+  // ─── CASHIER SALES SUMMARY ───────────────────────────────────
+  async getCashierSummary(startDate: string, endDate: string) {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    const invoices = await this.prisma.salesInvoice.findMany({
+      where: {
+        status: { in: ['PAID', 'APPROVED'] },
+        paymentMethod: { not: null },
+        invoiceDate: { gte: start, lte: end },
+      },
+      select: {
+        cashierId: true,
+        cashier: { select: { name: true } },
+        paymentMethod: true,
+        total: true,
+        cogsAmount: true,
+      },
+    });
+
+    type Bucket = {
+      name: string;
+      CASH: number; CARD: number; MOBILE_MONEY: number;
+      BANK_TRANSFER: number; CREDIT: number;
+      total: number; cogs: number;
+    };
+    const map = new Map<string, Bucket>();
+
+    for (const inv of invoices) {
+      const id = inv.cashierId ?? '__none__';
+      const name = (inv.cashier as any)?.name ?? 'No Cashier';
+      if (!map.has(id)) {
+        map.set(id, { name, CASH: 0, CARD: 0, MOBILE_MONEY: 0, BANK_TRANSFER: 0, CREDIT: 0, total: 0, cogs: 0 });
+      }
+      const b = map.get(id)!;
+      const method = inv.paymentMethod as keyof Bucket;
+      (b[method] as number) = ((b[method] as number) || 0) + Number(inv.total);
+      b.total += Number(inv.total);
+      b.cogs += Number(inv.cogsAmount ?? 0);
+    }
+
+    const rows = Array.from(map.values())
+      .sort((a, b) => b.total - a.total)
+      .map((b) => ({
+        cashierName: b.name,
+        cash: b.CASH,
+        card: b.CARD,
+        mobileMoney: b.MOBILE_MONEY,
+        bankTransfer: b.BANK_TRANSFER,
+        credit: b.CREDIT,
+        total: b.total,
+        grossProfit: b.total - b.cogs,
+        profitMargin: b.total > 0 ? ((b.total - b.cogs) / b.total) * 100 : 0,
+      }));
+
+    const totals = rows.reduce(
+      (acc, r) => ({
+        cash: acc.cash + r.cash,
+        card: acc.card + r.card,
+        mobileMoney: acc.mobileMoney + r.mobileMoney,
+        bankTransfer: acc.bankTransfer + r.bankTransfer,
+        credit: acc.credit + r.credit,
+        total: acc.total + r.total,
+        grossProfit: acc.grossProfit + r.grossProfit,
+      }),
+      { cash: 0, card: 0, mobileMoney: 0, bankTransfer: 0, credit: 0, total: 0, grossProfit: 0 },
+    );
+
+    return {
+      period: { startDate: start, endDate: end },
+      rows,
+      totals: {
+        ...totals,
+        profitMargin: totals.total > 0 ? (totals.grossProfit / totals.total) * 100 : 0,
+      },
+    };
+  }
+
+  // ─── FULL SALES REPORT (product-level detail) ─────────────────
+  async getFullSalesReport(startDate: string, endDate: string) {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    const invoices = await this.prisma.salesInvoice.findMany({
+      where: {
+        status: { in: ['PAID', 'APPROVED'] },
+        invoiceDate: { gte: start, lte: end },
+      },
+      select: {
+        invoiceNo: true,
+        invoiceDate: true,
+        paymentMethod: true,
+        cashier: { select: { name: true } },
+        customer: { select: { name: true } },
+        items: {
+          select: {
+            quantity: true,
+            unitPrice: true,
+            lineTotal: true,
+            product: { select: { name: true, code: true, costPrice: true } },
+          },
+        },
+      },
+      orderBy: { invoiceDate: 'desc' },
+    });
+
+    const rows = invoices.flatMap((inv) =>
+      inv.items.map((item) => {
+        const qty = Number(item.quantity);
+        const unitPrice = Number(item.unitPrice);
+        const lineTotal = Number(item.lineTotal);
+        const costPrice = Number((item.product as any)?.costPrice ?? 0);
+        const lineCogs = costPrice * qty;
+        const grossProfit = lineTotal - lineCogs;
+        return {
+          date: inv.invoiceDate.toISOString().slice(0, 10),
+          invoiceNo: inv.invoiceNo,
+          cashier: (inv.cashier as any)?.name ?? 'N/A',
+          customer: (inv.customer as any)?.name ?? 'Walk-in',
+          paymentMethod: inv.paymentMethod ?? 'CREDIT',
+          productCode: (item.product as any)?.code ?? '',
+          productName: (item.product as any)?.name ?? 'Unknown',
+          quantity: qty,
+          unitPrice,
+          costPrice,
+          lineTotal,
+          grossProfit,
+          profitMargin: lineTotal > 0 ? (grossProfit / lineTotal) * 100 : 0,
+        };
+      }),
+    );
+
+    const totalRevenue = rows.reduce((s, r) => s + r.lineTotal, 0);
+    const totalCogs = rows.reduce((s, r) => s + r.costPrice * r.quantity, 0);
+    const totalProfit = totalRevenue - totalCogs;
+
+    return {
+      period: { startDate: start, endDate: end },
+      rows,
+      totals: {
+        revenue: totalRevenue,
+        cogs: totalCogs,
+        grossProfit: totalProfit,
+        profitMargin: totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0,
+      },
+    };
+  }
 }
