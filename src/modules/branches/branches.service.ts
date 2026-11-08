@@ -110,22 +110,34 @@ export class BranchesService {
       : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
     const endDate = to ? new Date(to) : new Date();
 
-    const [branches, grouped] = await Promise.all([
+    const [branches, invoices] = await Promise.all([
       this.prisma.branch.findMany({
         where: { isActive: true },
         select: { id: true, name: true, code: true },
         orderBy: { name: 'asc' },
       }),
-      this.prisma.salesInvoice.groupBy({
-        by: ['branchId', 'status'],
+      // Use findMany so we can resolve branchId from multiple sources:
+      // invoice.branchId (set at approval) → warehouse.branchId → cashier.branchId
+      // This handles warehouses that were created before being linked to a branch.
+      (this.prisma.salesInvoice.findMany as any)({
         where: {
-          branchId: { not: null },
           invoiceDate: { gte: startDate, lte: endDate },
           status: { in: ['APPROVED', 'PAID'] },
         },
-        _sum: { total: true },
-        _count: true,
-      }),
+        select: {
+          branchId: true,
+          status: true,
+          total: true,
+          warehouse: { select: { branchId: true } },
+          cashier: { select: { branchId: true } },
+        },
+      }) as Promise<Array<{
+        branchId: string | null;
+        status: string;
+        total: any;
+        warehouse: { branchId: string | null } | null;
+        cashier: { branchId: string | null } | null;
+      }>>,
     ]);
 
     const totalsByBranch = new Map<
@@ -133,17 +145,24 @@ export class BranchesService {
       { invoices: number; paidInvoices: number; revenue: number }
     >();
 
-    for (const row of grouped) {
-      if (!row.branchId) continue;
-      const existing = totalsByBranch.get(row.branchId) ?? {
+    for (const inv of invoices) {
+      // Resolve branch: direct branchId → warehouse's branch → cashier's branch
+      const resolvedBranchId =
+        inv.branchId ??
+        inv.warehouse?.branchId ??
+        inv.cashier?.branchId ??
+        null;
+      if (!resolvedBranchId) continue;
+
+      const existing = totalsByBranch.get(resolvedBranchId) ?? {
         invoices: 0,
         paidInvoices: 0,
         revenue: 0,
       };
-      existing.invoices += row._count;
-      existing.revenue += Number(row._sum.total ?? 0);
-      if (row.status === 'PAID') existing.paidInvoices += row._count;
-      totalsByBranch.set(row.branchId, existing);
+      existing.invoices += 1;
+      existing.revenue += Number(inv.total ?? 0);
+      if (inv.status === 'PAID') existing.paidInvoices += 1;
+      totalsByBranch.set(resolvedBranchId, existing);
     }
 
     const results = branches
