@@ -21,6 +21,8 @@ export interface ReceiptData {
   total: number;
   paymentMethod?: string;
   items: ReceiptItem[];
+  // Set only for credit sales: total the customer owes after this invoice.
+  customerOutstandingBalance?: number;
 }
 
 const formatCurrency = (value: number) =>
@@ -127,9 +129,33 @@ export const Receipt: React.FC<ReceiptProps> = ({
           </Text>
         </View>
         {receipt.paymentMethod && (
-          <Text style={styles.paymentMethod}>
-            Paid via {receipt.paymentMethod.replace('_', ' ')}
+          <Text style={[
+            styles.paymentMethod,
+            receipt.paymentMethod === 'CREDIT' && styles.paymentMethodCredit,
+          ]}>
+            {receipt.paymentMethod === 'CREDIT' ? '⏳ CREDIT SALE' : `Paid via ${receipt.paymentMethod.replace('_', ' ')}`}
           </Text>
+        )}
+
+        {receipt.paymentMethod === 'CREDIT' && receipt.customerOutstandingBalance != null && (
+          <View style={styles.creditSection}>
+            <View style={styles.creditRow}>
+              <Text style={styles.creditLabel}>Previous Balance</Text>
+              <Text style={styles.creditValue}>
+                {formatCurrency(receipt.customerOutstandingBalance - receipt.total)}
+              </Text>
+            </View>
+            <View style={styles.creditRow}>
+              <Text style={styles.creditLabel}>This Sale</Text>
+              <Text style={styles.creditValue}>+ {formatCurrency(receipt.total)}</Text>
+            </View>
+            <View style={[styles.creditRow, styles.creditTotalRow]}>
+              <Text style={styles.creditTotalLabel}>Total Outstanding</Text>
+              <Text style={styles.creditTotalValue}>
+                {formatCurrency(receipt.customerOutstandingBalance)}
+              </Text>
+            </View>
+          </View>
         )}
 
         <View style={pendingSync ? styles.pendingSection : styles.qrSection}>
@@ -310,6 +336,49 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: brand.textMuted,
     marginTop: 8,
+  },
+  paymentMethodCredit: {
+    color: '#ad7a14',
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  creditSection: {
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#d4b106',
+    borderStyle: 'dashed',
+    borderRadius: 10,
+    padding: 10,
+    backgroundColor: '#fffbe6',
+  },
+  creditRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 2,
+  },
+  creditLabel: {
+    fontSize: 12,
+    color: '#7a5c00',
+  },
+  creditValue: {
+    fontSize: 12,
+    color: '#7a5c00',
+  },
+  creditTotalRow: {
+    borderTopWidth: 1,
+    borderTopColor: '#d4b106',
+    marginTop: 4,
+    paddingTop: 6,
+  },
+  creditTotalLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#ad7a14',
+  },
+  creditTotalValue: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#ad7a14',
   },
   qrSection: {
     alignItems: 'center',

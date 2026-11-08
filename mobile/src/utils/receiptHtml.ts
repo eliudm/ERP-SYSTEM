@@ -47,10 +47,24 @@ export interface ReceiptHtmlData {
   // exists yet. Must be unmistakable on a printed/PDF copy so it's never
   // confused with a final KRA-validated receipt.
   pendingSync?: boolean;
+  // Credit sale: total the customer owes across all invoices after this sale.
+  customerOutstandingBalance?: number;
 }
 
 const PENDING_SYNC_NOTE =
   'Sale saved offline — will sync automatically once back online. A tax receipt number will be assigned then.';
+
+const buildCreditSection = (data: ReceiptHtmlData): string => {
+  if (data.paymentMethod !== 'CREDIT' || data.customerOutstandingBalance == null) return '';
+  const prevBalance = data.customerOutstandingBalance - data.total;
+  return `
+  <div style="margin-top:8px;border:1px dashed #d4b106;border-radius:6px;padding:8px;background:#fffbe6">
+    <div style="font-weight:700;color:#ad7a14;font-size:12px;margin-bottom:4px">⏳ CREDIT SALE</div>
+    <div style="display:flex;justify-content:space-between;font-size:11px"><span>Previous Balance</span><span>${formatCurrency(prevBalance)}</span></div>
+    <div style="display:flex;justify-content:space-between;font-size:11px"><span>This Sale</span><span>+ ${formatCurrency(data.total)}</span></div>
+    <div style="display:flex;justify-content:space-between;font-weight:700;border-top:1px solid #d4b106;margin-top:4px;padding-top:4px;font-size:12px"><span>Total Outstanding</span><span>${formatCurrency(data.customerOutstandingBalance)}</span></div>
+  </div>`;
+};
 
 const paymentLabelOf = (data: ReceiptHtmlData): string =>
   data.paymentMethod
@@ -109,6 +123,7 @@ const buildStandardReceiptHtml = (data: ReceiptHtmlData): string => {
   <div class="row"><span>Subtotal</span><span>${formatCurrency(data.subtotal)}</span></div>
   <div class="row"><span>VAT</span><span>${formatCurrency(data.taxTotal)}</span></div>
   <div class="row grand"><span>Total</span><span>${formatCurrency(data.total)}</span></div>
+  ${buildCreditSection(data)}
   ${
     data.pendingSync
       ? `<div class="qr" style="border:1px dashed #ad7a14;border-radius:8px;padding:8px;color:#ad7a14;font-weight:700">${PENDING_SYNC_NOTE}</div>`
@@ -157,6 +172,7 @@ const buildCompactReceiptHtml = (data: ReceiptHtmlData): string => {
   <div class="row"><span>VAT</span><span>${formatCurrency(data.taxTotal)}</span></div>
   <div class="row grand"><span>TOTAL</span><span>${formatCurrency(data.total)}</span></div>
   <div class="row"><span>${paymentLabelOf(data)}</span><span></span></div>
+  ${buildCreditSection(data)}
   ${
     data.pendingSync
       ? `<div style="text-align:center;margin-top:6px;border:1px dashed #ad7a14;border-radius:6px;padding:4px;color:#ad7a14;font-weight:700;font-size:10px">${PENDING_SYNC_NOTE}</div>`
@@ -228,6 +244,7 @@ const buildBrandedReceiptHtml = (data: ReceiptHtmlData): string => {
   </div>
   <div class="grand"><span>Total</span><span>${formatCurrency(data.total)}</span></div>
   <div class="row"><span>Paid via</span><span>${paymentLabelOf(data)}</span></div>
+  ${buildCreditSection(data)}
 
   ${
     data.pendingSync

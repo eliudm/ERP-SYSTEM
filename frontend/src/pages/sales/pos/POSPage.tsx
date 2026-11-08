@@ -66,6 +66,7 @@ interface ReceiptData {
   paymentMethod: PaymentMethod;
   servedBy: string;
   items: CartItem[];
+  customerOutstandingBalance?: number;
 }
 
 interface PendingMpesaTransaction {
@@ -438,6 +439,15 @@ export const POSPage: React.FC = () => {
       message.success(t('toast.saleCompleted', { invoiceNo: invoice.invoiceNo }));
     }
     if (pendingReceipt) {
+      let customerOutstandingBalance: number | undefined;
+      if (paymentMethod === 'CREDIT' && customerId && customerId !== WALK_IN_VALUE) {
+        try {
+          const statement = await salesApi.getCustomerStatement(customerId);
+          customerOutstandingBalance = statement.summary.outstandingBalance;
+        } catch {
+          // non-critical — receipt shows without balance if fetch fails
+        }
+      }
       setValidatedReceipt({
         ...pendingReceipt,
         invoiceId: invoice.id,
@@ -447,6 +457,7 @@ export const POSPage: React.FC = () => {
         provisionalQr: qrDetails?.provisional,
         qrStatus: qrDetails?.status,
         qrMessage: qrDetails?.message,
+        customerOutstandingBalance,
       });
     }
     setPaymentOpen(false);
@@ -824,6 +835,7 @@ export const POSPage: React.FC = () => {
         businessPin: BUSINESS_INFO.pin,
         businessSlogan: BUSINESS_INFO.slogan,
         showBranding: showReceiptBranding,
+        customerOutstandingBalance: receipt.customerOutstandingBalance,
       },
       systemSettings?.receiptTemplate,
     );

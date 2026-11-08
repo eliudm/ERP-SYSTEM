@@ -804,6 +804,15 @@ export default function PosScreen() {
         items,
       };
 
+      if (paymentMethod === 'CREDIT' && customer.id) {
+        try {
+          const statement = await salesApi.getCustomerStatement(customer.id);
+          receipt.customerOutstandingBalance = statement.summary.outstandingBalance;
+        } catch {
+          // non-critical — receipt shows without balance if fetch fails
+        }
+      }
+
       if (paymentMethod === 'MOBILE_MONEY' && mpesaChannel === 'TILL') {
         // Till payments arrive on their own, unprompted — hand off to the
         // in-place matching UI (see PaymentScreen) instead of finishing the
@@ -880,6 +889,7 @@ export default function PosScreen() {
         taxTotal: receiptData.taxTotal,
         total: receiptData.total,
         items: receiptData.items,
+        customerOutstandingBalance: receiptData.customerOutstandingBalance,
         businessName: settings?.companyName,
         businessLogo: settings?.companyLogo,
         businessAddress: settings?.companyAddress,

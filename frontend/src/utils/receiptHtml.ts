@@ -29,6 +29,8 @@ export interface ReceiptHtmlData {
   businessPin?: string | null;
   businessSlogan?: string | null;
   showBranding?: boolean;
+  // Credit sale: total the customer owes across all invoices after this sale.
+  customerOutstandingBalance?: number;
 }
 
 const escapeHtml = (value: string) =>
@@ -45,6 +47,18 @@ const qrLabelOf = (data: ReceiptHtmlData): string =>
   data.qrProvisional ? 'Provisional Receipt QR' : 'eTIMS QR Code';
 
 const printScript = `<script>window.onload=function(){window.print()}</script>`;
+
+const buildCreditSection = (data: ReceiptHtmlData): string => {
+  if (data.paymentMethod !== 'CREDIT' || data.customerOutstandingBalance == null) return '';
+  const prevBalance = data.customerOutstandingBalance - data.total;
+  return `
+  <div style="margin-top:8px;border:1px dashed #d4b106;border-radius:6px;padding:8px;background:#fffbe6;">
+    <div style="font-weight:700;color:#ad7a14;font-size:12px;margin-bottom:4px;">&#9203; CREDIT SALE</div>
+    <div style="display:flex;justify-content:space-between;font-size:11px;"><span>Previous Balance</span><span>${formatCurrency(prevBalance)}</span></div>
+    <div style="display:flex;justify-content:space-between;font-size:11px;"><span>This Sale</span><span>+ ${formatCurrency(data.total)}</span></div>
+    <div style="display:flex;justify-content:space-between;font-weight:700;border-top:1px solid #d4b106;margin-top:4px;padding-top:4px;font-size:12px;"><span>Total Outstanding</span><span>${formatCurrency(data.customerOutstandingBalance)}</span></div>
+  </div>`;
+};
 
 // ─── STANDARD: the familiar till-receipt layout ────────────────────
 const buildStandardReceiptHtml = (data: ReceiptHtmlData): string => {
@@ -109,6 +123,7 @@ const buildStandardReceiptHtml = (data: ReceiptHtmlData): string => {
     <div class="line grand"><span>Total</span><span>${formatCurrency(data.total)}</span></div>
     <div class="line"><span>${paymentLabelOf(data)}</span><span>${formatCurrency(data.total)}</span></div>
   </div>
+  ${buildCreditSection(data)}
 
   ${qrSection}
 
@@ -155,6 +170,7 @@ const buildCompactReceiptHtml = (data: ReceiptHtmlData): string => {
   <div class="line"><span>VAT</span><span>${formatCurrency(data.taxAmount)}</span></div>
   <div class="line grand"><span>TOTAL</span><span>${formatCurrency(data.total)}</span></div>
   <div class="line"><span>${paymentLabelOf(data)}</span><span></span></div>
+  ${buildCreditSection(data)}
   ${data.qrCode ? `<div style="text-align:center; margin-top:6px;"><img src="${data.qrCode}" style="width:80px; height:80px;" /></div>` : ''}
   ${printScript}
 </body>
@@ -210,6 +226,7 @@ const buildBrandedReceiptHtml = (data: ReceiptHtmlData): string => {
   </div>
   <div class="grand"><span>Total</span><span>${formatCurrency(data.total)}</span></div>
   <div class="line"><span>Paid via</span><span>${paymentLabelOf(data)}</span></div>
+  ${buildCreditSection(data)}
 
   ${data.qrCode ? `<div style="text-align:center; margin-top:10px; padding:10px; border:1px solid #d8d4e8; border-radius:10px;"><img src="${data.qrCode}" style="width:110px; height:110px;" /><div style="font-size:10.5px; margin-top:4px;">${qrLabelOf(data)}</div></div>` : ''}
 
