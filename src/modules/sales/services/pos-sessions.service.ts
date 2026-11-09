@@ -29,7 +29,20 @@ export class PosSessionsService {
     const existing = await this.prisma.posSession.findFirst({
       where: { cashierId, status: 'OPEN' },
     });
-    if (existing) return existing;
+    if (existing) {
+      // Block new-day sales if the previous session was never closed
+      const sessionDay = new Date(existing.openedAt).toDateString();
+      const today = new Date().toDateString();
+      if (sessionDay !== today) {
+        const dateLabel = new Date(existing.openedAt).toLocaleDateString('en-KE', {
+          weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+        });
+        throw new BadRequestException(
+          `You have an unclosed register session from ${dateLabel}. Please close it before starting a new day.`,
+        );
+      }
+      return existing;
+    }
 
     const cashier = await this.prisma.user.findUnique({
       where: { id: cashierId },
@@ -79,5 +92,44 @@ export class PosSessionsService {
     return this.prisma.posSession.findFirst({
       where: { cashierId, status: 'OPEN' },
     });
+  }
+
+  async getSessionSummary(sessionId: string) {
+    const session = await this.prisma.posSession.findUnique({
+      where: { id: sessionId },
+      include: {
+        invoices: {
+          where: { status: { in: ['APPROVED', 'PAID'] } },
+          select: { total: true, paymentMethod: true },
+        },
+      },
+    });
+    if (!session) throw new NotFoundException('Session not found');
+
+    const totalOrders = session.invoices.length;
+    const totalRevenue = session.invoices.reduce(
+      (sum, inv) => sum + Number(inv.total), 0,
+    );
+
+    const methodMap = new Map<string, { amount: number; orders: number }>();
+    for (const inv of session.invoices) {
+      const method = inv.paymentMethod ?? 'UNKNOWN';
+      const existing = methodMap.get(method) ?? { amount: 0, orders: 0 };
+      existing.amount += Number(inv.total);
+      existing.orders += 1;
+      methodMap.set(method, existing);
+    }
+
+    return {
+      sessionId,
+      sessionRef: session.sessionRef,
+      openedAt: session.openedAt,
+      closedAt: session.closedAt,
+      totalOrders,
+      totalRevenue,
+      byPaymentMethod: Array.from(methodMap.entries()).map(([method, v]) => ({
+        method, amount: v.amount, orders: v.orders,
+      })),
+    };
   }
 }

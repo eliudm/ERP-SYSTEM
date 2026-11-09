@@ -158,13 +158,13 @@ export default function PosScreen() {
   const [savingPdf, setSavingPdf] = useState(false);
   const [printingUsb, setPrintingUsb] = useState(false);
   const [openingFloatInput, setOpeningFloatInput] = useState('');
-  const [cashCountedInput, setCashCountedInput] = useState('');
+  const [confirmedCounts, setConfirmedCounts] = useState<Record<string, string>>({});
+  const [closingNote, setClosingNote] = useState('');
 
-  const today = new Date().toISOString().split('T')[0];
-  const { data: dailySummary, isLoading: dailySummaryLoading } = useQuery({
-    queryKey: ['daily-summary', today],
-    queryFn: () => salesApi.getDailySummary(today),
-    enabled: screen === 'registerClose',
+  const { data: sessionSummary, isLoading: sessionSummaryLoading } = useQuery({
+    queryKey: ['session-summary', register.sessionId],
+    queryFn: () => salesApi.getPosSessionSummary(register.sessionId!),
+    enabled: screen === 'registerClose' && !!register.sessionId,
   });
 
   const [search, setSearch] = useState('');
@@ -1285,6 +1285,12 @@ export default function PosScreen() {
           {screen === 'registerOpen' ? (
             <>
               <Text style={styles.registerHint}>{t('registerHints.open')}</Text>
+              {register.openError ? (
+                <View style={styles.openErrorBox}>
+                  <MaterialCommunityIcons name="alert-circle" size={20} color="#d4380d" />
+                  <Text style={styles.openErrorText}>{register.openError}</Text>
+                </View>
+              ) : null}
               <TextInput
                 mode="outlined"
                 label={t('openingFloatLabel')}
@@ -1298,8 +1304,9 @@ export default function PosScreen() {
                 style={styles.registerActionButton}
                 onPress={() => {
                   void register
-                    .openRegister(Number(openingFloatInput) || 0)
-                    .then(() => setScreen('main'));
+                    .openRegister(Number(openingFloatInput) || 0, null)
+                    .then(() => setScreen('main'))
+                    .catch(() => {/* error shown via register.openError */});
                 }}
               >
                 {t('openRegister')}
@@ -1308,88 +1315,105 @@ export default function PosScreen() {
           ) : (
             <>
               <Text style={styles.registerHint}>
-                {t('registerHints.close')}
+                Confirm each payment method before closing. Enter the actual amount collected.
               </Text>
-              {dailySummaryLoading ? (
-                <ActivityIndicator
-                  size="small"
-                  color={brand.gradientEnd}
-                  style={{ marginVertical: 12 }}
-                />
+
+              {sessionSummaryLoading ? (
+                <ActivityIndicator size="small" color={brand.gradientEnd} style={{ marginVertical: 12 }} />
               ) : (
                 <>
+                  {/* Session header */}
                   <View style={styles.summaryRow}>
-                    <Text style={styles.totalsLabel}>{t('orders')}</Text>
-                    <Text style={styles.totalsValue}>
-                      {dailySummary?.totalOrders ?? 0}
-                    </Text>
+                    <Text style={styles.totalsLabel}>Session</Text>
+                    <Text style={styles.totalsValue}>{sessionSummary?.sessionRef ?? '—'}</Text>
                   </View>
                   <View style={styles.summaryRow}>
-                    <Text style={styles.totalsLabel}>{t('totalRevenue')}</Text>
-                    <Text style={styles.totalsValue}>
-                      {formatCurrency(dailySummary?.totalRevenue ?? 0)}
+                    <Text style={styles.totalsLabel}>Total Orders</Text>
+                    <Text style={styles.totalsValue}>{sessionSummary?.totalOrders ?? 0}</Text>
+                  </View>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.totalsLabel}>Total Revenue</Text>
+                    <Text style={[styles.totalsValue, { color: brand.gradientEnd }]}>
+                      {formatCurrency(sessionSummary?.totalRevenue ?? 0)}
                     </Text>
                   </View>
+
                   <Divider style={styles.divider} />
-                  {(dailySummary?.byPaymentMethod ?? []).map((row) => (
-                    <View key={row.method} style={styles.summaryRow}>
-                      <Text style={styles.totalsLabel}>
-                        {paymentMethodLabel(row.method)} ({row.orders})
-                      </Text>
-                      <Text style={styles.totalsValue}>
-                        {formatCurrency(row.amount)}
-                      </Text>
-                    </View>
-                  ))}
+                  <Text style={styles.reconcileHeading}>Payment Reconciliation</Text>
+
+                  {(sessionSummary?.byPaymentMethod ?? []).length === 0 ? (
+                    <Text style={styles.registerHint}>No sales recorded in this session.</Text>
+                  ) : (
+                    (sessionSummary?.byPaymentMethod ?? []).map((row) => {
+                      const confirmed = Number(confirmedCounts[row.method] ?? '');
+                      const hasConfirmed = confirmedCounts[row.method]?.trim().length > 0;
+                      const variance = confirmed - row.amount;
+                      return (
+                        <View key={row.method} style={styles.reconcileBlock}>
+                          <View style={styles.summaryRow}>
+                            <Text style={styles.reconcileMethod}>
+                              {paymentMethodLabel(row.method)}
+                            </Text>
+                            <Text style={styles.totalsValue}>
+                              {formatCurrency(row.amount)}
+                              <Text style={styles.orderCount}> ({row.orders} order{row.orders !== 1 ? 's' : ''})</Text>
+                            </Text>
+                          </View>
+                          <TextInput
+                            mode="outlined"
+                            label={`Confirm ${paymentMethodLabel(row.method)} amount`}
+                            keyboardType="numeric"
+                            value={confirmedCounts[row.method] ?? ''}
+                            onChangeText={(v) =>
+                              setConfirmedCounts((prev) => ({ ...prev, [row.method]: v }))
+                            }
+                            style={styles.confirmInput}
+                          />
+                          {hasConfirmed && (
+                            <Text style={[
+                              styles.varianceText,
+                              { color: variance === 0 ? brand.gradientEnd : '#d4380d' },
+                            ]}>
+                              Expected: {formatCurrency(row.amount)} · Variance: {variance >= 0 ? '+' : ''}{formatCurrency(variance)}
+                            </Text>
+                          )}
+                        </View>
+                      );
+                    })
+                  )}
+
+                  <Divider style={styles.divider} />
                 </>
               )}
 
               <TextInput
                 mode="outlined"
-                label={t('cashCountedLabel')}
-                keyboardType="numeric"
-                value={cashCountedInput}
-                onChangeText={setCashCountedInput}
-                style={[styles.customerInput, { marginTop: 12 }]}
+                label="Closing note (optional)"
+                value={closingNote}
+                onChangeText={setClosingNote}
+                multiline
+                numberOfLines={2}
+                style={[styles.customerInput, { marginTop: 4 }]}
               />
-              {cashCountedInput.trim().length > 0 &&
-                (() => {
-                  const expectedCash =
-                    dailySummary?.byPaymentMethod.find(
-                      (r) => r.method === 'CASH',
-                    )?.amount ?? 0;
-                  const variance = Number(cashCountedInput) - expectedCash;
-                  return (
-                    <Text
-                      style={[
-                        styles.varianceText,
-                        {
-                          color: variance === 0 ? brand.gradientEnd : '#d4380d',
-                        },
-                      ]}
-                    >
-                      {t('expectedCashVariance', {
-                        expected: formatCurrency(expectedCash),
-                        variance: `${variance >= 0 ? '+' : ''}${formatCurrency(variance)}`,
-                      })}
-                    </Text>
-                  );
-                })()}
 
               <Button
                 mode="contained"
                 style={styles.registerActionButton}
                 onPress={() => {
-                  void register.closeRegister().then(() => {
+                  const counts: Record<string, number> = {};
+                  for (const [method, val] of Object.entries(confirmedCounts)) {
+                    const n = Number(val);
+                    if (!isNaN(n) && val.trim().length > 0) counts[method] = n;
+                  }
+                  void register.closeRegister(closingNote || undefined, counts).then(() => {
+                    setClosingNote('');
+                    setConfirmedCounts({});
                     setScreen('main');
-                    setSnackbar({
-                      visible: true,
-                      message: t('toast.registerClosed'),
-                    });
+                    setSnackbar({ visible: true, message: t('toast.registerClosed') });
                   });
                 }}
               >
-                {t('closeRegister')}
+                Confirm & Close Register
               </Button>
             </>
           )}
@@ -1863,7 +1887,53 @@ const styles = StyleSheet.create({
   varianceText: {
     fontSize: 12.5,
     fontWeight: '600',
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  openErrorBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: '#fff1f0',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 12,
+  },
+  openErrorText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#d4380d',
+    lineHeight: 20,
+  },
+  reconcileHeading: {
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.6,
+    color: brand.textMuted,
+    marginVertical: 10,
+  },
+  reconcileBlock: {
+    marginBottom: 16,
+    backgroundColor: '#ffffff',
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#ece8f5',
+  },
+  reconcileMethod: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: brand.textDark,
+  },
+  orderCount: {
+    fontSize: 12,
+    color: brand.textMuted,
+    fontWeight: '400',
+  },
+  confirmInput: {
     marginTop: 8,
+    backgroundColor: '#fafafa',
   },
   chipsRow: {
     flexGrow: 0,

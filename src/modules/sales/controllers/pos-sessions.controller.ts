@@ -43,4 +43,10 @@ export class PosSessionsController {
   current(@Req() req: any) {
     return this.posSessionsService.getCurrentSession(req.user.id);
   }
+
+  @ApiOperation({ summary: 'Get payment-method breakdown for a POS session (reconciliation)' })
+  @Get(':id/summary')
+  summary(@Param('id') id: string) {
+    return this.posSessionsService.getSessionSummary(id);
+  }
 }

@@ -250,6 +250,30 @@ export const salesApi = {
     await apiClient.post(`/sales/invoices/${invoiceId}/credit-payments`, dto);
   },
 
+  openPosSession: async (branchId?: string | null): Promise<{ id: string; sessionRef: string; openedAt: string }> => {
+    const res = await apiClient.post('/sales/pos-sessions/open', branchId ? { branchId } : {});
+    return res.data;
+  },
+
+  closePosSession: async (
+    sessionId: string,
+    dto: { closingNote?: string; closingCounts?: Record<string, number> },
+  ): Promise<void> => {
+    await apiClient.post(`/sales/pos-sessions/${sessionId}/close`, dto);
+  },
+
+  getPosSessionSummary: async (sessionId: string): Promise<{
+    sessionId: string;
+    sessionRef: string;
+    openedAt: string;
+    totalOrders: number;
+    totalRevenue: number;
+    byPaymentMethod: { method: string; amount: number; orders: number }[];
+  }> => {
+    const res = await apiClient.get(`/sales/pos-sessions/${sessionId}/summary`);
+    return res.data;
+  },
+
   getCustomerStatement: async (customerId: string): Promise<{
     customer: {
       id: string;
