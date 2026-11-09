@@ -15,7 +15,7 @@ export const MODULE_ACCESS: Record<string, UserRole[]> = {
   pos: ['ADMIN', 'SALES_USER'],
   sales: ['ADMIN', 'SALES_USER'],
   accounting: ['ADMIN', 'ACCOUNTANT'],
-  inventory: ['ADMIN', 'INVENTORY_MANAGER'],
+  inventory: ['ADMIN', 'INVENTORY_MANAGER', 'PROCUREMENT_OFFICER'],
   procurement: ['ADMIN', 'PROCUREMENT_OFFICER'],
   hr: ['ADMIN', 'HR_MANAGER'],
   etims: ['ADMIN'],
