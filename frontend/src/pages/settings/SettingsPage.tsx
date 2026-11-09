@@ -316,7 +316,7 @@ export const SettingsPage: React.FC = () => {
             </Space>
           </div>
 
-          <div style={{ padding: 24 }}>
+          <div style={{ padding: 24, minWidth: 0, overflow: 'hidden' }}>
             {isLoading && !draft ? (
               <Card bordered={false} style={{ borderRadius: 20 }}>
                 <Text type="secondary">Loading settings...</Text>
