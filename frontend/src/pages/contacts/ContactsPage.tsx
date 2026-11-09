@@ -2,14 +2,18 @@ import React, { useState, useEffect } from 'react';
 import {
   Button, Table, Tag, Space, Form, Input, Select, message,
   Typography, Card, Avatar, Row, Col, Tabs, Divider, Popconfirm, Badge,
+  Switch, InputNumber, Descriptions, Progress, Tooltip,
 } from 'antd';
 import {
   PlusOutlined, ArrowLeftOutlined, EditOutlined, SaveOutlined,
   UserOutlined, BankOutlined, MailOutlined, PhoneOutlined,
-  GlobalOutlined, EnvironmentOutlined, CloseOutlined,
+  GlobalOutlined, EnvironmentOutlined, CloseOutlined, CreditCardOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { contactsApi } from '../../api/contacts.api';
+import { salesApi } from '../../api/sales.api';
+import { useAuthStore } from '../../store/auth.store';
+import { formatCurrency } from '../../utils/format';
 import type { ColumnsType } from 'antd/es/table';
 
 const { Title, Text, Link } = Typography;
@@ -31,6 +35,10 @@ const ContactDetail: React.FC<{
   const isNew = contactId === null;
   const [editing, setEditing] = useState(isNew);
   const [form] = Form.useForm();
+  const [creditForm] = Form.useForm();
+  const [editingCredit, setEditingCredit] = useState(false);
+  const currentUser = useAuthStore((s) => s.user);
+  const isAdmin = currentUser?.role === 'ADMIN';
 
   const { data: contact, isLoading } = useQuery<any>({
     queryKey: ['contact', contactId],
@@ -94,6 +102,33 @@ const ContactDetail: React.FC<{
       if (isNew) createMutation.mutate(values);
       else updateMutation.mutate(values);
     });
+
+  // Credit limit — only relevant for existing contacts (customers)
+  const { data: customerRecord, isLoading: customerLoading } = useQuery({
+    queryKey: ['customer', contactId],
+    queryFn: () => salesApi.getCustomer(contactId!),
+    enabled: !!contactId && !isNew,
+    retry: false,
+  });
+
+  const creditMutation = useMutation({
+    mutationFn: (v: { creditAllowed: boolean; creditLimit: number | null }) =>
+      salesApi.updateCustomer(contactId!, v),
+    onSuccess: () => {
+      message.success('Credit settings saved');
+      qc.invalidateQueries({ queryKey: ['customer', contactId] });
+      setEditingCredit(false);
+    },
+    onError: (e: any) => message.error(e?.response?.data?.message ?? 'Error'),
+  });
+
+  const openCreditEdit = () => {
+    creditForm.setFieldsValue({
+      creditAllowed: customerRecord?.creditAllowed ?? false,
+      creditLimit: customerRecord?.creditLimit ?? null,
+    });
+    setEditingCredit(true);
+  };
 
   const typeValue = Form.useWatch('type', form) ?? (contact?.type ?? 'INDIVIDUAL');
   const isReadonly = !editing;
@@ -339,6 +374,104 @@ const ContactDetail: React.FC<{
                       </Button>
                     )}
                   </Form>
+                ),
+              },
+              {
+                key: 'credit',
+                label: <span><CreditCardOutlined /> Credit</span>,
+                children: (
+                  <div style={{ maxWidth: 480 }}>
+                    {customerLoading ? (
+                      <div style={{ color: '#aaa', padding: '16px 0' }}>Loading…</div>
+                    ) : editingCredit ? (
+                      <Form form={creditForm} layout="vertical">
+                        <Form.Item name="creditAllowed" label="Allow Credit Purchases" valuePropName="checked">
+                          <Switch checkedChildren="Yes" unCheckedChildren="No" />
+                        </Form.Item>
+                        <Form.Item noStyle shouldUpdate={(p, c) => p.creditAllowed !== c.creditAllowed}>
+                          {({ getFieldValue }) =>
+                            getFieldValue('creditAllowed') ? (
+                              <Form.Item
+                                name="creditLimit"
+                                label="Credit Limit"
+                                tooltip="Maximum outstanding balance allowed. Leave blank for no limit."
+                              >
+                                <InputNumber
+                                  min={0}
+                                  style={{ width: '100%' }}
+                                  placeholder="e.g. 50000"
+                                  prefix="KES"
+                                  formatter={(v) => v ? String(v).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : ''}
+                                  parser={(v) => Number((v || '').replace(/,/g, '')) as any}
+                                />
+                              </Form.Item>
+                            ) : null
+                          }
+                        </Form.Item>
+                        <Space>
+                          <Button
+                            type="primary"
+                            icon={<SaveOutlined />}
+                            loading={creditMutation.isPending}
+                            onClick={() =>
+                              creditForm.validateFields().then((v) =>
+                                creditMutation.mutate({
+                                  creditAllowed: v.creditAllowed ?? false,
+                                  creditLimit: v.creditAllowed ? (v.creditLimit ?? null) : null,
+                                })
+                              )
+                            }
+                          >
+                            Save Credit Settings
+                          </Button>
+                          <Button onClick={() => setEditingCredit(false)}>Cancel</Button>
+                        </Space>
+                      </Form>
+                    ) : (
+                      <>
+                        <Descriptions bordered size="small" column={1} style={{ marginBottom: 16 }}>
+                          <Descriptions.Item label="Credit Purchases">
+                            {customerRecord?.creditAllowed
+                              ? <Tag color="green">Allowed</Tag>
+                              : <Tag color="red">Not Allowed</Tag>}
+                          </Descriptions.Item>
+                          {customerRecord?.creditAllowed && (
+                            <Descriptions.Item label="Credit Limit">
+                              {customerRecord.creditLimit
+                                ? <Tag color="blue">{formatCurrency(Number(customerRecord.creditLimit))}</Tag>
+                                : <Tag color="default">No limit set</Tag>}
+                            </Descriptions.Item>
+                          )}
+                        </Descriptions>
+
+                        {customerRecord?.creditAllowed && customerRecord?.creditLimit && (
+                          <Tooltip title="Outstanding balance vs credit limit">
+                            <div style={{ marginBottom: 16 }}>
+                              <Progress
+                                percent={0}
+                                format={() => `Limit: ${formatCurrency(Number(customerRecord.creditLimit))}`}
+                                strokeColor="#1677ff"
+                              />
+                              <div style={{ fontSize: 12, color: '#aaa', marginTop: 4 }}>
+                                Open the Purchase History from Sales → Customers to see real-time utilisation.
+                              </div>
+                            </div>
+                          </Tooltip>
+                        )}
+
+                        {isAdmin && (
+                          <Button icon={<EditOutlined />} onClick={openCreditEdit}>
+                            Edit Credit Settings
+                          </Button>
+                        )}
+                        {!isAdmin && (
+                          <div style={{ color: '#aaa', fontSize: 13 }}>
+                            Only administrators can change credit settings.
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
                 ),
               },
             ]}

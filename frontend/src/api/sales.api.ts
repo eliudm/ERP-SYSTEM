@@ -15,6 +15,11 @@ export const salesApi = {
     return res.data;
   },
 
+  getCustomer: async (id: string): Promise<Customer> => {
+    const res = await apiClient.get(`/sales/customers/${id}`);
+    return res.data;
+  },
+
   updateCustomer: async (id: string, data: Partial<Customer>): Promise<Customer> => {
     const res = await apiClient.patch(`/sales/customers/${id}`, data);
     return res.data;
