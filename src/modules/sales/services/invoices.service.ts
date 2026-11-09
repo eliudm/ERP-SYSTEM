@@ -227,8 +227,12 @@ export class InvoicesService {
       );
     }
 
+    // Use the caller-supplied paymentMethod, or fall back to what was set at creation time
+    const effectivePaymentMethod: PaymentMethod | null =
+      paymentMethod ?? (invoice.paymentMethod as PaymentMethod | null);
+
     // Block credit sales for walk-in / anonymous customers
-    if (paymentMethod === PaymentMethod.CREDIT) {
+    if (effectivePaymentMethod === PaymentMethod.CREDIT) {
       const customerName = invoice.customer?.name?.trim().toLowerCase() ?? '';
       const isWalkIn =
         !invoice.customer ||
@@ -462,8 +466,12 @@ export class InvoicesService {
     // For instant-settlement methods, mark as paid immediately.
     // MOBILE_MONEY is settled asynchronously via M-Pesa callback.
     // CREDIT stays APPROVED — payment is collected later via recordCreditPayment().
-    if (paymentMethod && paymentMethod !== PaymentMethod.MOBILE_MONEY && paymentMethod !== PaymentMethod.CREDIT) {
-      return this.markAsPaid(id, paymentMethod, userId);
+    if (
+      effectivePaymentMethod &&
+      effectivePaymentMethod !== PaymentMethod.MOBILE_MONEY &&
+      effectivePaymentMethod !== PaymentMethod.CREDIT
+    ) {
+      return this.markAsPaid(id, effectivePaymentMethod, userId);
     }
 
     return approvedInvoice;
