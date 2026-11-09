@@ -10,7 +10,7 @@ import { AuthGuard } from '@nestjs/passport';
 export class JwtAuthGuard extends AuthGuard('jwt') {
   handleRequest<TUser = any>(
     err: unknown,
-    user: { posOnly?: boolean } | undefined,
+    user: { posOnly?: boolean; role?: string } | undefined,
     info: unknown,
     context: ExecutionContext,
     status?: unknown,
@@ -22,17 +22,32 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
       throw err || new UnauthorizedException();
     }
 
-    if (!user.posOnly) {
-      return user as TUser;
-    }
-
     const request = context.switchToHttp().getRequest<{
       path?: string;
       method?: string;
     }>();
-
     const path = request.path ?? '';
     const method = (request.method ?? 'GET').toUpperCase();
+
+    // Non-ADMIN, non-SALES_USER roles may view sales data but cannot create/modify sales records
+    if (!user.posOnly) {
+      const role = user.role ?? 'SALES_USER';
+      const canSell = role === 'ADMIN' || role === 'SALES_USER';
+      const isSalesWrite =
+        !canSell &&
+        ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) &&
+        path.startsWith('/api/v1/sales/');
+
+      if (isSalesWrite) {
+        throw new ForbiddenException(
+          'Only Sales and Admin users can create or modify sales records. Contact your administrator.',
+        );
+      }
+
+      return user as TUser;
+    }
+
+    // posOnly path: restrict to POS-related routes only
     const isSalesRoute = path.startsWith('/api/v1/sales/');
     const isPosInventoryRead =
       method === 'GET' &&

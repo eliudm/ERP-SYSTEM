@@ -115,6 +115,9 @@ export default function PosScreen() {
   const { width, height } = useWindowDimensions();
   const dockExpandedMaxHeight = Math.min(560, height * 0.72);
   const { user } = useSession();
+  const userRole = user?.role ?? 'SALES_USER';
+  const isPosOnly = user?.posOnly === true;
+  const canUsePOS = isPosOnly || userRole === 'ADMIN' || userRole === 'SALES_USER';
 
   const numColumns = width < 420 ? 2 : width < 700 ? 3 : width < 1000 ? 4 : 5;
 
@@ -1396,6 +1399,19 @@ export default function PosScreen() {
     );
   }
 
+  if (!canUsePOS) {
+    return (
+      <View style={styles.accessDenied}>
+        <MaterialCommunityIcons name="lock-outline" size={64} color="#b0a8c8" />
+        <Text style={styles.accessDeniedTitle}>Access Restricted</Text>
+        <Text style={styles.accessDeniedBody}>
+          You don't have permission to use the POS terminal.{'\n'}
+          Please contact your administrator.
+        </Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.topBar}>
@@ -1753,6 +1769,26 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f8f5ef',
+  },
+  accessDenied: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f8f5ef',
+    padding: 32,
+    gap: 16,
+  },
+  accessDeniedTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#2f2749',
+    textAlign: 'center',
+  },
+  accessDeniedBody: {
+    fontSize: 14,
+    color: '#7a6cad',
+    textAlign: 'center',
+    lineHeight: 22,
   },
   center: {
     flex: 1,

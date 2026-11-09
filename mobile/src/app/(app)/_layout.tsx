@@ -9,21 +9,31 @@ import { useSession } from '../../providers/SessionProvider';
 import { salesApi } from '../../api/sales.api';
 
 // Routes a POS-only account's token is actually allowed to call
-// server-side (see src/modules/auth/guards/jwt-auth.guard.ts on the
-// backend) — mirrors frontend/src/components/layout/AppLayout.tsx's
-// `posAllowed` menu filtering on the web app.
+// server-side (see src/modules/auth/guards/jwt-auth.guard.ts on the backend)
 const POS_ONLY_ALLOWED_PATHS = ['/pos', '/credits', '/profile'];
+
+// Roles that can access the POS terminal and make sales
+const POS_ROLES = ['ADMIN', 'SALES_USER'];
+// Roles that can access the Sales (invoices) tab
+const SALES_ROLES = ['ADMIN', 'SALES_USER'];
+// Roles that can access the Analytics tab
+const ANALYTICS_ROLES = ['ADMIN', 'ACCOUNTANT'];
+// Roles that can access the Credits tab
+const CREDITS_ROLES = ['ADMIN', 'SALES_USER'];
 
 export default function AppTabsLayout() {
   const { user } = useSession();
   const { t } = useTranslation('nav');
   const isPosOnly = user?.posOnly === true;
+  const userRole = user?.role ?? 'SALES_USER';
+  const canUsePOS = isPosOnly || POS_ROLES.includes(userRole);
   const pathname = usePathname();
 
   const { data: outstandingCredit } = useQuery({
     queryKey: ['outstanding-credit'],
     queryFn: () => salesApi.getOutstandingCredit(),
     refetchInterval: 60000,
+    enabled: CREDITS_ROLES.includes(userRole),
   });
   const creditBadgeCount = outstandingCredit?.length ?? 0;
 
@@ -59,6 +69,7 @@ export default function AppTabsLayout() {
         name="pos"
         options={{
           title: t('tabs.pos'),
+          // POS tab is always shown — unauthorized roles see "contact admin" inside pos.tsx
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons
               name="cart"
@@ -72,7 +83,7 @@ export default function AppTabsLayout() {
         name="sales"
         options={{
           title: t('tabs.sales'),
-          href: isPosOnly ? null : undefined,
+          href: (isPosOnly || !SALES_ROLES.includes(userRole)) ? null : undefined,
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons
               name="receipt"
@@ -86,7 +97,7 @@ export default function AppTabsLayout() {
         name="analytics"
         options={{
           title: t('tabs.analytics'),
-          href: isPosOnly ? null : undefined,
+          href: (isPosOnly || !ANALYTICS_ROLES.includes(userRole)) ? null : undefined,
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons
               name="chart-line"
@@ -114,7 +125,7 @@ export default function AppTabsLayout() {
         name="credits"
         options={{
           title: t('tabs.credits'),
-          href: isPosOnly ? null : undefined,
+          href: (isPosOnly || !CREDITS_ROLES.includes(userRole)) ? null : undefined,
           tabBarIcon: ({ color, size }) => (
             <View>
               <MaterialCommunityIcons

@@ -20,12 +20,12 @@ const { Title, Text } = Typography;
 const { Option } = Select;
 
 const ROLES = [
-  { value: 'ADMIN', label: 'Admin' },
-  { value: 'ACCOUNTANT', label: 'Accountant' },
-  { value: 'SALES_USER', label: 'Sales User' },
-  { value: 'INVENTORY_MANAGER', label: 'Inventory Manager' },
-  { value: 'HR_MANAGER', label: 'HR Manager' },
-  { value: 'PROCUREMENT_OFFICER', label: 'Procurement Officer' },
+  { value: 'ADMIN', label: 'Admin', color: 'red', desc: 'Full control — all modules' },
+  { value: 'SALES_USER', label: 'Sales', color: 'blue', desc: 'POS terminal + sales module' },
+  { value: 'ACCOUNTANT', label: 'Accountant', color: 'green', desc: 'Accounting & financial reports' },
+  { value: 'INVENTORY_MANAGER', label: 'Inventory Manager', color: 'cyan', desc: 'Inventory & stock management' },
+  { value: 'HR_MANAGER', label: 'HR Manager', color: 'purple', desc: 'HR & employment module' },
+  { value: 'PROCUREMENT_OFFICER', label: 'Procurement Officer', color: 'orange', desc: 'Procurement & purchasing' },
 ];
 
 export const UsersSettingsPage: React.FC = () => {
@@ -139,7 +139,14 @@ export const UsersSettingsPage: React.FC = () => {
       title: 'Role',
       dataIndex: 'role',
       key: 'role',
-      render: (value: string) => <Tag color="blue">{value.replaceAll('_', ' ')}</Tag>,
+      render: (value: string) => {
+        const roleInfo = ROLES.find((r) => r.value === value);
+        return (
+          <Tag color={roleInfo?.color ?? 'default'} title={roleInfo?.desc}>
+            {roleInfo?.label ?? value.replaceAll('_', ' ')}
+          </Tag>
+        );
+      },
     },
     {
       title: 'Branch',
@@ -221,9 +228,12 @@ export const UsersSettingsPage: React.FC = () => {
   return (
     <Space direction="vertical" style={{ width: '100%' }} size="large">
       <div>
-        <Title level={4} style={{ margin: 0 }}>Users</Title>
+        <Title level={4} style={{ margin: 0 }}>Users & Access Control</Title>
         <Text type="secondary">
-          Manage users and their access. POS-only users are restricted to the POS terminal.
+          Each user's <strong>role</strong> controls which modules they can access.
+          Admin has full control. Sales can use POS and invoices. HR, Accountant,
+          Inventory and Procurement each manage their own module. The POS-only toggle
+          further restricts a Sales user to the terminal only.
         </Text>
       </div>
 
@@ -285,7 +295,12 @@ export const UsersSettingsPage: React.FC = () => {
           </Form.Item>
           <Form.Item name="role" label="Role" rules={[{ required: true }]}>
             <Select>
-              {ROLES.map((r) => <Option key={r.value} value={r.value}>{r.label}</Option>)}
+              {ROLES.map((r) => (
+                <Option key={r.value} value={r.value}>
+                  <Tag color={r.color} style={{ marginRight: 6 }}>{r.label}</Tag>
+                  <Text type="secondary" style={{ fontSize: 12 }}>{r.desc}</Text>
+                </Option>
+              ))}
             </Select>
           </Form.Item>
           <Form.Item
@@ -299,8 +314,13 @@ export const UsersSettingsPage: React.FC = () => {
               ))}
             </Select>
           </Form.Item>
-          <Form.Item name="posOnly" label="Access Type" valuePropName="checked">
-            <Switch checkedChildren="POS Only" unCheckedChildren="Full Access" />
+          <Form.Item
+            name="posOnly"
+            label="POS Terminal Only"
+            valuePropName="checked"
+            tooltip="For Sales users: restrict to the POS terminal only, hiding invoices and reports."
+          >
+            <Switch checkedChildren="POS Only" unCheckedChildren="Full Sales Access" />
           </Form.Item>
         </Form>
       </Modal>
@@ -339,7 +359,12 @@ export const UsersSettingsPage: React.FC = () => {
           </Space>
           <Form.Item name="role" label="Role" rules={[{ required: true }]}>
             <Select>
-              {ROLES.map((r) => <Option key={r.value} value={r.value}>{r.label}</Option>)}
+              {ROLES.map((r) => (
+                <Option key={r.value} value={r.value}>
+                  <Tag color={r.color} style={{ marginRight: 6 }}>{r.label}</Tag>
+                  <Text type="secondary" style={{ fontSize: 12 }}>{r.desc}</Text>
+                </Option>
+              ))}
             </Select>
           </Form.Item>
           <Form.Item
@@ -353,8 +378,13 @@ export const UsersSettingsPage: React.FC = () => {
               ))}
             </Select>
           </Form.Item>
-          <Form.Item name="posOnly" label="Access Type" valuePropName="checked">
-            <Switch checkedChildren="POS Only" unCheckedChildren="Full Access" />
+          <Form.Item
+            name="posOnly"
+            label="POS Terminal Only"
+            valuePropName="checked"
+            tooltip="For Sales users: restrict to the POS terminal only, hiding invoices and reports."
+          >
+            <Switch checkedChildren="POS Only" unCheckedChildren="Full Sales Access" />
           </Form.Item>
           <Form.Item name="isActive" label="Active" valuePropName="checked">
             <Switch checkedChildren="Active" unCheckedChildren="Inactive" />

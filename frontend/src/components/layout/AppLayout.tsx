@@ -21,6 +21,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../store/auth.store';
 import { notificationsApi } from '../../api/notifications.api';
 import type { Notification } from '../../api/notifications.api';
+import { canAccess } from '../../utils/permissions';
 import dayjs from 'dayjs';
 
 const { Sider, Header, Content } = Layout;
@@ -35,186 +36,188 @@ export const AppLayout: React.FC = () => {
   const { user, logout } = useAuthStore();
   const queryClient = useQueryClient();
 
-  const isPosOnly = user?.posOnly === true;
+  const userRole = user?.role ?? 'SALES_USER';
+  const posOnly = user?.posOnly === true;
+  const isPosOnly = posOnly; // kept for POS full-screen check below
 
   const menuItems = [
     {
       key: '/dashboard',
       icon: <DashboardOutlined />,
       label: t('dashboard'),
-      posAllowed: false,
+      module: 'dashboard',
     },
     {
       key: 'pos',
       icon: <AppstoreOutlined />,
       label: t('pos.title'),
-      posAllowed: true,
+      module: 'pos',
       children: [
-        { key: '/pos/dashboard', label: t('pos.dashboard'), posAllowed: true },
-        { key: '/pos/session', label: t('pos.terminal'), posAllowed: true },
-        { key: '/pos/orders', label: t('pos.orders'), posAllowed: true },
-        { key: '/pos/credit', label: t('pos.credit'), posAllowed: true },
-        { key: '/pos/products', label: t('pos.products'), posAllowed: false },
-        { key: '/pos/reporting', label: t('pos.reporting'), posAllowed: false },
-        { key: '/pos/configuration', label: t('pos.configuration'), posAllowed: false },
+        { key: '/pos/dashboard', label: t('pos.dashboard'), module: 'pos' },
+        { key: '/pos/session', label: t('pos.terminal'), module: 'pos' },
+        { key: '/pos/orders', label: t('pos.orders'), module: 'pos' },
+        { key: '/pos/credit', label: t('pos.credit'), module: 'pos' },
+        { key: '/pos/products', label: t('pos.products'), module: 'pos' },
+        { key: '/pos/reporting', label: t('pos.reporting'), module: 'pos' },
+        { key: '/pos/configuration', label: t('pos.configuration'), module: 'pos' },
       ],
     },
     {
       key: 'sales',
       icon: <ShoppingCartOutlined />,
       label: t('sales.title'),
-      posAllowed: false,
+      module: 'sales',
       children: [
-        { key: '/sales/quotes', label: t('sales.quotations'), posAllowed: false },
-        { key: '/sales/invoices', label: t('sales.invoices'), posAllowed: false },
-        { key: '/sales/customers', label: t('sales.customers'), posAllowed: false },
-        { key: '/sales/credit-notes', label: t('sales.creditNotes'), posAllowed: false },
-        { key: '/sales/price-lists', label: t('sales.priceLists'), posAllowed: false },
+        { key: '/sales/quotes', label: t('sales.quotations'), module: 'sales' },
+        { key: '/sales/invoices', label: t('sales.invoices'), module: 'sales' },
+        { key: '/sales/customers', label: t('sales.customers'), module: 'sales' },
+        { key: '/sales/credit-notes', label: t('sales.creditNotes'), module: 'sales' },
+        { key: '/sales/price-lists', label: t('sales.priceLists'), module: 'sales' },
       ],
     },
     {
       key: 'accounting',
       icon: <AccountBookOutlined />,
       label: t('accounting.title'),
-      posAllowed: false,
+      module: 'accounting',
       children: [
-        { key: '/accounting/accounts', label: t('accounting.chartOfAccounts'), posAllowed: false },
-        { key: '/accounting/expenses', label: t('accounting.expenses'), posAllowed: false },
-        { key: '/accounting/journals', label: t('accounting.journalEntries'), posAllowed: false },
-        { key: '/accounting/trial-balance', label: t('accounting.trialBalance'), posAllowed: false },
-        { key: '/accounting/pnl', label: t('accounting.profitLoss'), posAllowed: false },
-        { key: '/accounting/balance-sheet', label: t('accounting.balanceSheet'), posAllowed: false },
-        { key: '/accounting/cash-flow', label: 'Daily Collections', posAllowed: false },
-        { key: '/accounting/sales-report', label: 'Sales Reports', posAllowed: false },
-        { key: '/accounting/general-ledger', label: t('accounting.generalLedger'), posAllowed: false },
-        { key: '/accounting/aged-receivables', label: t('accounting.agedReceivables'), posAllowed: false },
-        { key: '/accounting/aged-payables', label: t('accounting.agedPayables'), posAllowed: false },
-        { key: '/accounting/payment-modes', label: t('accounting.paymentModes'), posAllowed: false },
-        { key: '/accounting/bank-accounts', label: t('accounting.bankAccounts'), posAllowed: false },
-        { key: '/accounting/budgets', label: t('accounting.budgets'), posAllowed: false },
-        { key: '/accounting/tax-reports', label: t('accounting.taxReports'), posAllowed: false },
+        { key: '/accounting/accounts', label: t('accounting.chartOfAccounts'), module: 'accounting' },
+        { key: '/accounting/expenses', label: t('accounting.expenses'), module: 'accounting' },
+        { key: '/accounting/journals', label: t('accounting.journalEntries'), module: 'accounting' },
+        { key: '/accounting/trial-balance', label: t('accounting.trialBalance'), module: 'accounting' },
+        { key: '/accounting/pnl', label: t('accounting.profitLoss'), module: 'accounting' },
+        { key: '/accounting/balance-sheet', label: t('accounting.balanceSheet'), module: 'accounting' },
+        { key: '/accounting/cash-flow', label: 'Daily Collections', module: 'accounting' },
+        { key: '/accounting/sales-report', label: 'Sales Reports', module: 'accounting' },
+        { key: '/accounting/general-ledger', label: t('accounting.generalLedger'), module: 'accounting' },
+        { key: '/accounting/aged-receivables', label: t('accounting.agedReceivables'), module: 'accounting' },
+        { key: '/accounting/aged-payables', label: t('accounting.agedPayables'), module: 'accounting' },
+        { key: '/accounting/payment-modes', label: t('accounting.paymentModes'), module: 'accounting' },
+        { key: '/accounting/bank-accounts', label: t('accounting.bankAccounts'), module: 'accounting' },
+        { key: '/accounting/budgets', label: t('accounting.budgets'), module: 'accounting' },
+        { key: '/accounting/tax-reports', label: t('accounting.taxReports'), module: 'accounting' },
       ],
     },
     {
       key: 'inventory',
       icon: <InboxOutlined />,
       label: t('inventory.title'),
-      posAllowed: false,
+      module: 'inventory',
       children: [
-        { key: '/inventory/products', label: t('inventory.products'), posAllowed: false },
-        { key: '/inventory/warehouses', label: t('inventory.warehouses'), posAllowed: false },
-        { key: '/inventory/movements', label: t('inventory.stockMovements'), posAllowed: false },
-        { key: '/inventory/transfers', label: t('inventory.stockTransfers'), posAllowed: false },
-        { key: '/inventory/counts', label: t('inventory.stockCounts'), posAllowed: false },
-        { key: '/inventory/lots', label: t('inventory.lots'), posAllowed: false },
-        { key: '/inventory/serials', label: t('inventory.serialNumbers'), posAllowed: false },
-        { key: '/inventory/valuation', label: t('inventory.stockValuation'), posAllowed: false },
+        { key: '/inventory/products', label: t('inventory.products'), module: 'inventory' },
+        { key: '/inventory/warehouses', label: t('inventory.warehouses'), module: 'inventory' },
+        { key: '/inventory/movements', label: t('inventory.stockMovements'), module: 'inventory' },
+        { key: '/inventory/transfers', label: t('inventory.stockTransfers'), module: 'inventory' },
+        { key: '/inventory/counts', label: t('inventory.stockCounts'), module: 'inventory' },
+        { key: '/inventory/lots', label: t('inventory.lots'), module: 'inventory' },
+        { key: '/inventory/serials', label: t('inventory.serialNumbers'), module: 'inventory' },
+        { key: '/inventory/valuation', label: t('inventory.stockValuation'), module: 'inventory' },
       ],
     },
     {
       key: 'procurement',
       icon: <ShoppingOutlined />,
       label: t('purchase.title'),
-      posAllowed: false,
+      module: 'procurement',
       children: [
-        { key: '/procurement/rfq', label: t('purchase.orders'), posAllowed: false },
-        { key: '/procurement/vendor-bills', label: t('purchase.vendorBills'), posAllowed: false },
-        { key: '/procurement/suppliers', label: t('purchase.vendors'), posAllowed: false },
-        { key: '/procurement/returns', label: t('purchase.purchaseReturns'), posAllowed: false },
+        { key: '/procurement/rfq', label: t('purchase.orders'), module: 'procurement' },
+        { key: '/procurement/vendor-bills', label: t('purchase.vendorBills'), module: 'procurement' },
+        { key: '/procurement/suppliers', label: t('purchase.vendors'), module: 'procurement' },
+        { key: '/procurement/returns', label: t('purchase.purchaseReturns'), module: 'procurement' },
       ],
     },
     {
       key: 'hr',
       icon: <TeamOutlined />,
       label: t('hr.title'),
-      posAllowed: false,
+      module: 'hr',
       children: [
-        { key: '/hr/employees', label: t('hr.employees'), posAllowed: false },
-        { key: '/hr/payroll', label: t('hr.payroll'), posAllowed: false },
-        { key: '/hr/leave', label: t('hr.leave'), posAllowed: false },
-        { key: '/hr/attendance', label: t('hr.attendance'), posAllowed: false },
-        { key: '/hr/recruitment', label: t('hr.recruitment'), posAllowed: false },
-        { key: '/hr/appraisals', label: t('hr.appraisals'), posAllowed: false },
-        { key: '/hr/allowances', label: t('hr.allowancesLoans'), posAllowed: false },
+        { key: '/hr/employees', label: t('hr.employees'), module: 'hr' },
+        { key: '/hr/payroll', label: t('hr.payroll'), module: 'hr' },
+        { key: '/hr/leave', label: t('hr.leave'), module: 'hr' },
+        { key: '/hr/attendance', label: t('hr.attendance'), module: 'hr' },
+        { key: '/hr/recruitment', label: t('hr.recruitment'), module: 'hr' },
+        { key: '/hr/appraisals', label: t('hr.appraisals'), module: 'hr' },
+        { key: '/hr/allowances', label: t('hr.allowancesLoans'), module: 'hr' },
       ],
     },
     {
       key: 'etims',
       icon: <SafetyCertificateOutlined />,
       label: t('etims.title'),
-      posAllowed: false,
+      module: 'etims',
       children: [
-        { key: '/etims/config', label: t('etims.configuration'), posAllowed: false },
+        { key: '/etims/config', label: t('etims.configuration'), module: 'etims' },
       ],
     },
     {
       key: '/contacts',
       icon: <ContactsOutlined />,
       label: t('contacts'),
-      posAllowed: false,
+      module: 'contacts',
     },
     {
       key: '/crm/leads',
       icon: <FundProjectionScreenOutlined />,
       label: t('crm'),
-      posAllowed: false,
+      module: 'crm',
     },
     {
       key: 'mrp',
       icon: <ApartmentOutlined />,
       label: t('manufacturing.title'),
-      posAllowed: false,
+      module: 'mrp',
       children: [
-        { key: '/mrp/bom', label: t('manufacturing.billsOfMaterials'), posAllowed: false },
-        { key: '/mrp/work-orders', label: t('manufacturing.workOrders'), posAllowed: false },
+        { key: '/mrp/bom', label: t('manufacturing.billsOfMaterials'), module: 'mrp' },
+        { key: '/mrp/work-orders', label: t('manufacturing.workOrders'), module: 'mrp' },
       ],
     },
     {
       key: '/analytics',
       icon: <LineChartOutlined />,
       label: t('analytics'),
-      posAllowed: false,
+      module: 'analytics',
     },
     {
       key: '/ai-insights',
       icon: <BulbOutlined />,
       label: t('aiInsights'),
-      posAllowed: false,
+      module: 'aiInsights',
     },
     {
       key: '/workflow/approvals',
       icon: <CheckSquareOutlined />,
       label: t('approvals'),
-      posAllowed: false,
+      module: 'approvals',
     },
     {
       key: '/notifications',
       icon: <NotificationOutlined />,
       label: t('notifications'),
-      posAllowed: false,
+      module: 'notifications',
     },
     {
       key: '/settings',
       icon: <SettingOutlined />,
       label: t('settings'),
-      posAllowed: false,
+      module: 'settings',
     },
   ];
 
-  // Filter menu to only items allowed for this user's access level
+  // Filter menu items based on the user's role and posOnly flag
   const visibleMenu = menuItems
-    .filter((item) => !isPosOnly || item.posAllowed)
+    .filter((item) => canAccess(userRole, item.module, posOnly))
     .map((item) => ({
       ...item,
-      children: item.children?.filter((c) => !isPosOnly || c.posAllowed),
+      children: item.children?.filter((c) => canAccess(userRole, c.module, posOnly)),
     }));
 
-  // Block posOnly users from navigating to non-POS routes via URL
+  // posOnly users can only access POS routes; redirect everything else
   React.useEffect(() => {
-    if (isPosOnly && !location.pathname.startsWith('/pos')) {
+    if (posOnly && !location.pathname.startsWith('/pos')) {
       navigate('/pos/session', { replace: true });
     }
-  }, [isPosOnly, location.pathname, navigate]);
+  }, [posOnly, location.pathname, navigate]);
 
   const { data: countData } = useQuery({
     queryKey: ['notifications', 'count'],
