@@ -227,18 +227,17 @@ export const UsersSettingsPage: React.FC = () => {
 
   return (
     <Space direction="vertical" style={{ width: '100%' }} size="large">
-      <div>
-        <Title level={4} style={{ margin: 0 }}>Users & Access Control</Title>
-        <Text type="secondary">
-          Each user's <strong>role</strong> controls which modules they can access.
-          Admin has full control. Sales can use POS and invoices. HR, Accountant,
-          Inventory and Procurement each manage their own module. The POS-only toggle
-          further restricts a Sales user to the terminal only.
-        </Text>
-      </div>
-
       <Card bordered={false} style={{ borderRadius: 22 }}>
         <Space direction="vertical" style={{ width: '100%' }} size="middle">
+          <div>
+            <Title level={4} style={{ margin: 0 }}>Users & Access Control</Title>
+            <Text type="secondary">
+              Each user's <strong>role</strong> controls which modules they can access.
+              Admin has full control. Sales can use POS and invoices. HR, Accountant,
+              Inventory and Procurement each manage their own module. The POS-only toggle
+              further restricts a Sales user to the terminal only.
+            </Text>
+          </div>
           <Space style={{ justifyContent: 'space-between', width: '100%' }}>
             <Space>
               <TeamOutlined style={{ fontSize: 18, color: '#6f67ff' }} />
