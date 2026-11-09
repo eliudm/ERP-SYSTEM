@@ -310,6 +310,8 @@ model Customer {
   phone                     String?
   address                   String?
   taxPin                    String? // KRA PIN
+  creditAllowed             Boolean                    @default(false)
+  creditLimit               Decimal?                   @db.Decimal(14, 2)
   isActive                  Boolean                    @default(true)
   createdAt                 DateTime                   @default(now())
   updatedAt                 DateTime                   @updatedAt

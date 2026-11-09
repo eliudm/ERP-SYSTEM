@@ -2,21 +2,24 @@ import React, { useState } from 'react';
 import {
   Table, Button, Card, Typography,
   Space, Input, Modal, Form, message, Tag,
-  Row, Col, Statistic, Descriptions, Divider,
+  Row, Col, Statistic, Descriptions, Divider, Switch, InputNumber, Tooltip, Progress,
 } from 'antd';
 import {
   PlusOutlined, SearchOutlined, EditOutlined,
-  HistoryOutlined, DollarOutlined,
+  HistoryOutlined, DollarOutlined, CreditCardOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { salesApi } from '../../../api/sales.api';
 import { formatCurrency, formatDate, getStatusColor } from '../../../utils/format';
 import type { Customer } from '../../../types';
+import { useAuthStore } from '../../../store/auth.store';
 
 const { Title, Text } = Typography;
 const { Search } = Input;
 
 export const CustomersPage: React.FC = () => {
+  const currentUser = useAuthStore((s) => s.user);
+  const isAdmin = currentUser?.role === 'ADMIN';
   const [search, setSearch] = useState('');
   const [modal, setModal] = useState<{ open: boolean; editing: Customer | null }>({ open: false, editing: null });
   const [historyId, setHistoryId] = useState<string | null>(null);
@@ -68,6 +71,8 @@ export const CustomersPage: React.FC = () => {
       phone: customer.phone,
       address: customer.address,
       taxPin: customer.taxPin,
+      creditAllowed: customer.creditAllowed ?? false,
+      creditLimit: customer.creditLimit ?? null,
     });
     setModal({ open: true, editing: customer });
   };
@@ -114,6 +119,20 @@ export const CustomersPage: React.FC = () => {
       render: (v: boolean) => (
         <Tag color={v ? 'green' : 'red'}>{v ? 'Active' : 'Inactive'}</Tag>
       ),
+    },
+    {
+      title: 'Credit',
+      key: 'credit',
+      render: (_: any, record: Customer) => {
+        if (!record.creditAllowed) return <Tag color="default">None</Tag>;
+        return (
+          <Tooltip title={record.creditLimit ? `Limit: ${formatCurrency(Number(record.creditLimit))}` : 'No limit set'}>
+            <Tag color="blue" icon={<CreditCardOutlined />}>
+              {record.creditLimit ? formatCurrency(Number(record.creditLimit)) : 'Unlimited'}
+            </Tag>
+          </Tooltip>
+        );
+      },
     },
     {
       title: 'Actions',
@@ -167,6 +186,7 @@ export const CustomersPage: React.FC = () => {
           dataSource={customers || []}
           rowKey="id"
           loading={isLoading}
+          scroll={{ x: 'max-content' }}
         />
       </Card>
 
@@ -200,6 +220,38 @@ export const CustomersPage: React.FC = () => {
           <Form.Item name="taxPin" label="KRA PIN">
             <Input placeholder="P123456789A" />
           </Form.Item>
+
+          {isAdmin && (
+            <>
+              <Divider orientation="left" style={{ fontSize: 13 }}>Credit Settings</Divider>
+              <Form.Item name="creditAllowed" label="Allow Credit Purchases" valuePropName="checked">
+                <Switch checkedChildren="Yes" unCheckedChildren="No" />
+              </Form.Item>
+              <Form.Item
+                noStyle
+                shouldUpdate={(prev, curr) => prev.creditAllowed !== curr.creditAllowed}
+              >
+                {({ getFieldValue }) =>
+                  getFieldValue('creditAllowed') ? (
+                    <Form.Item
+                      name="creditLimit"
+                      label="Credit Limit"
+                      tooltip="Maximum outstanding balance allowed. Leave blank for no limit."
+                    >
+                      <InputNumber
+                        min={0}
+                        style={{ width: '100%' }}
+                        placeholder="e.g. 50000"
+                        prefix="KES"
+                        formatter={(v) => v ? String(v).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : ''}
+                        parser={(v) => Number((v || '').replace(/,/g, '')) as any}
+                      />
+                    </Form.Item>
+                  ) : null
+                }
+              </Form.Item>
+            </>
+          )}
         </Form>
       </Modal>
 
@@ -242,7 +294,29 @@ export const CustomersPage: React.FC = () => {
                 <Descriptions.Item label="Phone">{histCustomer.phone || '—'}</Descriptions.Item>
                 <Descriptions.Item label="Email">{histCustomer.email || '—'}</Descriptions.Item>
                 <Descriptions.Item label="KRA PIN">{histCustomer.taxPin || '—'}</Descriptions.Item>
+                <Descriptions.Item label="Credit">
+                  {(histCustomer as any).creditAllowed
+                    ? ((histCustomer as any).creditLimit
+                        ? <Tag color="blue">Limit: {formatCurrency(Number((histCustomer as any).creditLimit))}</Tag>
+                        : <Tag color="blue">Unlimited</Tag>)
+                    : <Tag color="default">Not allowed</Tag>}
+                </Descriptions.Item>
               </Descriptions>
+            )}
+            {(histCustomer as any)?.creditAllowed && (histCustomer as any)?.creditLimit && histSummary.outstandingBalance > 0 && (
+              <Card size="small" style={{ marginBottom: 16, borderColor: '#d4b106' }}>
+                <Text strong style={{ display: 'block', marginBottom: 6 }}>
+                  <CreditCardOutlined /> Credit Utilisation
+                </Text>
+                <Progress
+                  percent={Math.min(100, Math.round((histSummary.outstandingBalance / Number((histCustomer as any).creditLimit)) * 100))}
+                  strokeColor={histSummary.outstandingBalance > Number((histCustomer as any).creditLimit) * 0.9 ? '#f5222d' : '#1677ff'}
+                  format={(p) => `${p}%`}
+                />
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  {formatCurrency(histSummary.outstandingBalance)} outstanding of {formatCurrency(Number((histCustomer as any).creditLimit))} limit
+                </Text>
+              </Card>
             )}
 
             <Divider>Invoice History</Divider>

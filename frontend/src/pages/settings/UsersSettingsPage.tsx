@@ -253,6 +253,7 @@ export const UsersSettingsPage: React.FC = () => {
             dataSource={filteredUsers}
             loading={isLoading}
             pagination={false}
+            scroll={{ x: 'max-content' }}
           />
         </Space>
       </Card>

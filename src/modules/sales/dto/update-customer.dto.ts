@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsEmail } from 'class-validator';
+import { IsString, IsOptional, IsEmail, IsBoolean, IsNumber, Min } from 'class-validator';
 
 export class UpdateCustomerDto {
   @IsOptional()
@@ -20,4 +20,13 @@ export class UpdateCustomerDto {
   @IsOptional()
   @IsString()
   taxPin?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  creditAllowed?: boolean;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  creditLimit?: number | null;
 }

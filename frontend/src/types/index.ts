@@ -71,6 +71,8 @@ export interface Customer {
   address?: string;
   taxPin?: string;
   isActive: boolean;
+  creditAllowed?: boolean;
+  creditLimit?: number | null;
 }
 
 export interface ProductCategory {

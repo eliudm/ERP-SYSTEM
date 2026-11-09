@@ -240,6 +240,40 @@ export class InvoicesService {
           'Credit sales require a named customer. Walk-in customers cannot be used for credit transactions.',
         );
       }
+
+      // Enforce credit limit
+      const customer = invoice.customer!;
+      if (!customer.creditAllowed) {
+        throw new BadRequestException(
+          `Credit sales are not enabled for ${customer.name}. Contact your administrator to set a credit limit.`,
+        );
+      }
+
+      if (customer.creditLimit !== null && customer.creditLimit !== undefined) {
+        // Sum outstanding balances: APPROVED invoices minus credit payments made
+        const outstanding = await this.prisma.salesInvoice.findMany({
+          where: {
+            customerId: customer.id,
+            status: 'APPROVED',
+            id: { not: id },
+          },
+          select: { total: true, creditPayments: { select: { amount: true } } },
+        });
+        const outstandingBalance = outstanding.reduce((sum, inv) => {
+          const paid = inv.creditPayments.reduce((s, p) => s + Number(p.amount), 0);
+          return sum + Number(inv.total) - paid;
+        }, 0);
+
+        const newTotal = Number(invoice.total);
+        const limit = Number(customer.creditLimit);
+        if (outstandingBalance + newTotal > limit) {
+          throw new BadRequestException(
+            `Credit limit exceeded for ${customer.name}. ` +
+            `Limit: ${limit.toFixed(2)}, Outstanding: ${outstandingBalance.toFixed(2)}, ` +
+            `This sale: ${newTotal.toFixed(2)}.`,
+          );
+        }
+      }
     }
 
     const warehouse = warehouseId
