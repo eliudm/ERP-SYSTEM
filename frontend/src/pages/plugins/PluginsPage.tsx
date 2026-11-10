@@ -1,275 +1,263 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
-  Button, Table, Tag, Space, Form, Input, Select, message,
-  Typography, Card, Switch, Popconfirm, Modal,
+  Button, Card, Col, Form, Input, Modal, Popconfirm, Row,
+  Space, Switch, Tag, Typography, message as antMessage, Tooltip,
 } from 'antd';
-import { PlusOutlined, SettingOutlined } from '@ant-design/icons';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { pluginsApi } from '../../api/plugins.api';
-import type { ColumnsType } from 'antd/es/table';
+import {
+  SettingOutlined, GlobalOutlined, DeleteOutlined,
+  ShopOutlined, LinkOutlined, PlusOutlined,
+} from '@ant-design/icons';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
+import { pluginsApi, type Plugin } from '../../api/plugins.api';
 
-const { Title, Text } = Typography;
+const { Title, Text, Paragraph } = Typography;
 
-interface Plugin {
-  id: string;
-  name: string;
-  version: string;
-  description: string | null;
-  author: string | null;
-  entryPoint: string;
-  config: Record<string, any> | null;
-  status: 'ACTIVE' | 'INACTIVE' | string;
-  installedAt: string;
-  updatedAt: string;
-}
+// ─── Configure modal ──────────────────────────────────────────────────────────
 
-const STATUS_COLOR: Record<string, string> = {
-  ACTIVE: 'green',
-  INACTIVE: 'default',
-};
-
-// ─── Register plugin modal ───────────────────────────────────────────────────
-const RegisterPluginModal: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
+const ConfigureModal: React.FC<{ plugin: Plugin | null; onClose: () => void }> = ({ plugin, onClose }) => {
   const qc = useQueryClient();
   const [form] = Form.useForm();
 
-  const registerMutation = useMutation({
-    mutationFn: (v: any) =>
-      pluginsApi.registerPlugin({
-        ...v,
-        config: v.config ? JSON.parse(v.config) : undefined,
-      }),
-    onSuccess: () => {
-      message.success('Plugin registered');
-      qc.invalidateQueries({ queryKey: ['plugins'] });
-      form.resetFields();
-      onClose();
-    },
-    onError: (e: any) => message.error(e?.response?.data?.message ?? 'Error'),
-  });
-
-  const handleOk = () =>
-    form.validateFields().then((values) => {
-      try {
-        if (values.config) JSON.parse(values.config);
-      } catch {
-        message.error('Config must be valid JSON');
-        return;
-      }
-      registerMutation.mutate(values);
-    });
-
-  return (
-    <Modal
-      title="Register New Plugin"
-      open={open}
-      onCancel={() => { form.resetFields(); onClose(); }}
-      onOk={handleOk}
-      confirmLoading={registerMutation.isPending}
-      okText="Register"
-    >
-      <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
-        <Form.Item name="name" label="Name" rules={[{ required: true, message: 'Name is required' }]}>
-          <Input placeholder="e.g. loyalty-rewards" />
-        </Form.Item>
-        <Form.Item name="version" label="Version" rules={[{ required: true, message: 'Version is required' }]}>
-          <Input placeholder="e.g. 1.0.0" />
-        </Form.Item>
-        <Form.Item name="entryPoint" label="Entry Point" rules={[{ required: true, message: 'Entry point is required' }]}>
-          <Input placeholder="e.g. plugins/loyalty-rewards/index.js" />
-        </Form.Item>
-        <Form.Item name="description" label="Description">
-          <Input.TextArea rows={2} placeholder="What this plugin does…" />
-        </Form.Item>
-        <Form.Item name="author" label="Author">
-          <Input placeholder="e.g. Acme Corp" />
-        </Form.Item>
-        <Form.Item name="config" label="Initial Config (JSON)">
-          <Input.TextArea rows={4} placeholder='e.g. { "apiKey": "…" }' />
-        </Form.Item>
-      </Form>
-    </Modal>
-  );
-};
-
-// ─── Configure plugin modal ──────────────────────────────────────────────────
-const ConfigurePluginModal: React.FC<{ plugin: Plugin | null; onClose: () => void }> = ({ plugin, onClose }) => {
-  const qc = useQueryClient();
-  const [form] = Form.useForm();
-
-  useEffect(() => {
+  React.useEffect(() => {
     if (plugin) {
-      form.setFieldsValue({
-        version: plugin.version,
-        config: plugin.config ? JSON.stringify(plugin.config, null, 2) : '{}',
-      });
+      const fields: Record<string, any> = { version: plugin.version };
+      if (plugin.config) Object.assign(fields, plugin.config);
+      if (plugin.pageUrl) { fields.pageUrl = plugin.pageUrl; fields.pageLabel = plugin.pageLabel; }
+      form.setFieldsValue(fields);
     }
   }, [plugin, form]);
 
-  const updateMutation = useMutation({
-    mutationFn: (v: any) =>
-      pluginsApi.updatePluginConfig(plugin!.id, {
-        version: v.version,
-        config: v.config ? JSON.parse(v.config) : undefined,
-      }),
-    onSuccess: () => {
-      message.success('Configuration updated');
-      qc.invalidateQueries({ queryKey: ['plugins'] });
-      onClose();
-    },
-    onError: (e: any) => message.error(e?.response?.data?.message ?? 'Error'),
+  const mutation = useMutation({
+    mutationFn: (values: any) => pluginsApi.updatePluginConfig(plugin!.id, {
+      version: values.version,
+      config: plugin!.pageUrl ? {} : Object.fromEntries(
+        Object.entries(values).filter(([k]) => k !== 'version' && k !== 'pageUrl' && k !== 'pageLabel')
+      ),
+      ...(plugin!.pageUrl && { pageUrl: values.pageUrl, pageLabel: values.pageLabel }),
+    }),
+    onSuccess: () => { antMessage.success('Saved'); qc.invalidateQueries({ queryKey: ['plugins'] }); onClose(); },
+    onError: (e: any) => antMessage.error(e?.response?.data?.message ?? 'Error'),
   });
 
-  const handleOk = () =>
-    form.validateFields().then((values) => {
-      try {
-        if (values.config) JSON.parse(values.config);
-      } catch {
-        message.error('Config must be valid JSON');
-        return;
-      }
-      updateMutation.mutate(values);
-    });
+  const isPage = !!plugin?.pageUrl;
 
   return (
     <Modal
       title={`Configure — ${plugin?.name ?? ''}`}
       open={!!plugin}
       onCancel={onClose}
-      onOk={handleOk}
-      confirmLoading={updateMutation.isPending}
+      onOk={() => form.validateFields().then((v) => mutation.mutate(v))}
+      confirmLoading={mutation.isPending}
       okText="Save"
+      width={520}
     >
-      <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
-        <Form.Item name="version" label="Version">
-          <Input placeholder="e.g. 1.0.1" />
+      <Form form={form} layout="vertical" style={{ marginTop: 8 }}>
+        <Form.Item name="version" label="Version"><Input /></Form.Item>
+        {isPage ? (
+          <>
+            <Form.Item name="pageUrl" label="Page URL" rules={[{ required: true }]}><Input prefix={<LinkOutlined />} /></Form.Item>
+            <Form.Item name="pageLabel" label="Sidebar Label" rules={[{ required: true }]}><Input /></Form.Item>
+          </>
+        ) : (
+          <Form.Item name="config" label="Config (JSON)">
+            <Input.TextArea rows={6} style={{ fontFamily: 'monospace', fontSize: 12 }}
+              defaultValue={plugin?.config ? JSON.stringify(plugin.config, null, 2) : '{}'} />
+          </Form.Item>
+        )}
+      </Form>
+    </Modal>
+  );
+};
+
+// ─── Add custom page modal ────────────────────────────────────────────────────
+
+const AddPageModal: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
+  const qc = useQueryClient();
+  const [form] = Form.useForm();
+
+  const mutation = useMutation({
+    mutationFn: (values: any) => pluginsApi.registerPlugin({
+      name: values.pageLabel || 'Custom Page',
+      version: '1.0.0',
+      category: 'Custom',
+      description: 'Custom embedded page',
+      author: 'Custom',
+      config: {},
+      pageUrl: values.pageUrl,
+      pageLabel: values.pageLabel,
+      pageIcon: 'GlobalOutlined',
+    }),
+    onSuccess: () => {
+      antMessage.success('Custom page added');
+      qc.invalidateQueries({ queryKey: ['plugins'] });
+      form.resetFields();
+      onClose();
+    },
+    onError: (e: any) => antMessage.error(e?.response?.data?.message ?? 'Error'),
+  });
+
+  return (
+    <Modal
+      title={<Space><span style={{ fontSize: 20 }}>🖥️</span><span>Add Custom Page</span></Space>}
+      open={open}
+      onCancel={() => { form.resetFields(); onClose(); }}
+      onOk={() => form.validateFields().then((v) => mutation.mutate(v))}
+      confirmLoading={mutation.isPending}
+      okText="Add"
+    >
+      <Paragraph type="secondary" style={{ marginBottom: 16 }}>
+        Embed any external web app as a full page inside the sidebar navigation.
+      </Paragraph>
+      <Form form={form} layout="vertical">
+        <Form.Item name="pageUrl" label="Page URL" rules={[{ required: true, type: 'url', message: 'Enter a valid URL' }]}>
+          <Input prefix={<LinkOutlined />} placeholder="https://mytool.example.com" />
         </Form.Item>
-        <Form.Item name="config" label="Config (JSON)">
-          <Input.TextArea rows={8} style={{ fontFamily: 'monospace' }} />
+        <Form.Item name="pageLabel" label="Sidebar Label" rules={[{ required: true }]}>
+          <Input placeholder="My Tool" />
         </Form.Item>
       </Form>
     </Modal>
   );
 };
 
-// ─── Main page ────────────────────────────────────────────────────────────────
-export const PluginsPage: React.FC = () => {
+// ─── Installed plugin card ────────────────────────────────────────────────────
+
+const InstalledCard: React.FC<{ plugin: Plugin; onConfigure: (p: Plugin) => void }> = ({ plugin, onConfigure }) => {
   const qc = useQueryClient();
-  const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
-  const [registerOpen, setRegisterOpen] = useState(false);
-  const [configuring, setConfiguring] = useState<Plugin | null>(null);
 
-  const { data: plugins = [], isLoading } = useQuery<Plugin[]>({
-    queryKey: ['plugins', statusFilter],
-    queryFn: () => pluginsApi.getPlugins(statusFilter),
+  const toggleMut = useMutation({
+    mutationFn: () => plugin.status === 'ACTIVE' ? pluginsApi.deactivatePlugin(plugin.id) : pluginsApi.activatePlugin(plugin.id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['plugins'] }),
+    onError: (e: any) => antMessage.error(e?.response?.data?.message ?? 'Error'),
   });
 
-  const activateMutation = useMutation({
-    mutationFn: (id: string) => pluginsApi.activatePlugin(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['plugins'] }); message.success('Plugin activated'); },
-    onError: (e: any) => message.error(e?.response?.data?.message ?? 'Error'),
+  const uninstallMut = useMutation({
+    mutationFn: () => pluginsApi.uninstallPlugin(plugin.id),
+    onSuccess: () => { antMessage.success('Removed'); qc.invalidateQueries({ queryKey: ['plugins'] }); },
+    onError: (e: any) => antMessage.error(e?.response?.data?.message ?? 'Error'),
   });
 
-  const deactivateMutation = useMutation({
-    mutationFn: (id: string) => pluginsApi.deactivatePlugin(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['plugins'] }); message.success('Plugin deactivated'); },
-    onError: (e: any) => message.error(e?.response?.data?.message ?? 'Error'),
-  });
-
-  const uninstallMutation = useMutation({
-    mutationFn: (id: string) => pluginsApi.uninstallPlugin(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['plugins'] }); message.success('Plugin uninstalled'); },
-    onError: (e: any) => message.error(e?.response?.data?.message ?? 'Error'),
-  });
-
-  const columns: ColumnsType<Plugin> = [
-    {
-      title: 'Name',
-      dataIndex: 'name',
-      key: 'name',
-      render: (v) => <Text strong>{v}</Text>,
-    },
-    { title: 'Version', dataIndex: 'version', key: 'version', render: (v) => <Text code>{v}</Text> },
-    { title: 'Description', dataIndex: 'description', key: 'description', render: (v) => v ?? '—' },
-    { title: 'Author', dataIndex: 'author', key: 'author', render: (v) => v ?? '—' },
-    {
-      title: 'Status',
-      dataIndex: 'status',
-      key: 'status',
-      render: (v: string) => <Tag color={STATUS_COLOR[v] ?? 'default'}>{v}</Tag>,
-    },
-    {
-      title: 'Active',
-      key: 'toggle',
-      render: (_, r) => (
-        <Switch
-          checked={r.status === 'ACTIVE'}
-          loading={activateMutation.isPending || deactivateMutation.isPending}
-          onChange={(checked) =>
-            checked ? activateMutation.mutate(r.id) : deactivateMutation.mutate(r.id)
-          }
-        />
-      ),
-    },
-    {
-      title: '',
-      key: 'actions',
-      render: (_, r) => (
-        <Space>
-          <Button size="small" icon={<SettingOutlined />} onClick={() => setConfiguring(r)}>
-            Configure
-          </Button>
-          <Popconfirm
-            title="Uninstall this plugin?"
-            description="This will permanently remove the plugin registration."
-            onConfirm={() => uninstallMutation.mutate(r.id)}
-            okText="Uninstall"
-            okButtonProps={{ danger: true }}
-          >
-            <Button size="small" danger>Uninstall</Button>
-          </Popconfirm>
-        </Space>
-      ),
-    },
-  ];
+  const logo = plugin.pageUrl ? '🖥️' : plugin.category === 'E-commerce' ? '🛍️' :
+    plugin.category === 'Accounting' ? '📊' : plugin.category === 'Payments' ? '💳' :
+    plugin.category === 'Communication' ? '✉️' : plugin.category === 'Logistics' ? '📦' : '🔌';
 
   return (
-    <Space direction="vertical" style={{ width: '100%' }} size="large">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-        <Title level={3} style={{ margin: 0 }}>Plugins</Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => setRegisterOpen(true)}>
-          Register Plugin
-        </Button>
+    <Card size="small" style={{ borderColor: plugin.status === 'ACTIVE' ? '#1677ff' : undefined }}
+      styles={{ body: { padding: '14px 16px' } }}>
+      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+        <div style={{ fontSize: 28, lineHeight: 1 }}>{logo}</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+            <Space size={6}>
+              <Text strong style={{ fontSize: 14 }}>{plugin.pageLabel || plugin.name}</Text>
+              <Tag color="default" style={{ fontSize: 11, margin: 0 }}>{plugin.category}</Tag>
+              {plugin.status === 'ACTIVE'
+                ? <Tag color="green" style={{ margin: 0 }}>Active</Tag>
+                : <Tag style={{ margin: 0 }}>Inactive</Tag>}
+            </Space>
+            <Switch checked={plugin.status === 'ACTIVE'} onChange={() => toggleMut.mutate()}
+              loading={toggleMut.isPending} size="small" />
+          </div>
+          {plugin.description && (
+            <Text type="secondary" style={{ fontSize: 12 }}>{plugin.description}</Text>
+          )}
+          <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
+            <Button size="small" icon={<SettingOutlined />} onClick={() => onConfigure(plugin)}>Configure</Button>
+            {plugin.websiteUrl && (
+              <Tooltip title={plugin.websiteUrl}>
+                <Button size="small" icon={<GlobalOutlined />} href={plugin.websiteUrl} target="_blank" />
+              </Tooltip>
+            )}
+            <Popconfirm title="Remove this plugin?" description="All configuration will be lost."
+              onConfirm={() => uninstallMut.mutate()} okText="Remove" okButtonProps={{ danger: true }}>
+              <Button size="small" danger icon={<DeleteOutlined />} loading={uninstallMut.isPending} />
+            </Popconfirm>
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+};
+
+// ─── Main page ────────────────────────────────────────────────────────────────
+
+export const PluginsPage: React.FC = () => {
+  const navigate = useNavigate();
+  const [configPlugin, setConfigPlugin] = useState<Plugin | null>(null);
+  const [addPageOpen, setAddPageOpen] = useState(false);
+
+  const { data: installed = [], isLoading } = useQuery<Plugin[]>({
+    queryKey: ['plugins'],
+    queryFn: () => pluginsApi.getPlugins(),
+  });
+
+  const activeCount = installed.filter((p) => p.status === 'ACTIVE').length;
+
+  return (
+    <div style={{ padding: '0 4px' }}>
+      <ConfigureModal plugin={configPlugin} onClose={() => setConfigPlugin(null)} />
+      <AddPageModal open={addPageOpen} onClose={() => setAddPageOpen(false)} />
+
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
+        <div>
+          <Title level={4} style={{ margin: 0 }}>Installed Plugins</Title>
+          <Text type="secondary">
+            {installed.length} installed · {activeCount} active
+          </Text>
+        </div>
+        <Space>
+          <Button icon={<LinkOutlined />} onClick={() => setAddPageOpen(true)}>
+            Add Custom Page
+          </Button>
+          <Button type="primary" icon={<ShopOutlined />} onClick={() => navigate('/marketplace')}>
+            Browse Marketplace
+          </Button>
+        </Space>
       </div>
 
-      <Space wrap>
-        <Select
-          allowClear
-          placeholder="All statuses"
-          style={{ width: 160 }}
-          value={statusFilter}
-          onChange={(v) => setStatusFilter(v)}
-          options={[
-            { value: 'ACTIVE', label: 'Active' },
-            { value: 'INACTIVE', label: 'Inactive' },
-          ]}
-        />
-      </Space>
+      {/* Browse CTA when empty */}
+      {!isLoading && installed.length === 0 && (
+        <Card style={{ textAlign: 'center', borderStyle: 'dashed', background: '#fafafa' }}>
+          <div style={{ padding: '32px 0' }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>⚡</div>
+            <Title level={4} style={{ color: '#595959' }}>No plugins installed yet</Title>
+            <Paragraph type="secondary" style={{ maxWidth: 400, margin: '0 auto 20px' }}>
+              Extend your ERP with integrations, invoice templates, receipt designs, POS themes, and more from the Nexus Marketplace.
+            </Paragraph>
+            <Space>
+              <Button type="primary" size="large" icon={<ShopOutlined />} onClick={() => navigate('/marketplace')}>
+                Open Marketplace
+              </Button>
+              <Button size="large" icon={<PlusOutlined />} onClick={() => setAddPageOpen(true)}>
+                Add Custom Page
+              </Button>
+            </Space>
+          </div>
+        </Card>
+      )}
 
-      <Card>
-        <Table
-          columns={columns}
-          dataSource={plugins}
-          loading={isLoading}
-          rowKey="id"
-          size="small"
-          pagination={{ pageSize: 20, showSizeChanger: false, showTotal: (t) => `${t} plugins` }}
-        />
-      </Card>
+      {/* Installed grid */}
+      {installed.length > 0 && (
+        <Row gutter={[16, 16]}>
+          {installed.map((plugin) => (
+            <Col xs={24} sm={12} lg={8} key={plugin.id}>
+              <InstalledCard plugin={plugin} onConfigure={setConfigPlugin} />
+            </Col>
+          ))}
+        </Row>
+      )}
 
-      <RegisterPluginModal open={registerOpen} onClose={() => setRegisterOpen(false)} />
-      <ConfigurePluginModal plugin={configuring} onClose={() => setConfiguring(null)} />
-    </Space>
+      {/* Always-visible browse nudge when items exist */}
+      {installed.length > 0 && (
+        <div style={{ marginTop: 24, textAlign: 'center' }}>
+          <Button icon={<ShopOutlined />} onClick={() => navigate('/marketplace')}>
+            Browse Marketplace for more apps, templates &amp; themes
+          </Button>
+        </div>
+      )}
+    </div>
   );
 };
 

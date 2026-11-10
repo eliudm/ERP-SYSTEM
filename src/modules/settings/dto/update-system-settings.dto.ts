@@ -48,13 +48,18 @@ export class UpdateSystemSettingsDto {
 
   @IsOptional()
   @IsString()
-  @IsIn(['modern', 'classic', 'minimal'])
+  @IsIn(['modern', 'classic', 'minimal', 'corporate', 'executive', 'kra', 'creative', 'simple'])
   invoiceTemplate?: string;
 
   @IsOptional()
   @IsString()
-  @IsIn(['standard', 'compact', 'branded'])
+  @IsIn(['standard', 'compact', 'branded', 'thermal58', 'detailed', 'whatsapp'])
   receiptTemplate?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['ocean', 'dark', 'emerald', 'sunset', 'purple'])
+  posTheme?: string;
 
   @IsOptional()
   @IsString()
@@ -92,4 +97,9 @@ export class UpdateSystemSettingsDto {
   @IsOptional()
   @IsBoolean()
   posReceiptBranding?: boolean;
+
+  @IsOptional()
+  @ValidateIf((o) => o.posScreensaverImage !== null)
+  @IsString()
+  posScreensaverImage?: string | null;
 }

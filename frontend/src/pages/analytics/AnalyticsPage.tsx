@@ -1,9 +1,10 @@
 import React, { useMemo, useState } from 'react';
 import {
-  Card, Col, Row, Space, Typography, DatePicker, Segmented, Table, Statistic, Tag, Empty,
+  Card, Col, Row, Space, Typography, DatePicker, Segmented, Table, Statistic, Tag, Empty, Progress, Avatar,
 } from 'antd';
 import {
   DollarCircleOutlined, ShoppingCartOutlined, TeamOutlined, WarningOutlined, DatabaseOutlined,
+  RiseOutlined, FallOutlined, TrophyOutlined, FileTextOutlined, CheckCircleOutlined,
 } from '@ant-design/icons';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -15,6 +16,7 @@ import type { ColumnsType } from 'antd/es/table';
 import {
   analyticsApi, type AnalyticsGranularity, type TopProduct, type TopCustomer,
   type PaymentMethodBreakdown, type InventoryCategorySummary,
+  type KpiSummary, type SalesRep, type QuoteConversion,
 } from '../../api/analytics.api';
 import { formatCurrency } from '../../utils/format';
 
@@ -75,6 +77,22 @@ export const AnalyticsPage: React.FC = () => {
   const { data: inventorySummary, isLoading: inventoryLoading } = useQuery({
     queryKey: ['analytics', 'inventory-summary'],
     queryFn: () => analyticsApi.getInventorySummary(),
+  });
+
+  // ── Performance metrics ──
+  const { data: kpi, isLoading: kpiLoading } = useQuery({
+    queryKey: ['analytics', 'kpi-summary', startDate, endDate],
+    queryFn: () => analyticsApi.getKpiSummary(startDate, endDate),
+  });
+
+  const { data: salesReps, isLoading: repsLoading } = useQuery({
+    queryKey: ['analytics', 'sales-reps', startDate, endDate],
+    queryFn: () => analyticsApi.getSalesRepLeaderboard(startDate, endDate),
+  });
+
+  const { data: quoteConversion, isLoading: quotesLoading } = useQuery({
+    queryKey: ['analytics', 'quote-conversion', startDate, endDate],
+    queryFn: () => analyticsApi.getQuoteConversion(startDate, endDate),
   });
 
   // ── Merge the three trend series into one chart-ready array, by period ──
@@ -175,6 +193,42 @@ export const AnalyticsPage: React.FC = () => {
           />
         </Space>
       </div>
+
+      {/* ── KPI summary cards ── */}
+      <Row gutter={[16, 16]}>
+        {[
+          { key: 'revenue', label: 'Revenue', value: kpi?.revenue, prefix: 'KES', format: (v: number) => formatCurrency(v), icon: <DollarCircleOutlined />, color: '#1677ff', bg: '#e6f7ff', border: '#91d5ff' },
+          { key: 'invoiceCount', label: 'Invoices', value: kpi?.invoiceCount, format: (v: number) => v.toLocaleString(), icon: <FileTextOutlined />, color: '#52c41a', bg: '#f6ffed', border: '#b7eb8f' },
+          { key: 'avgOrder', label: 'Avg Order Value', value: kpi?.avgOrderValue, format: (v: number) => formatCurrency(v), icon: <ShoppingCartOutlined />, color: '#722ed1', bg: '#f9f0ff', border: '#d3adf7' },
+          { key: 'collection', label: 'Collection Rate', value: kpi?.collectionRate, format: (v: number) => `${v}%`, icon: <CheckCircleOutlined />, color: '#fa8c16', bg: '#fff7e6', border: '#ffd591' },
+          { key: 'customers', label: 'New Customers', value: kpi?.newCustomers, format: (v: number) => v.toLocaleString(), icon: <TeamOutlined />, color: '#13c2c2', bg: '#e6fffb', border: '#87e8de' },
+        ].map((m) => (
+          <Col key={m.key} xs={24} sm={12} lg={4} style={{ flex: '1 1 0' }}>
+            <Card
+              loading={kpiLoading}
+              style={{ borderRadius: 12, background: m.bg, border: `1px solid ${m.border}`, height: '100%' }}
+            >
+              <Statistic
+                title={<Space size={4}>{m.icon}<span>{m.label}</span></Space>}
+                value={m.value?.value ?? 0}
+                formatter={(v) => m.format(Number(v))}
+                valueStyle={{ color: m.color, fontSize: 20 }}
+                suffix={
+                  m.value?.change != null ? (
+                    <span style={{ fontSize: 12, color: m.value.change >= 0 ? '#52c41a' : '#ff4d4f', marginLeft: 4 }}>
+                      {m.value.change >= 0 ? <RiseOutlined /> : <FallOutlined />}
+                      {' '}{Math.abs(m.value.change)}%
+                    </span>
+                  ) : undefined
+                }
+              />
+              {m.value?.change != null && (
+                <Text type="secondary" style={{ fontSize: 11 }}>vs prior period</Text>
+              )}
+            </Card>
+          </Col>
+        ))}
+      </Row>
 
       {/* ── Inventory summary — loads independently of the date range ── */}
       <Row gutter={[16, 16]}>
@@ -305,6 +359,98 @@ export const AnalyticsPage: React.FC = () => {
           <Empty description="No paid sales in this range" />
         )}
       </Card>
+
+      {/* ── Sales rep leaderboard + quote conversion ── */}
+      <Row gutter={[16, 16]}>
+        <Col xs={24} lg={14}>
+          <Card
+            title={<Space><TrophyOutlined style={{ color: '#faad14' }} /> Sales Rep Leaderboard</Space>}
+            bordered={false}
+            style={{ borderRadius: 12 }}
+            loading={repsLoading}
+          >
+            {(salesReps?.data?.length ?? 0) === 0 ? (
+              <Empty description="No POS sales in this period" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+            ) : (
+              <Table
+                rowKey="userId"
+                size="small"
+                pagination={false}
+                dataSource={salesReps?.data ?? []}
+                columns={[
+                  {
+                    title: '#',
+                    width: 36,
+                    render: (_v: unknown, _r: SalesRep, i: number) => (
+                      <Avatar size="small"
+                        style={{ background: i === 0 ? '#faad14' : i === 1 ? '#8c8c8c' : i === 2 ? '#d46b08' : '#1677ff', fontSize: 11 }}>
+                        {i + 1}
+                      </Avatar>
+                    ),
+                  },
+                  {
+                    title: 'Sales Rep',
+                    dataIndex: 'name',
+                    render: (v: string, r: SalesRep) => (
+                      <Space direction="vertical" size={0}>
+                        <Text strong style={{ fontSize: 13 }}>{v || r.email}</Text>
+                        <Text type="secondary" style={{ fontSize: 11 }}>{r.email}</Text>
+                      </Space>
+                    ),
+                  },
+                  { title: 'Invoices', dataIndex: 'count', align: 'right' as const },
+                  { title: 'Revenue', dataIndex: 'revenue', align: 'right' as const, render: (v: number) => formatCurrency(v) },
+                  { title: 'Avg Order', dataIndex: 'avgOrder', align: 'right' as const, render: (v: number) => formatCurrency(v) },
+                ]}
+              />
+            )}
+          </Card>
+        </Col>
+
+        <Col xs={24} lg={10}>
+          <Card
+            title={<Space><FileTextOutlined /> Quote Conversion</Space>}
+            bordered={false}
+            style={{ borderRadius: 12 }}
+            loading={quotesLoading}
+          >
+            {quoteConversion && (
+              <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 48, fontWeight: 700, color: '#1677ff', lineHeight: 1 }}>
+                    {quoteConversion.conversionRate}%
+                  </div>
+                  <Text type="secondary">Conversion rate</Text>
+                  <Progress
+                    percent={quoteConversion.conversionRate}
+                    strokeColor="#1677ff"
+                    showInfo={false}
+                    style={{ marginTop: 8 }}
+                  />
+                </div>
+                <Row gutter={8}>
+                  {[
+                    { label: 'Total Quotes', value: quoteConversion.total, color: '#1677ff' },
+                    { label: 'Converted', value: quoteConversion.converted, color: '#52c41a' },
+                    { label: 'Pending', value: quoteConversion.pending, color: '#faad14' },
+                    { label: 'Lost', value: quoteConversion.expired + quoteConversion.rejected, color: '#ff4d4f' },
+                  ].map((s) => (
+                    <Col span={12} key={s.label} style={{ marginBottom: 8 }}>
+                      <div style={{ background: '#fafafa', borderRadius: 8, padding: '8px 12px' }}>
+                        <div style={{ fontSize: 20, fontWeight: 700, color: s.color }}>{s.value}</div>
+                        <Text type="secondary" style={{ fontSize: 11 }}>{s.label}</Text>
+                      </div>
+                    </Col>
+                  ))}
+                </Row>
+              </Space>
+            )}
+            {!quoteConversion && !quotesLoading && (
+              <Empty description="No quotes in this period" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+            )}
+          </Card>
+        </Col>
+      </Row>
 
       {/* ── Inventory by category ── */}
       <Card title="Inventory by Category" bordered={false} style={{ borderRadius: 12 }} loading={inventoryLoading}>

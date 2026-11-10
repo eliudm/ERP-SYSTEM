@@ -29,6 +29,10 @@ import { MrpModule } from './modules/mrp/mrp.module';
 import { MobileModule } from './modules/mobile/mobile.module';
 import { PluginsModule } from './modules/plugins/plugins.module';
 import { AiInsightsModule } from './modules/ai-insights/ai-insights.module';
+import { MessagingModule } from './modules/messaging/messaging.module';
+import { SupportModule } from './modules/support/support.module';
+import { BillingModule } from './modules/billing/billing.module';
+import { HelpModule } from './modules/help/help.module';
 
 @Module({
   controllers: [AppController],
@@ -67,6 +71,10 @@ import { AiInsightsModule } from './modules/ai-insights/ai-insights.module';
     MobileModule,
     PluginsModule,
     AiInsightsModule,
+    MessagingModule,
+    SupportModule,
+    BillingModule,
+    HelpModule,
   ],
 })
 export class AppModule {}

@@ -104,6 +104,39 @@ export class AnalyticsController {
     return this.analyticsService.getInventorySummary();
   }
 
+  @ApiOperation({ summary: 'KPI summary with period-over-period comparison' })
+  @Roles(Role.ADMIN, Role.ACCOUNTANT, Role.SALES_USER)
+  @Get('kpi-summary')
+  getKpiSummary(
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+  ) {
+    this.validateDateRange(startDate, endDate);
+    return this.analyticsService.getKpiSummary(startDate, endDate);
+  }
+
+  @ApiOperation({ summary: 'Sales rep leaderboard for a period' })
+  @Roles(Role.ADMIN, Role.ACCOUNTANT, Role.SALES_USER)
+  @Get('sales-reps')
+  getSalesRepLeaderboard(
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+  ) {
+    this.validateDateRange(startDate, endDate);
+    return this.analyticsService.getSalesRepLeaderboard(startDate, endDate);
+  }
+
+  @ApiOperation({ summary: 'Quote to invoice conversion rate' })
+  @Roles(Role.ADMIN, Role.ACCOUNTANT, Role.SALES_USER)
+  @Get('quote-conversion')
+  getQuoteConversion(
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+  ) {
+    this.validateDateRange(startDate, endDate);
+    return this.analyticsService.getQuoteConversion(startDate, endDate);
+  }
+
   private validateDateRange(startDate: string, endDate: string) {
     if (!startDate || !endDate) {
       throw new BadRequestException('startDate and endDate are required');

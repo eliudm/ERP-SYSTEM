@@ -136,6 +136,7 @@ export const POSPage: React.FC = () => {
   const [locked, setLocked] = useState(false);
   const [lockLoading, setLockLoading] = useState(false);
   const [lockForm] = Form.useForm();
+  const [clockTime, setClockTime] = useState(() => new Date());
   const [numpadMode, setNumpadMode] = useState<'qty' | 'disc' | 'price'>('qty');
   const [numpadBuffer, setNumpadBuffer] = useState('');
   const [selectedCartId, setSelectedCartId] = useState<string | null>(null);
@@ -199,6 +200,12 @@ export const POSPage: React.FC = () => {
       if (idleTimer.current) clearTimeout(idleTimer.current);
     };
   }, [resetIdle]);
+
+  // Live clock — ticks every second, used in screensaver/lock screen
+  useEffect(() => {
+    const ticker = setInterval(() => setClockTime(new Date()), 1000);
+    return () => clearInterval(ticker);
+  }, []);
 
   const handleUnlock = async () => {
     try {
@@ -856,75 +863,110 @@ export const POSPage: React.FC = () => {
     {locked && (
       <div style={{
         position: 'fixed', inset: 0, zIndex: 9999,
-        background: 'linear-gradient(135deg, #2d1a45 0%, #4a2560 60%, #1a0f2e 100%)',
         display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center',
         gap: 24,
+        ...(systemSettings?.posScreensaverImage
+          ? {
+              backgroundImage: `url(${systemSettings.posScreensaverImage})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+            }
+          : {
+              background: 'linear-gradient(135deg, #2d1a45 0%, #4a2560 60%, #1a0f2e 100%)',
+            }),
       }}>
-        {/* Company logo / name */}
-        <div style={{ textAlign: 'center', marginBottom: 8 }}>
-          <div style={{
-            width: 96, height: 96, borderRadius: '50%',
-            background: 'rgba(255,255,255,0.12)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            margin: '0 auto 20px',
-            border: '3px solid rgba(255,255,255,0.25)',
-          }}>
-            <ShoppingCartOutlined style={{ fontSize: 44, color: '#fff' }} />
-          </div>
-          <div style={{ color: '#fff', fontSize: 28, fontWeight: 700, letterSpacing: 1 }}>
-            {BUSINESS_INFO.name}
-          </div>
-          <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: 14, marginTop: 6 }}>
-            {t('sessionLockNotice')}
-          </div>
-        </div>
-
-        {/* Unlock card */}
+        {/* Dark overlay so text stays readable over any image */}
         <div style={{
-          background: 'rgba(255,255,255,0.07)',
-          border: '1px solid rgba(255,255,255,0.18)',
-          borderRadius: 16, padding: '32px 40px',
-          width: 340, backdropFilter: 'blur(10px)',
-        }}>
-          <div style={{ color: 'rgba(255,255,255,0.8)', marginBottom: 20, textAlign: 'center', fontSize: 14 }}>
-            <LockOutlined style={{ marginRight: 6 }} />
-            {t('signedInAs')} <strong style={{ color: '#fff' }}>{currentUser?.firstName || currentUser?.email}</strong>
-          </div>
-          <Form form={lockForm} onFinish={handleUnlock}>
-            <Form.Item name="password" rules={[{ required: true, message: t('auth:passwordRequired') }]} style={{ marginBottom: 16 }}>
-              <Input.Password
-                prefix={<LockOutlined style={{ color: 'rgba(0,0,0,0.45)' }} />}
-                placeholder={t('placeholder.enterPasswordToUnlock')}
-                size="large"
-                autoFocus
-              />
-            </Form.Item>
-            <Button
-              type="primary"
-              htmlType="submit"
-              block
-              size="large"
-              loading={lockLoading}
-              style={{ background: '#fff', color: '#4a2560', borderColor: '#fff', fontWeight: 700 }}
-            >
-              {t('unlockTerminal')}
-            </Button>
-          </Form>
-          <div style={{ textAlign: 'center', marginTop: 16 }}>
-            <Button
-              type="link"
-              style={{ color: 'rgba(255,255,255,0.55)', fontSize: 12 }}
-              onClick={() => { setPosVerified(false); navigate('/pos/dashboard'); }}
-            >
-              {t('exitToDashboard')}
-            </Button>
-          </div>
-        </div>
+          position: 'absolute', inset: 0,
+          background: 'rgba(0,0,0,0.45)',
+          backdropFilter: systemSettings?.posScreensaverImage ? 'blur(2px)' : undefined,
+        }} />
 
-        {/* Clock */}
-        <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12 }}>
-          {new Date().toLocaleTimeString()}
+        {/* Content sits above overlay */}
+        <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24 }}>
+          {/* Live clock */}
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ color: '#fff', fontSize: 72, fontWeight: 200, letterSpacing: 4, lineHeight: 1 }}>
+              {clockTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            </div>
+            <div style={{ color: 'rgba(255,255,255,0.65)', fontSize: 18, marginTop: 8 }}>
+              {clockTime.toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+            </div>
+          </div>
+
+          {/* Company logo / name */}
+          <div style={{ textAlign: 'center', marginBottom: 8 }}>
+            {BUSINESS_INFO.logo ? (
+              <img
+                src={BUSINESS_INFO.logo}
+                alt={BUSINESS_INFO.name}
+                style={{
+                  maxHeight: 80, maxWidth: 200, objectFit: 'contain',
+                  borderRadius: 8, marginBottom: 16,
+                  filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.5))',
+                }}
+              />
+            ) : (
+              <div style={{
+                width: 80, height: 80, borderRadius: '50%',
+                background: 'rgba(255,255,255,0.12)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                margin: '0 auto 16px',
+                border: '3px solid rgba(255,255,255,0.25)',
+              }}>
+                <ShoppingCartOutlined style={{ fontSize: 36, color: '#fff' }} />
+              </div>
+            )}
+            <div style={{ color: '#fff', fontSize: 24, fontWeight: 700, letterSpacing: 1 }}>
+              {BUSINESS_INFO.name}
+            </div>
+            <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13, marginTop: 4 }}>
+              {t('sessionLockNotice')}
+            </div>
+          </div>
+
+          {/* Unlock card */}
+          <div style={{
+            background: 'rgba(255,255,255,0.07)',
+            border: '1px solid rgba(255,255,255,0.18)',
+            borderRadius: 16, padding: '32px 40px',
+            width: 340, backdropFilter: 'blur(10px)',
+          }}>
+            <div style={{ color: 'rgba(255,255,255,0.8)', marginBottom: 20, textAlign: 'center', fontSize: 14 }}>
+              <LockOutlined style={{ marginRight: 6 }} />
+              {t('signedInAs')} <strong style={{ color: '#fff' }}>{currentUser?.firstName || currentUser?.email}</strong>
+            </div>
+            <Form form={lockForm} onFinish={handleUnlock}>
+              <Form.Item name="password" rules={[{ required: true, message: t('auth:passwordRequired') }]} style={{ marginBottom: 16 }}>
+                <Input.Password
+                  prefix={<LockOutlined style={{ color: 'rgba(0,0,0,0.45)' }} />}
+                  placeholder={t('placeholder.enterPasswordToUnlock')}
+                  size="large"
+                  autoFocus
+                />
+              </Form.Item>
+              <Button
+                type="primary"
+                htmlType="submit"
+                block
+                size="large"
+                loading={lockLoading}
+                style={{ background: '#fff', color: '#4a2560', borderColor: '#fff', fontWeight: 700 }}
+              >
+                {t('unlockTerminal')}
+              </Button>
+            </Form>
+            <div style={{ textAlign: 'center', marginTop: 16 }}>
+              <Button
+                type="link"
+                style={{ color: 'rgba(255,255,255,0.55)', fontSize: 12 }}
+                onClick={() => { setPosVerified(false); navigate('/pos/dashboard'); }}
+              >
+                {t('exitToDashboard')}
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
     )}

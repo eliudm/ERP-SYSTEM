@@ -227,6 +227,7 @@ export interface DashboardStats {
 // ─── SETTINGS ────────────────────────────────────────────
 export type InvoiceTemplate = 'modern' | 'classic' | 'minimal';
 export type ReceiptTemplate = 'standard' | 'compact' | 'branded';
+export type PosTheme = 'ocean' | 'dark' | 'emerald' | 'sunset' | 'purple';
 
 export interface SystemSettings {
   key: string;
@@ -239,6 +240,7 @@ export interface SystemSettings {
   receiptSlogan?: string | null;
   invoiceTemplate: InvoiceTemplate;
   receiptTemplate: ReceiptTemplate;
+  posTheme: PosTheme;
   defaultCurrency: string;
   timezone: string;
   defaultLanguage: string;
@@ -247,6 +249,7 @@ export interface SystemSettings {
   showLowStockAlerts: boolean;
   lowStockThreshold: number;
   posReceiptBranding: boolean;
+  posScreensaverImage?: string | null;
   createdAt: string;
   updatedAt: string;
 }

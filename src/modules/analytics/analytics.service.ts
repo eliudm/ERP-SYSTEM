@@ -465,4 +465,134 @@ export class AnalyticsService {
       byCategory: categories,
     };
   }
+
+  // ─── KPI SUMMARY with period-over-period comparison ──────
+  async getKpiSummary(startDate: string, endDate: string) {
+    const key = `analytics:kpi-summary:${startDate}:${endDate}`;
+    return this.cached(key, () => this.computeKpiSummary(startDate, endDate));
+  }
+
+  private async computeKpiSummary(startDate: string, endDate: string) {
+    const tenantId = (await this.prisma.$queryRaw<[{ id: string }]>`SELECT current_setting('app.tenant_id', true) AS id`)[0]?.id;
+
+    const start = new Date(startDate);
+    const end = new Date(endDate); end.setHours(23, 59, 59, 999);
+    const periodMs = end.getTime() - start.getTime();
+    const prevEnd = new Date(start.getTime() - 1);
+    const prevStart = new Date(prevEnd.getTime() - periodMs);
+
+    const invoiceWhere = (s: Date, e: Date) => ({
+      tenantId,
+      status: { in: ['APPROVED', 'PAID'] as any },
+      invoiceDate: { gte: s, lte: e },
+    });
+
+    const [current, previous, newCustomers, prevNewCustomers, paidCount, approvedCount] = await Promise.all([
+      this.prisma.salesInvoice.aggregate({
+        where: invoiceWhere(start, end),
+        _sum: { total: true },
+        _count: true,
+      }),
+      this.prisma.salesInvoice.aggregate({
+        where: invoiceWhere(prevStart, prevEnd),
+        _sum: { total: true },
+        _count: true,
+      }),
+      this.prisma.customer.count({ where: { tenantId, createdAt: { gte: start, lte: end } } }),
+      this.prisma.customer.count({ where: { tenantId, createdAt: { gte: prevStart, lte: prevEnd } } }),
+      this.prisma.salesInvoice.count({ where: { tenantId, status: 'PAID', invoiceDate: { gte: start, lte: end } } }),
+      this.prisma.salesInvoice.count({ where: { tenantId, status: { in: ['APPROVED', 'PAID'] as any }, invoiceDate: { gte: start, lte: end } } }),
+    ]);
+
+    const revenue = Number(current._sum.total ?? 0);
+    const prevRevenue = Number(previous._sum.total ?? 0);
+    const count = current._count;
+    const prevCount = previous._count;
+    const avgOrder = count > 0 ? revenue / count : 0;
+    const prevAvgOrder = prevCount > 0 ? prevRevenue / prevCount : 0;
+    const collectionRate = approvedCount > 0 ? Math.round((paidCount / approvedCount) * 100) : 0;
+
+    const pct = (curr: number, prev: number) =>
+      prev === 0 ? null : Math.round(((curr - prev) / prev) * 100);
+
+    return {
+      revenue: { value: revenue, change: pct(revenue, prevRevenue) },
+      invoiceCount: { value: count, change: pct(count, prevCount) },
+      avgOrderValue: { value: avgOrder, change: pct(avgOrder, prevAvgOrder) },
+      collectionRate: { value: collectionRate, change: null },
+      newCustomers: { value: newCustomers, change: pct(newCustomers, prevNewCustomers) },
+    };
+  }
+
+  // ─── SALES REP LEADERBOARD ────────────────────────────────
+  async getSalesRepLeaderboard(startDate: string, endDate: string) {
+    const key = `analytics:sales-rep:${startDate}:${endDate}`;
+    return this.cached(key, () => this.computeSalesRepLeaderboard(startDate, endDate));
+  }
+
+  private async computeSalesRepLeaderboard(startDate: string, endDate: string) {
+    const tenantId = (await this.prisma.$queryRaw<[{ id: string }]>`SELECT current_setting('app.tenant_id', true) AS id`)[0]?.id;
+
+    const start = new Date(startDate);
+    const end = new Date(endDate); end.setHours(23, 59, 59, 999);
+
+    const invoices = await this.prisma.salesInvoice.findMany({
+      where: {
+        tenantId,
+        status: { in: ['APPROVED', 'PAID'] as any },
+        invoiceDate: { gte: start, lte: end },
+        cashierId: { not: null },
+      },
+      select: { cashierId: true, total: true, cashier: { select: { firstName: true, lastName: true, email: true } } },
+    });
+
+    const repMap = new Map<string, { name: string; email: string; revenue: number; count: number }>();
+    for (const inv of invoices) {
+      if (!inv.cashierId || !inv.cashier) continue;
+      const existing = repMap.get(inv.cashierId) ?? {
+        name: `${inv.cashier.firstName} ${inv.cashier.lastName}`.trim(),
+        email: inv.cashier.email,
+        revenue: 0,
+        count: 0,
+      };
+      existing.revenue += Number(inv.total);
+      existing.count++;
+      repMap.set(inv.cashierId, existing);
+    }
+
+    const leaderboard = Array.from(repMap.entries())
+      .map(([id, r]) => ({ userId: id, ...r, avgOrder: r.count > 0 ? r.revenue / r.count : 0 }))
+      .sort((a, b) => b.revenue - a.revenue);
+
+    return { data: leaderboard };
+  }
+
+  // ─── QUOTE → INVOICE CONVERSION ──────────────────────────
+  async getQuoteConversion(startDate: string, endDate: string) {
+    const key = `analytics:quote-conversion:${startDate}:${endDate}`;
+    return this.cached(key, () => this.computeQuoteConversion(startDate, endDate));
+  }
+
+  private async computeQuoteConversion(startDate: string, endDate: string) {
+    const tenantId = (await this.prisma.$queryRaw<[{ id: string }]>`SELECT current_setting('app.tenant_id', true) AS id`)[0]?.id;
+
+    const start = new Date(startDate);
+    const end = new Date(endDate); end.setHours(23, 59, 59, 999);
+
+    const [total, accepted, expired, declined] = await Promise.all([
+      this.prisma.salesQuote.count({ where: { tenantId, createdAt: { gte: start, lte: end } } }),
+      this.prisma.salesQuote.count({ where: { tenantId, createdAt: { gte: start, lte: end }, status: 'ACCEPTED' } }),
+      this.prisma.salesQuote.count({ where: { tenantId, createdAt: { gte: start, lte: end }, status: 'EXPIRED' } }),
+      this.prisma.salesQuote.count({ where: { tenantId, createdAt: { gte: start, lte: end }, status: 'DECLINED' } }),
+    ]);
+
+    return {
+      total,
+      converted: accepted,
+      expired,
+      rejected: declined,
+      pending: total - accepted - expired - declined,
+      conversionRate: total > 0 ? Math.round((accepted / total) * 100) : 0,
+    };
+  }
 }

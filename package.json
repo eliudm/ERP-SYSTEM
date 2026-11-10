@@ -30,10 +30,12 @@
     "@nestjs/jwt": "^11.0.2",
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^11.0.1",
+    "@nestjs/schedule": "^12.0.3",
     "@nestjs/swagger": "^11.4.7",
     "@nestjs/throttler": "^6.7.1",
     "@prisma/adapter-pg": "^7.6.0",
     "@prisma/client": "^7.6.0",
+    "africastalking": "^0.7.9",
     "axios": "^1.14.0",
     "bcrypt": "^6.0.0",
     "bullmq": "^5.71.1",
@@ -49,7 +51,8 @@
     "prisma": "^7.6.0",
     "qrcode": "^1.5.4",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "stripe": "^23.1.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",

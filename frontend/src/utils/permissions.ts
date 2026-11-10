@@ -26,7 +26,9 @@ export const MODULE_ACCESS: Record<string, UserRole[]> = {
   aiInsights: ['ADMIN'],
   approvals: ['ADMIN', 'ACCOUNTANT', 'SALES_USER', 'INVENTORY_MANAGER', 'HR_MANAGER', 'PROCUREMENT_OFFICER'],
   notifications: ['ADMIN', 'ACCOUNTANT', 'SALES_USER', 'INVENTORY_MANAGER', 'HR_MANAGER', 'PROCUREMENT_OFFICER'],
+  messaging: ['ADMIN', 'SALES_USER'],
   settings: ['ADMIN'],
+  marketplace: ['ADMIN', 'ACCOUNTANT', 'SALES_USER', 'INVENTORY_MANAGER', 'HR_MANAGER', 'PROCUREMENT_OFFICER'],
 };
 
 export function canAccess(role: string, module: string, posOnly = false): boolean {

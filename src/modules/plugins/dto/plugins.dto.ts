@@ -11,6 +11,10 @@ export class RegisterPluginDto {
   @IsNotEmpty()
   name!: string;
 
+  @IsOptional()
+  @IsString()
+  slug?: string;
+
   @IsString()
   @IsNotEmpty()
   version!: string;
@@ -23,13 +27,41 @@ export class RegisterPluginDto {
   @IsString()
   author?: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  entryPoint!: string;
+  category?: string;
+
+  @IsOptional()
+  @IsString()
+  websiteUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  logoUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  entryPoint?: string;
 
   @IsOptional()
   @IsObject()
   config?: Record<string, any>;
+
+  @IsOptional()
+  @IsObject()
+  configSchema?: Record<string, any>;
+
+  @IsOptional()
+  @IsString()
+  pageUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  pageLabel?: string;
+
+  @IsOptional()
+  @IsString()
+  pageIcon?: string;
 }
 
 export class UpdatePluginConfigDto {
@@ -40,6 +72,18 @@ export class UpdatePluginConfigDto {
   @IsOptional()
   @IsString()
   version?: string;
+
+  @IsOptional()
+  @IsString()
+  pageUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  pageLabel?: string;
+
+  @IsOptional()
+  @IsString()
+  pageIcon?: string;
 }
 
 export class CreateFeatureFlagDto {

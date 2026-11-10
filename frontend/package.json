@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "@ant-design/icons": "^6.1.1",
+    "@paypal/react-paypal-js": "^10.6.1",
+    "@stripe/stripe-js": "^10.2.1",
     "@tanstack/react-query": "^5.96.1",
     "antd": "^6.3.5",
     "axios": "^1.14.0",

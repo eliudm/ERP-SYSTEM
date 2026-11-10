@@ -76,6 +76,13 @@ model Tenant {
   posSessions               PosSession[]
   mpesaTillPayments         MpesaTillPayment[]
   creditPayments            CreditPayment[]
+  smsCampaigns              SmsCampaign[]
+  smsMessages               SmsMessage[]
+  messageThreads            MessageThread[]
+  messageTemplates          MessageTemplate[]
+  customerSegments          CustomerSegment[]
+  supportTickets            SupportTicket[]
+  subscription              TenantSubscription?
 
   @@map("tenants")
 }
@@ -116,6 +123,8 @@ model User {
   cashierSales      SalesInvoice[]  @relation("InvoiceCashier")
   creditPayments    CreditPayment[] @relation("CreditPaymentRecorder")
   posSessions       PosSession[]
+  createdTickets    SupportTicket[] @relation("TicketCreator")
+  ticketMessages    TicketMessage[] @relation("TicketMessageAuthor")
 
   @@index([tenantId])
   @@map("users")
@@ -906,6 +915,7 @@ model SystemSetting {
   receiptSlogan       String?
   invoiceTemplate     String   @default("modern")
   receiptTemplate     String   @default("standard")
+  posTheme            String   @default("ocean")
   defaultCurrency     String   @default("KES")
   timezone            String   @default("Africa/Nairobi")
   defaultLanguage     String   @default("en-KE")
@@ -914,6 +924,9 @@ model SystemSetting {
   showLowStockAlerts  Boolean  @default(true)
   lowStockThreshold   Int      @default(5)
   posReceiptBranding  Boolean  @default(true)
+  // Module feature-flag map, e.g. { "pos": true, "hr": false }
+  // Absent means enabled (safe default for existing tenants).
+  modules             Json?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
@@ -2181,18 +2194,355 @@ enum PluginStatus {
 }
 
 model Plugin {
-  id          String       @id @default(uuid())
-  name        String       @unique
-  version     String
-  description String?
-  author      String?
-  entryPoint  String // module path or class name
-  config      Json? // plugin-specific configuration
-  status      PluginStatus @default(INACTIVE)
-  installedAt DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  id           String       @id @default(uuid())
+  name         String       @unique
+  slug         String?      @unique // catalog slug, e.g. "shopify"
+  version      String
+  description  String?
+  author       String?
+  category     String       @default("custom")
+  websiteUrl   String?
+  logoUrl      String?
+  entryPoint   String       @default("") // module path or class name
+  config       Json?        // plugin-specific configuration
+  configSchema Json?        // JSON Schema for the config form
+  // iframe page plugin fields
+  pageUrl      String?      // if set + ACTIVE → injected as sidebar nav item
+  pageLabel    String?      // sidebar nav label
+  pageIcon     String?      // icon key (antd icon name)
+  status       PluginStatus @default(INACTIVE)
+  installedAt  DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 
   @@map("plugins")
+}
+
+// ============================================
+// MESSAGING (SMS / WHATSAPP)
+// ============================================
+
+model MessageThread {
+  id            String          @id @default(uuid())
+  tenantId      String
+  tenant        Tenant          @relation(fields: [tenantId], references: [id])
+  customerPhone String
+  customerName  String?
+  channel       MessageChannel  @default(WHATSAPP)
+  lastMessageAt DateTime        @default(now())
+  unreadCount   Int             @default(0)
+  messages      ThreadMessage[]
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@unique([tenantId, customerPhone, channel])
+  @@map("message_threads")
+}
+
+model ThreadMessage {
+  id          String        @id @default(uuid())
+  threadId    String
+  thread      MessageThread @relation(fields: [threadId], references: [id])
+  direction   String        // INBOUND | OUTBOUND
+  content     String
+  status      String        @default("RECEIVED")
+  providerRef String?
+  createdAt   DateTime      @default(now())
+
+  @@map("thread_messages")
+}
+
+model MessageTemplate {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  name      String
+  content   String
+  language  String   @default("en")
+  status    String   @default("DRAFT")
+  category  String   @default("UTILITY")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("message_templates")
+}
+
+model MessagingSettings {
+  id             String   @id @default(uuid())
+  tenantId       String   @unique
+  apiKey         String?
+  username       String?  // Africa's Talking username
+  senderId       String?  // SMS sender name/shortcode
+  whatsappNumber String?  // WhatsApp business phone number
+  smsEnabled     Boolean  @default(false)
+  whatsappEnabled Boolean @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("messaging_settings")
+}
+
+enum MessageChannel {
+  SMS
+  WHATSAPP
+}
+
+enum CampaignStatus {
+  DRAFT
+  SENDING
+  SENT
+  FAILED
+}
+
+enum MessageStatus {
+  PENDING
+  SENT
+  DELIVERED
+  FAILED
+}
+
+model CustomerSegment {
+  id            String        @id @default(uuid())
+  tenantId      String
+  tenant        Tenant        @relation(fields: [tenantId], references: [id])
+  name          String
+  description   String?
+  filters       Json          // { hasOverdueBalance, minOutstandingBalance, lastPurchaseDays, noPurchaseDays, minTotalOrders, creditOnly, isActive }
+  customerCount Int           @default(0)
+  campaigns     SmsCampaign[]
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@map("customer_segments")
+}
+
+model SmsCampaign {
+  id             String          @id @default(uuid())
+  tenantId       String
+  tenant         Tenant          @relation(fields: [tenantId], references: [id])
+  name           String
+  message        String
+  channel        MessageChannel  @default(SMS)
+  status         CampaignStatus  @default(DRAFT)
+  recipientCount Int             @default(0)
+  sentCount      Int             @default(0)
+  failedCount    Int             @default(0)
+  sentAt         DateTime?
+  createdById    String?
+  segmentId      String?
+  segment        CustomerSegment? @relation(fields: [segmentId], references: [id])
+  messages       SmsMessage[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@map("sms_campaigns")
+}
+
+model SmsMessage {
+  id           String         @id @default(uuid())
+  tenantId     String
+  tenant       Tenant         @relation(fields: [tenantId], references: [id])
+  campaignId   String?
+  campaign     SmsCampaign?   @relation(fields: [campaignId], references: [id])
+  customerId   String?
+  recipient    String
+  message      String
+  status       MessageStatus  @default(PENDING)
+  channel      MessageChannel @default(SMS)
+  providerRef  String?
+  errorMessage String?
+  sentAt       DateTime?
+  deliveredAt  DateTime?
+  createdAt    DateTime       @default(now())
+
+  @@map("sms_messages")
+}
+
+// ============================================
+// SUPPORT TICKETS
+// ============================================
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TicketCategory {
+  BILLING
+  TECHNICAL
+  FEATURE_REQUEST
+  DATA_ISSUE
+  ACCESS
+  OTHER
+}
+
+model SupportTicket {
+  id          String          @id @default(uuid())
+  tenantId    String
+  tenant      Tenant          @relation(fields: [tenantId], references: [id])
+  ticketNo    String
+  subject     String
+  category    TicketCategory  @default(OTHER)
+  priority    TicketPriority  @default(MEDIUM)
+  status      TicketStatus    @default(OPEN)
+  createdById String?
+  createdBy   User?           @relation("TicketCreator", fields: [createdById], references: [id])
+  messages    TicketMessage[]
+  resolvedAt  DateTime?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([tenantId])
+  @@index([status])
+  @@map("support_tickets")
+}
+
+model TicketMessage {
+  id           String        @id @default(uuid())
+  ticketId     String
+  ticket       SupportTicket @relation(fields: [ticketId], references: [id])
+  content      String
+  isStaff      Boolean       @default(false)
+  authorId     String?
+  author       User?         @relation("TicketMessageAuthor", fields: [authorId], references: [id])
+  authorName   String?
+  createdAt    DateTime      @default(now())
+
+  @@map("ticket_messages")
+}
+
+// ============================================
+// SUBSCRIPTION BILLING
+// ============================================
+
+enum PlanTier {
+  FREE
+  STARTER
+  PROFESSIONAL
+  ENTERPRISE
+}
+
+enum BillingCycle {
+  MONTHLY
+  ANNUAL
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  TRIAL
+  PAST_DUE
+  CANCELLED
+  EXPIRED
+}
+
+model SubscriptionPlan {
+  id               String        @id @default(uuid())
+  tier             PlanTier      @unique
+  name             String
+  monthlyPrice     Decimal       @db.Decimal(10, 2)
+  annualPrice      Decimal       @db.Decimal(10, 2)
+  maxUsers         Int
+  maxInvoicesMonth Int
+  maxProducts      Int
+  features         Json          // list of feature strings
+  isActive         Boolean       @default(true)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  subscriptions    TenantSubscription[]
+  payments         SubscriptionPayment[]
+
+  @@map("subscription_plans")
+}
+
+model TenantSubscription {
+  id              String             @id @default(uuid())
+  tenantId        String             @unique
+  tenant          Tenant             @relation(fields: [tenantId], references: [id])
+  planId          String
+  plan            SubscriptionPlan   @relation(fields: [planId], references: [id])
+  billingCycle    BillingCycle       @default(MONTHLY)
+  status          SubscriptionStatus @default(TRIAL)
+  trialEndsAt     DateTime?
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  cancelledAt        DateTime?
+  gracePeriodEndsAt  DateTime?
+  remindersSent      Int               @default(0)
+  lastReminderAt     DateTime?
+  payments           SubscriptionPayment[]
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  @@map("tenant_subscriptions")
+}
+
+model SubscriptionPayment {
+  id             String             @id @default(uuid())
+  subscriptionId String
+  subscription   TenantSubscription @relation(fields: [subscriptionId], references: [id])
+  planId         String?
+  plan           SubscriptionPlan?  @relation(fields: [planId], references: [id])
+  newBillingCycle String?
+  amount         Decimal            @db.Decimal(10, 2)
+  currency       String             @default("KES")
+  status         String             @default("PENDING")
+  method         String?
+  reference      String?
+  mpesaRequestId       String?
+  mpesaReceiptNo       String?
+  stripeSessionId      String?
+  stripePaymentIntent  String?
+  paypalOrderId        String?
+  paypalCaptureId      String?
+  periodStart          DateTime
+  periodEnd            DateTime
+  paidAt               DateTime?
+  createdAt            DateTime           @default(now())
+
+  @@map("subscription_payments")
+}
+
+// ============================================
+// FAQ / HELP CENTER
+// ============================================
+
+model FaqCategory {
+  id        String       @id @default(uuid())
+  name      String
+  slug      String       @unique
+  icon      String?
+  sortOrder Int          @default(0)
+  articles  FaqArticle[]
+  createdAt DateTime     @default(now())
+
+  @@map("faq_categories")
+}
+
+model FaqArticle {
+  id         String      @id @default(uuid())
+  categoryId String
+  category   FaqCategory @relation(fields: [categoryId], references: [id])
+  title      String
+  slug       String      @unique
+  content    String
+  tags       String[]
+  isPublished Boolean    @default(true)
+  helpful    Int         @default(0)
+  notHelpful Int         @default(0)
+  sortOrder  Int         @default(0)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  @@map("faq_articles")
 }
 
 // ============================================

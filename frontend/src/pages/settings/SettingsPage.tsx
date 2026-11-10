@@ -59,6 +59,21 @@ const navigationItems = [
     label: 'Audit Log',
     description: 'History of changes across the system',
   },
+  {
+    key: 'messaging',
+    label: 'Messaging',
+    description: 'SMS and WhatsApp API credentials',
+  },
+  {
+    key: 'billing',
+    label: 'Billing & Subscription',
+    description: 'Plans, upgrades, and payment history',
+  },
+  {
+    key: 'modules',
+    label: 'Modules',
+    description: 'Enable or disable application modules',
+  },
 ];
 
 const _editableKeys = [

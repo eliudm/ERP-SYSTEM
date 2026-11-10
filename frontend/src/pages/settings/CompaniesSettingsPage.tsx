@@ -53,6 +53,8 @@ export const CompaniesSettingsPage: React.FC = () => {
   const { draft, updateDraft } = useOutletContext<SettingsOutletContext>();
   const [logoError, setLogoError] = React.useState<string | null>(null);
   const [logoLoading, setLogoLoading] = React.useState(false);
+  const [ssError, setSsError] = React.useState<string | null>(null);
+  const [ssLoading, setSsLoading] = React.useState(false);
 
   if (!draft) {
     return null;
@@ -198,6 +200,73 @@ export const CompaniesSettingsPage: React.FC = () => {
                   <div style={{ marginTop: 6 }}>
                     <Text type="secondary" style={{ fontSize: 12 }}>
                       Logo is auto-compressed and displayed at the top of printed POS receipts instead of the company name.
+                    </Text>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <Text type="secondary">POS Screensaver Image</Text>
+                <div style={{ marginTop: 8 }}>
+                  {ssError && (
+                    <Alert
+                      type="error"
+                      showIcon
+                      message="Upload failed"
+                      description={ssError}
+                      closable
+                      onClose={() => setSsError(null)}
+                      style={{ marginBottom: 10 }}
+                    />
+                  )}
+                  {(draft as any).posScreensaverImage ? (
+                    <Space direction="vertical" size={8}>
+                      <Image
+                        src={(draft as any).posScreensaverImage}
+                        alt="POS Screensaver"
+                        style={{ maxHeight: 100, maxWidth: 220, objectFit: 'cover', borderRadius: 8, border: '1px solid #f0f0f0' }}
+                        preview={false}
+                      />
+                      <Button
+                        size="small"
+                        danger
+                        icon={<DeleteOutlined />}
+                        onClick={() => { updateDraft({ posScreensaverImage: null } as any); setSsError(null); }}
+                      >
+                        Remove screensaver image
+                      </Button>
+                    </Space>
+                  ) : (
+                    <Upload
+                      accept="image/png,image/jpeg,image/webp"
+                      showUploadList={false}
+                      disabled={ssLoading}
+                      beforeUpload={(file) => {
+                        const isLt4M = file.size / 1024 / 1024 < 4;
+                        if (!isLt4M) {
+                          setSsError('File is too large. Maximum file size is 4 MB.');
+                          return Upload.LIST_IGNORE;
+                        }
+                        setSsError(null);
+                        setSsLoading(true);
+                        compressImage(file, 1920, 400)
+                          .then((dataUrl) => { updateDraft({ posScreensaverImage: dataUrl } as any); })
+                          .catch((err: unknown) => {
+                            const msg = err instanceof Error ? err.message : 'Unknown error';
+                            setSsError(`Could not process image: ${msg}`);
+                          })
+                          .finally(() => setSsLoading(false));
+                        return false;
+                      }}
+                    >
+                      <Button icon={<UploadOutlined />} loading={ssLoading}>
+                        {ssLoading ? 'Processing…' : 'Upload screensaver image (PNG / JPG / WebP, max 4 MB)'}
+                      </Button>
+                    </Upload>
+                  )}
+                  <div style={{ marginTop: 6 }}>
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                      Shown full-screen on the POS terminal after 5 minutes of inactivity. If not set, the company name and logo are shown instead.
                     </Text>
                   </div>
                 </div>

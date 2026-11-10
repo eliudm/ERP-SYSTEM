@@ -12,21 +12,29 @@ export class PluginsService {
 
   // ─── REGISTER PLUGIN ─────────────────────────────────────
   async register(dto: RegisterPluginDto) {
-    const existing = await this.prisma.plugin.findUnique({
-      where: { name: dto.name },
+    const existing = await this.prisma.plugin.findFirst({
+      where: { OR: [{ name: dto.name }, ...(dto.slug ? [{ slug: dto.slug }] : [])] },
     });
     if (existing) {
-      throw new ConflictException(`Plugin "${dto.name}" is already registered`);
+      throw new ConflictException(`Plugin "${dto.name}" is already installed`);
     }
 
     return this.prisma.plugin.create({
       data: {
         name: dto.name,
+        slug: dto.slug,
         version: dto.version,
         description: dto.description,
         author: dto.author,
-        entryPoint: dto.entryPoint,
+        category: dto.category ?? 'custom',
+        websiteUrl: dto.websiteUrl,
+        logoUrl: dto.logoUrl,
+        entryPoint: dto.entryPoint ?? '',
         config: dto.config ?? {},
+        configSchema: dto.configSchema,
+        pageUrl: dto.pageUrl,
+        pageLabel: dto.pageLabel,
+        pageIcon: dto.pageIcon,
         status: 'INACTIVE',
       },
     });
@@ -79,6 +87,9 @@ export class PluginsService {
       data: {
         ...(dto.config !== undefined && { config: dto.config }),
         ...(dto.version && { version: dto.version }),
+        ...(dto.pageUrl !== undefined && { pageUrl: dto.pageUrl }),
+        ...(dto.pageLabel !== undefined && { pageLabel: dto.pageLabel }),
+        ...(dto.pageIcon !== undefined && { pageIcon: dto.pageIcon }),
       },
     });
   }
@@ -96,6 +107,15 @@ export class PluginsService {
     return this.prisma.plugin.findMany({
       where: { status: 'ACTIVE' },
       select: { name: true, version: true, entryPoint: true, config: true },
+    });
+  }
+
+  // ─── GET ACTIVE IFRAME PLUGINS (for nav injection) ───────
+  async getActivePagePlugins() {
+    return this.prisma.plugin.findMany({
+      where: { status: 'ACTIVE', NOT: { pageUrl: null } },
+      select: { id: true, name: true, pageUrl: true, pageLabel: true, pageIcon: true },
+      orderBy: { name: 'asc' },
     });
   }
 }

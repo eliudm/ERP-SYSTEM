@@ -96,6 +96,37 @@ export interface InventorySummaryResponse {
   byCategory: InventoryCategorySummary[];
 }
 
+export interface KpiMetric {
+  value: number;
+  change: number | null; // % change vs prior period, null if no prior data
+}
+
+export interface KpiSummary {
+  revenue: KpiMetric;
+  invoiceCount: KpiMetric;
+  avgOrderValue: KpiMetric;
+  collectionRate: KpiMetric;
+  newCustomers: KpiMetric;
+}
+
+export interface SalesRep {
+  userId: string;
+  name: string;
+  email: string;
+  revenue: number;
+  count: number;
+  avgOrder: number;
+}
+
+export interface QuoteConversion {
+  total: number;
+  converted: number;
+  expired: number;
+  rejected: number;
+  pending: number;
+  conversionRate: number;
+}
+
 export const analyticsApi = {
   getSalesTrend: async (
     startDate: string,
@@ -164,6 +195,21 @@ export const analyticsApi = {
 
   getInventorySummary: async (): Promise<InventorySummaryResponse> => {
     const res = await apiClient.get('/analytics/inventory-summary');
+    return res.data;
+  },
+
+  getKpiSummary: async (startDate: string, endDate: string): Promise<KpiSummary> => {
+    const res = await apiClient.get('/analytics/kpi-summary', { params: { startDate, endDate } });
+    return res.data;
+  },
+
+  getSalesRepLeaderboard: async (startDate: string, endDate: string): Promise<{ data: SalesRep[] }> => {
+    const res = await apiClient.get('/analytics/sales-reps', { params: { startDate, endDate } });
+    return res.data;
+  },
+
+  getQuoteConversion: async (startDate: string, endDate: string): Promise<QuoteConversion> => {
+    const res = await apiClient.get('/analytics/quote-conversion', { params: { startDate, endDate } });
     return res.data;
   },
 };

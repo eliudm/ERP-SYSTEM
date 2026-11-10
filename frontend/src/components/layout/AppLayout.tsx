@@ -13,7 +13,9 @@ import {
   BellOutlined, CheckOutlined, AppstoreOutlined,
   ContactsOutlined, LineChartOutlined, BulbOutlined,
   FundProjectionScreenOutlined, ApartmentOutlined,
-  CheckSquareOutlined, NotificationOutlined,
+  CheckSquareOutlined, NotificationOutlined, MessageOutlined,
+  CustomerServiceOutlined, QuestionCircleOutlined, CreditCardOutlined,
+  GlobalOutlined, ShopOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -22,6 +24,9 @@ import { useAuthStore } from '../../store/auth.store';
 import { notificationsApi } from '../../api/notifications.api';
 import type { Notification } from '../../api/notifications.api';
 import { canAccess } from '../../utils/permissions';
+import { billingApi } from '../../api/billing.api';
+import { useModules } from '../../hooks/useModules';
+import { pluginsApi } from '../../api/plugins.api';
 import dayjs from 'dayjs';
 
 const { Sider, Header, Content } = Layout;
@@ -39,6 +44,14 @@ export const AppLayout: React.FC = () => {
   const userRole = user?.role ?? 'SALES_USER';
   const posOnly = user?.posOnly === true;
   const isPosOnly = posOnly; // kept for POS full-screen check below
+  const moduleConfig = useModules();
+
+  const { data: pagePlugins = [] } = useQuery({
+    queryKey: ['plugins', 'active-pages'],
+    queryFn: pluginsApi.getActivePagePlugins,
+    enabled: !posOnly,
+    staleTime: 2 * 60_000,
+  });
 
   const menuItems = [
     {
@@ -179,6 +192,12 @@ export const AppLayout: React.FC = () => {
       module: 'analytics',
     },
     {
+      key: '/marketplace',
+      icon: <ShopOutlined />,
+      label: 'Marketplace',
+      module: 'marketplace',
+    },
+    {
       key: '/ai-insights',
       icon: <BulbOutlined />,
       label: t('aiInsights'),
@@ -197,6 +216,24 @@ export const AppLayout: React.FC = () => {
       module: 'notifications',
     },
     {
+      key: '/messaging',
+      icon: <MessageOutlined />,
+      label: 'Messaging',
+      module: 'messaging',
+    },
+    {
+      key: '/support',
+      icon: <CustomerServiceOutlined />,
+      label: 'Support',
+      module: 'support',
+    },
+    {
+      key: '/help',
+      icon: <QuestionCircleOutlined />,
+      label: 'Help Center',
+      module: 'help',
+    },
+    {
       key: '/settings',
       icon: <SettingOutlined />,
       label: t('settings'),
@@ -204,13 +241,32 @@ export const AppLayout: React.FC = () => {
     },
   ];
 
-  // Filter menu items based on the user's role and posOnly flag
-  const visibleMenu = menuItems
-    .filter((item) => canAccess(userRole, item.module, posOnly))
-    .map((item) => ({
-      ...item,
-      children: item.children?.filter((c) => canAccess(userRole, c.module, posOnly)),
-    }));
+  // Inject active page-plugins as extra nav items
+  const pluginNavItems = pagePlugins.map((p) => ({
+    key: `/plugins/page/${p.id}`,
+    icon: <GlobalOutlined />,
+    label: p.pageLabel || p.name,
+    module: 'settings', // always visible (admin controls via plugins page)
+  }));
+
+  // Filter menu items based on role, posOnly flag, and module toggles
+  const isModuleVisible = (mod: string) => {
+    // dashboard and settings are always visible
+    if (mod === 'dashboard' || mod === 'settings') return true;
+    return moduleConfig[mod as keyof typeof moduleConfig] !== false;
+  };
+
+  const visibleMenu = [
+    ...menuItems
+      .filter((item) => canAccess(userRole, item.module, posOnly) && isModuleVisible(item.module))
+      .map((item) => ({
+        ...item,
+        children: item.children?.filter(
+          (c) => canAccess(userRole, c.module, posOnly) && isModuleVisible(c.module),
+        ),
+      })),
+    ...pluginNavItems,
+  ];
 
   // posOnly users can only access POS routes; redirect everything else
   React.useEffect(() => {
@@ -218,6 +274,19 @@ export const AppLayout: React.FC = () => {
       navigate('/pos/session', { replace: true });
     }
   }, [posOnly, location.pathname, navigate]);
+
+  const { data: subscription } = useQuery({
+    queryKey: ['billing-subscription'],
+    queryFn: billingApi.getSubscription,
+    enabled: !posOnly && userRole === 'ADMIN',
+    refetchInterval: 5 * 60_000, // refresh every 5 min
+    retry: false,
+  });
+
+  const subStatus = subscription?.status;
+  const graceEndsAt = subscription?.gracePeriodEndsAt ? new Date(subscription.gracePeriodEndsAt) : null;
+  const daysLeft = graceEndsAt ? Math.max(0, Math.ceil((graceEndsAt.getTime() - Date.now()) / 86400000)) : 0;
+  const showBanner = !posOnly && userRole === 'ADMIN' && (subStatus === 'PAST_DUE' || subStatus === 'EXPIRED');
 
   const { data: countData } = useQuery({
     queryKey: ['notifications', 'count'],
@@ -255,6 +324,17 @@ export const AppLayout: React.FC = () => {
       },
       { type: 'divider' as const },
       {
+        key: 'help',
+        icon: <QuestionCircleOutlined />,
+        label: 'Help',
+      },
+      {
+        key: 'subscription',
+        icon: <CreditCardOutlined />,
+        label: 'My Subscription',
+      },
+      { type: 'divider' as const },
+      {
         key: 'logout',
         icon: <LogoutOutlined />,
         label: t('topbar.logout'),
@@ -264,6 +344,8 @@ export const AppLayout: React.FC = () => {
     onClick: ({ key }: { key: string }) => {
       if (key === 'logout') logout();
       if (key === 'profile') navigate('/profile');
+      if (key === 'help') window.open('/help', '_blank', 'noopener');
+      if (key === 'subscription') window.open('/subscription', '_blank', 'noopener');
     },
   };
 
@@ -522,11 +604,62 @@ export const AppLayout: React.FC = () => {
           </Space>
         </Header>
 
+        {/* Grace-period / Expired subscription banner */}
+        {showBanner && (
+          <div style={{
+            margin: '12px 0 -12px',
+            padding: '12px 20px',
+            borderRadius: 12,
+            background: subStatus === 'EXPIRED' ? '#fff1f0' : '#fffbe6',
+            border: `1px solid ${subStatus === 'EXPIRED' ? '#ffa39e' : '#ffe58f'}`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+          }}>
+            <span style={{ fontSize: 14, fontWeight: 500, color: subStatus === 'EXPIRED' ? '#cf1322' : '#d46b08' }}>
+              {subStatus === 'EXPIRED'
+                ? '⚠ Your subscription has expired. Your data is safe — please renew to restore full access.'
+                : `⚠ Subscription overdue — ${daysLeft} day${daysLeft !== 1 ? 's' : ''} remaining in grace period before expiry.`}
+            </span>
+            <Button
+              size="small"
+              type="primary"
+              danger={subStatus === 'EXPIRED'}
+              style={subStatus !== 'EXPIRED' ? { background: '#fa8c16', borderColor: '#fa8c16' } : {}}
+              onClick={() => window.open('/subscription', '_blank', 'noopener')}
+            >
+              Renew Now
+            </Button>
+          </div>
+        )}
+
         {/* Page Content */}
         <Content style={{ padding: 24, minHeight: 'calc(100vh - 96px)' }}>
           <Outlet />
         </Content>
       </Layout>
+
+      {/* Floating Help Button */}
+      {!posOnly && (
+        <Button
+          type="primary"
+          shape="circle"
+          size="large"
+          icon={<QuestionCircleOutlined style={{ fontSize: 20 }} />}
+          onClick={() => navigate('/help')}
+          style={{
+            position: 'fixed',
+            bottom: 32,
+            right: 32,
+            width: 52,
+            height: 52,
+            zIndex: 200,
+            boxShadow: '0 8px 24px rgba(22, 119, 255, 0.35)',
+          }}
+          title="Help Center"
+        />
+      )}
     </Layout>
   );
 };

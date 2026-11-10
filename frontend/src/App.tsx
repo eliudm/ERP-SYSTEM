@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { ConfigProvider } from 'antd';
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { ConfigProvider, theme as antdTheme } from 'antd';
 import enUS from 'antd/locale/en_US';
 import frFR from 'antd/locale/fr_FR';
 import { useTranslation } from 'react-i18next';
@@ -82,10 +82,48 @@ import NotificationsPage from './pages/notifications/NotificationsPage';
 import BomsPage from './pages/mrp/BomsPage';
 import WorkOrdersPage from './pages/mrp/WorkOrdersPage';
 import { ProfilePage } from './pages/profile/ProfilePage';
+import { MessagingPage } from './pages/messaging/MessagingPage';
+import { MessagingSettingsPage } from './pages/settings/MessagingSettingsPage';
+import { SupportPage } from './pages/support/SupportPage';
+import BillingPage from './pages/settings/BillingPage';
+import HelpPage from './pages/help/HelpPage';
+import ModulesSettingsPage from './pages/settings/ModulesSettingsPage';
+import { PluginEmbedPage } from './pages/plugins/PluginEmbedPage';
+import MarketplacePage from './pages/marketplace/MarketplacePage';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />;
+};
+
+const POS_THEME_COLORS: Record<string, string> = {
+  ocean: '#1677ff',
+  dark: '#141414',
+  emerald: '#389e0d',
+  sunset: '#d46b08',
+  purple: '#531dab',
+};
+
+const PosThemeLayout: React.FC = () => {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const { data: settings } = useQuery({
+    queryKey: ['system-settings'],
+    queryFn: settingsApi.getSystemSettings,
+    enabled: isAuthenticated,
+  });
+  const posTheme = settings?.posTheme ?? 'ocean';
+  const isDark = posTheme === 'dark';
+  const color = POS_THEME_COLORS[posTheme] ?? '#1677ff';
+  return (
+    <ConfigProvider
+      theme={{
+        ...(isDark ? { algorithm: antdTheme.darkAlgorithm } : {}),
+        token: { colorPrimary: isDark ? '#1677ff' : color, borderRadius: 8 },
+      }}
+    >
+      <Outlet />
+    </ConfigProvider>
+  );
 };
 
 const ANTD_LOCALES: Record<string, typeof enUS> = { en: enUS, fr: frFR };
@@ -129,15 +167,17 @@ const App: React.FC = () => {
         <Route path="/" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<DashboardPage />} />
-          {/* POS Module */}
-          <Route path="pos" element={<Navigate to="/pos/dashboard" replace />} />
-          <Route path="pos/dashboard" element={<POSDashboardPage />} />
-          <Route path="pos/session" element={<POSPage />} />
-          <Route path="pos/orders" element={<POSOrdersPage />} />
-          <Route path="pos/credit" element={<POSCreditPage />} />
-          <Route path="pos/products" element={<POSProductsPage />} />
-          <Route path="pos/reporting" element={<POSReportingPage />} />
-          <Route path="pos/configuration" element={<POSConfigurationPage />} />
+          {/* POS Module — themed via PosThemeLayout */}
+          <Route path="pos" element={<PosThemeLayout />}>
+            <Route index element={<Navigate to="/pos/dashboard" replace />} />
+            <Route path="dashboard" element={<POSDashboardPage />} />
+            <Route path="session" element={<POSPage />} />
+            <Route path="orders" element={<POSOrdersPage />} />
+            <Route path="credit" element={<POSCreditPage />} />
+            <Route path="products" element={<POSProductsPage />} />
+            <Route path="reporting" element={<POSReportingPage />} />
+            <Route path="configuration" element={<POSConfigurationPage />} />
+          </Route>
           {/* Sales */}
           <Route path="sales/pos" element={<Navigate to="/pos/session" replace />} />
           <Route path="sales/quotes" element={<QuotationsPage />} />
@@ -188,6 +228,9 @@ const App: React.FC = () => {
             <Route path="branches" element={<BranchesPage />} />
             <Route path="plugins" element={<PluginsPage />} />
             <Route path="audit-log" element={<AuditLogPage />} />
+            <Route path="messaging" element={<MessagingSettingsPage />} />
+            <Route path="billing" element={<BillingPage />} />
+            <Route path="modules" element={<ModulesSettingsPage />} />
           </Route>
           <Route path="contacts" element={<ContactsPage />} />
           <Route path="etims/config" element={<EtimsConfigPage />} />
@@ -203,6 +246,18 @@ const App: React.FC = () => {
           <Route path="workflow/approvals" element={<ApprovalsPage />} />
           {/* Notifications */}
           <Route path="notifications" element={<NotificationsPage />} />
+          {/* Messaging */}
+          <Route path="messaging" element={<MessagingPage />} />
+          {/* Support */}
+          <Route path="support" element={<SupportPage />} />
+          {/* Help Center */}
+          <Route path="help" element={<HelpPage />} />
+          {/* Standalone subscription page (opened in new tab from dropdown) */}
+          <Route path="subscription" element={<BillingPage />} />
+          {/* Marketplace */}
+          <Route path="marketplace" element={<MarketplacePage />} />
+          {/* Plugin iframe pages */}
+          <Route path="plugins/page/:id" element={<PluginEmbedPage />} />
           {/* Profile */}
           <Route path="profile" element={<ProfilePage />} />
           {/* Accounting additions */}

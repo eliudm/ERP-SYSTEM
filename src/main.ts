@@ -2,7 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { json, urlencoded } from 'express';
+import { json, urlencoded, raw } from 'express';
 import helmet from 'helmet';
 import { AllExceptionsFilter } from './all-exceptions.filter';
 
@@ -11,6 +11,9 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bodyParser: false });
 
   app.use(helmet());
+
+  // Stripe webhook needs the raw body for signature verification
+  app.use('/api/v1/billing/stripe/webhook', raw({ type: 'application/json' }));
 
   // Support base64 company logos – max ~3 MB compressed
   app.use(json({ limit: '4mb' }));

@@ -3,6 +3,14 @@ import { PrismaService } from '../../prisma.service';
 import { getCurrentTenantId } from '../../tenant-context';
 import { UpdateSystemSettingsDto } from './dto/update-system-settings.dto';
 
+export const ALL_MODULES = [
+  'pos', 'sales', 'accounting', 'inventory', 'procurement',
+  'hr', 'etims', 'contacts', 'crm', 'mrp', 'analytics',
+  'aiInsights', 'approvals', 'notifications', 'messaging', 'support', 'help',
+] as const;
+export type ModuleKey = typeof ALL_MODULES[number];
+export type ModuleConfig = Record<ModuleKey, boolean>;
+
 @Injectable()
 export class SettingsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -36,6 +44,25 @@ export class SettingsService {
 
   getSystemSettings() {
     return this.ensureSystemSettings();
+  }
+
+  async getModuleConfig(): Promise<ModuleConfig> {
+    const settings = await this.ensureSystemSettings();
+    const stored = (settings.modules ?? {}) as Partial<ModuleConfig>;
+    // Default: all modules enabled when not explicitly set
+    return Object.fromEntries(
+      ALL_MODULES.map((m) => [m, stored[m] !== false]),
+    ) as ModuleConfig;
+  }
+
+  async updateModuleConfig(updates: Partial<ModuleConfig>): Promise<ModuleConfig> {
+    const current = await this.getModuleConfig();
+    const merged = { ...current, ...updates };
+    await this.prisma.systemSetting.update({
+      where: { tenantId_key: { tenantId: getCurrentTenantId()!, key: 'system' } },
+      data: { modules: merged },
+    });
+    return merged;
   }
 
   async updateSystemSettings(dto: UpdateSystemSettingsDto) {

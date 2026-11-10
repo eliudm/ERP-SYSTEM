@@ -43,6 +43,12 @@ export class PluginsController {
     return this.pluginsService.getActivePlugins();
   }
 
+  @ApiOperation({ summary: 'Get active page/iframe plugins for sidebar injection' })
+  @Get('active-pages')
+  getActivePagePlugins() {
+    return this.pluginsService.getActivePagePlugins();
+  }
+
   @ApiOperation({ summary: 'Get a single plugin by id' })
   @Get(':id')
   findOne(@Param('id') id: string) {

@@ -5,7 +5,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { UpdateSystemSettingsDto } from './dto/update-system-settings.dto';
-import { SettingsService } from './settings.service';
+import { SettingsService, ModuleConfig } from './settings.service';
 
 @ApiTags('settings')
 @ApiBearerAuth()
@@ -26,5 +26,19 @@ export class SettingsController {
   @Roles(Role.ADMIN)
   updateSystemSettings(@Body() dto: UpdateSystemSettingsDto) {
     return this.settingsService.updateSystemSettings(dto);
+  }
+
+  @ApiOperation({ summary: 'Get module enable/disable configuration' })
+  @Get('modules')
+  getModuleConfig() {
+    return this.settingsService.getModuleConfig();
+  }
+
+  @ApiOperation({ summary: 'Update module enable/disable configuration (admin only)' })
+  @Patch('modules')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  updateModuleConfig(@Body() body: Partial<ModuleConfig>) {
+    return this.settingsService.updateModuleConfig(body);
   }
 }
