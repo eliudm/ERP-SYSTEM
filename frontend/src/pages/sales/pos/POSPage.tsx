@@ -3,7 +3,7 @@ import {
   Badge, Button, Input, Typography,
   Space, Table, Divider, Select, message,
   InputNumber, Empty, Tag, Modal, Alert, Dropdown, Switch, Form, Spin,
-  Segmented, List,
+  Segmented, List, theme as antdTheme,
 } from 'antd';
 import {
   DeleteOutlined,
@@ -95,6 +95,8 @@ interface PendingMpesaPanelRow extends PendingMpesaTransaction {
 
 export const POSPage: React.FC = () => {
   const { t } = useTranslation('pos');
+  const { token } = antdTheme.useToken();
+  const primary = token.colorPrimary;
   const WALK_IN_VALUE = '__walk_in__';
   const defaultBusinessInfo = {
     name: t('common:appName'),
@@ -873,7 +875,7 @@ export const POSPage: React.FC = () => {
               backgroundPosition: 'center',
             }
           : {
-              background: 'linear-gradient(135deg, #2d1a45 0%, #4a2560 60%, #1a0f2e 100%)',
+              background: `linear-gradient(135deg, ${primary}cc 0%, ${primary} 60%, ${primary}99 100%)`,
             }),
       }}>
         {/* Dark overlay so text stays readable over any image */}
@@ -952,7 +954,7 @@ export const POSPage: React.FC = () => {
                 block
                 size="large"
                 loading={lockLoading}
-                style={{ background: '#fff', color: '#4a2560', borderColor: '#fff', fontWeight: 700 }}
+                style={{ background: '#fff', color: primary, borderColor: '#fff', fontWeight: 700 }}
               >
                 {t('unlockTerminal')}
               </Button>
@@ -981,14 +983,14 @@ export const POSPage: React.FC = () => {
           <Button
             type={showOrders ? 'default' : 'primary'}
             size="small"
-            style={{ borderRadius: '4px 0 0 4px', ...(showOrders ? {} : { background: '#4a2560', borderColor: '#4a2560', fontWeight: 600 }) }}
+            style={{ borderRadius: '4px 0 0 4px', ...(showOrders ? {} : { background: primary, borderColor: primary, fontWeight: 600 }) }}
             onClick={() => setShowOrders(false)}
           >{t('register')}</Button>
           <Badge count={outstandingCredit?.length ?? 0} size="small" offset={[-4, 2]}>
             <Button
               type={showOrders ? 'primary' : 'default'}
               size="small"
-              style={{ borderRadius: '0 4px 4px 0', ...(showOrders ? { background: '#4a2560', borderColor: '#4a2560', fontWeight: 600 } : {}) }}
+              style={{ borderRadius: '0 4px 4px 0', ...(showOrders ? { background: primary, borderColor: primary, fontWeight: 600 } : {}) }}
               onClick={() => setShowOrders(true)}
             >{t('orders')}</Button>
           </Badge>
@@ -1055,37 +1057,55 @@ export const POSPage: React.FC = () => {
       <div style={{ display: showOrders ? 'none' : 'flex', flex: 1, overflow: 'hidden' }}>
 
         {/* ── RIGHT PANEL: Categories + Products ───────────── */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', order: 2 }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', order: 2, background: '#f5f5f5' }}>
 
-          {/* Category chips */}
-          <div style={{ display: 'flex', gap: 8, padding: '10px 14px', background: '#fff', borderBottom: '1px solid #e0e0e0', overflowX: 'auto', flexShrink: 0, flexWrap: 'wrap', maxHeight: 110 }}>
-            <button
-              onClick={() => setCategoryId(undefined)}
-              style={{ padding: '6px 16px', borderRadius: 6, border: '2px solid ' + (!categoryId ? '#4a2560' : '#e0e0e0'), background: !categoryId ? '#4a2560' : '#fff', color: !categoryId ? '#fff' : '#444', fontWeight: 600, cursor: 'pointer', fontSize: 13, whiteSpace: 'nowrap' }}
-            >
-              {t('all')}
-            </button>
-            {(categories || []).map((cat: ProductCategory) => {
-              const isActive = categoryId === cat.id;
-              const color = cat.color || '#1677ff';
-              return (
-                <button
-                  key={cat.id}
-                  onClick={() => setCategoryId(isActive ? undefined : cat.id)}
-                  style={{ padding: '6px 16px', borderRadius: 6, border: '2px solid ' + (isActive ? color : '#e0e0e0'), background: isActive ? color : '#fff', color: isActive ? '#fff' : color, fontWeight: 600, cursor: 'pointer', fontSize: 13, whiteSpace: 'nowrap' }}
-                >
-                  {cat.icon ? `${cat.icon} ` : ''}{cat.name}
-                </button>
-              );
-            })}
+          {/* Category grid */}
+          <div style={{ padding: '10px 10px 6px', background: '#f5f5f5', flexShrink: 0, overflowY: 'auto', maxHeight: '42%' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 7 }}>
+              {/* All button */}
+              <button
+                onClick={() => setCategoryId(undefined)}
+                style={{
+                  height: 62, borderRadius: 10, border: !categoryId ? `2px solid ${primary}` : '2px solid transparent',
+                  background: !categoryId ? `${primary}22` : '#fff',
+                  color: !categoryId ? primary : '#555',
+                  fontWeight: 700, cursor: 'pointer', fontSize: 13,
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.07)',
+                  transition: 'all 0.15s',
+                }}
+              >
+                {t('all')}
+              </button>
+              {(categories || []).map((cat: ProductCategory) => {
+                const isActive = categoryId === cat.id;
+                const color = cat.color || primary;
+                return (
+                  <button
+                    key={cat.id}
+                    onClick={() => setCategoryId(isActive ? undefined : cat.id)}
+                    style={{
+                      height: 62, borderRadius: 10,
+                      border: isActive ? `2px solid ${color}` : '2px solid transparent',
+                      background: isActive ? `${color}30` : `${color}18`,
+                      color: color,
+                      fontWeight: 700, cursor: 'pointer', fontSize: 12,
+                      lineHeight: 1.3, padding: '0 8px',
+                      boxShadow: isActive ? `0 2px 8px ${color}30` : '0 1px 3px rgba(0,0,0,0.07)',
+                      transition: 'all 0.15s',
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {cat.icon ? `${cat.icon} ` : ''}{cat.name}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {/* Low stock alert */}
           {lowStockProducts && lowStockProducts.length > 0 && (
             <Alert
-              type="warning"
-              icon={<WarningOutlined />}
-              showIcon
+              type="warning" icon={<WarningOutlined />} showIcon
               message={
                 <span>
                   <strong>{t('lowStockAlert', { count: lowStockProducts.length })}</strong>{' '}
@@ -1095,16 +1115,20 @@ export const POSPage: React.FC = () => {
                   {lowStockProducts.length > 4 && <Tag>{t('moreCount', { count: lowStockProducts.length - 4 })}</Tag>}
                 </span>
               }
-              style={{ margin: 0, borderRadius: 0 }}
+              style={{ margin: 0, borderRadius: 0, flexShrink: 0 }}
             />
           )}
 
           {/* Product grid */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: 12 }}>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '8px 10px 10px' }}>
             {(products || []).length === 0 ? (
               <Empty description={t('noProductsFound')} style={{ marginTop: 60 }} />
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 10 }}>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+                gap: 8,
+              }}>
                 {(products || []).map((product: Product) => {
                   const inCart = cart.find((i) => i.productId === product.id);
                   const inStock = Number(product.stockQuantity) > 0;
@@ -1115,41 +1139,58 @@ export const POSPage: React.FC = () => {
                       onClick={() => inStock && addToCart(product)}
                       style={{
                         cursor: inStock ? 'pointer' : 'not-allowed',
-                        opacity: inStock ? 1 : 0.45,
-                        border: inCart ? '2px solid #1677ff' : '1px solid #e0e0e0',
-                        borderRadius: 8,
+                        opacity: inStock ? 1 : 0.5,
+                        border: inCart ? `2px solid ${primary}` : '2px solid transparent',
+                        borderRadius: 10,
                         background: '#fff',
                         overflow: 'hidden',
                         position: 'relative',
-                        boxShadow: inCart ? '0 2px 8px rgba(22,119,255,0.18)' : '0 1px 3px rgba(0,0,0,0.06)',
+                        boxShadow: inCart ? `0 2px 10px ${primary}30` : '0 1px 4px rgba(0,0,0,0.08)',
                         transition: 'box-shadow 0.15s, border 0.15s',
+                        display: 'flex',
+                        flexDirection: 'column',
                       }}
                     >
-                      <div style={{ height: 72, background: catColor, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-                        <span style={{ fontSize: 30, color: 'rgba(255,255,255,0.7)', fontWeight: 800, userSelect: 'none' }}>
-                          {product.name.charAt(0).toUpperCase()}
-                        </span>
+                      {/* Image / placeholder */}
+                      <div style={{ position: 'relative', height: 130, overflow: 'hidden', background: '#f9f9f9', flexShrink: 0 }}>
+                        {product.imageUrl ? (
+                          <img
+                            src={product.imageUrl}
+                            alt={product.name}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                          />
+                        ) : (
+                          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: `${catColor}12` }}>
+                            <svg width="56" height="48" viewBox="0 0 56 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <rect x="1" y="1" width="54" height="46" rx="5" stroke={catColor} strokeOpacity="0.4" strokeWidth="1.5" fill="none"/>
+                              <circle cx="17" cy="16" r="5" fill={catColor} fillOpacity="0.3"/>
+                              <path d="M1 36 L16 22 L26 32 L36 20 L55 36" stroke={catColor} strokeOpacity="0.5" strokeWidth="2" fill="none" strokeLinejoin="round"/>
+                            </svg>
+                          </div>
+                        )}
                         {inCart && (
-                          <div style={{ position: 'absolute', top: 6, right: 6, background: '#1677ff', color: '#fff', borderRadius: '50%', width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>
+                          <div style={{ position: 'absolute', top: 7, right: 7, background: '#262626', color: '#fff', borderRadius: '50%', width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, boxShadow: '0 1px 4px rgba(0,0,0,0.3)' }}>
                             {inCart.quantity}
                           </div>
                         )}
                         {!inStock && (
-                          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.5)', color: '#fff', fontSize: 10, textAlign: 'center', padding: '2px 0' }}>
-                            {t('outOfStockBadge')}
+                          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.42)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <span style={{ color: '#fff', fontWeight: 700, fontSize: 12, background: 'rgba(0,0,0,0.5)', padding: '3px 10px', borderRadius: 4 }}>{t('outOfStockBadge')}</span>
                           </div>
                         )}
                       </div>
-                      <div style={{ padding: '6px 8px 8px' }}>
-                        <div style={{ fontSize: 11, fontWeight: 600, lineHeight: 1.3, marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {/* Info */}
+                      <div style={{ padding: '7px 10px 9px', borderTop: `3px solid ${catColor}`, flexShrink: 0 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, lineHeight: 1.3, marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {product.name}
                         </div>
-                        <div style={{ fontSize: 12, color: '#1677ff', fontWeight: 700 }}>
+                        <div style={{ fontSize: 13, color: primary, fontWeight: 700 }}>
                           {formatCurrency(Number(product.unitPrice))}
                         </div>
-                        {inStock && (
-                          <div style={{ fontSize: 10, color: '#8c8c8c', marginTop: 1 }}>{t('stockCount', { count: Number(product.stockQuantity) })}</div>
-                        )}
+                        <div style={{ fontSize: 10, color: '#aaa', marginTop: 1 }}>
+                          {t('stockCount', { count: Number(product.stockQuantity) })}
+                        </div>
                       </div>
                     </div>
                   );
@@ -1160,7 +1201,7 @@ export const POSPage: React.FC = () => {
         </div>{/* end right panel */}
 
         {/* ── LEFT PANEL: Cart + Numpad ──────────────────── */}
-        <div style={{ width: isCompactCalculator ? 320 : 380, flexShrink: 0, display: 'flex', flexDirection: 'column', background: '#fff', borderRight: '1px solid #e0e0e0', order: 1 }}>
+        <div style={{ width: isCompactCalculator ? 360 : 430, flexShrink: 0, display: 'flex', flexDirection: 'column', background: '#fff', borderRight: '1px solid #e0e0e0', order: 1 }}>
 
           {/* Warehouse selector */}
           <div style={{ padding: '8px 10px', borderBottom: '1px solid #f0f0f0' }}>
@@ -1188,8 +1229,8 @@ export const POSPage: React.FC = () => {
                   onClick={() => { setSelectedCartId(item.productId); setNumpadBuffer(''); }}
                   style={{
                     display: 'flex', alignItems: 'center', padding: '8px 10px', cursor: 'pointer',
-                    background: selectedCartId === item.productId ? '#e6f4ff' : (idx % 2 === 0 ? '#fff' : '#fafafa'),
-                    borderLeft: selectedCartId === item.productId ? '3px solid #1677ff' : '3px solid transparent',
+                    background: selectedCartId === item.productId ? `${primary}12` : (idx % 2 === 0 ? '#fff' : '#fafafa'),
+                    borderLeft: selectedCartId === item.productId ? `3px solid ${primary}` : '3px solid transparent',
                     transition: 'background 0.15s',
                   }}
                 >
@@ -1279,7 +1320,7 @@ export const POSPage: React.FC = () => {
 
             {showCalculator && (
               <>
-                <div style={{ textAlign: 'right', padding: isCompactCalculator ? '3px 8px' : '4px 10px', minHeight: isCompactCalculator ? 28 : 32, background: '#fff', border: '1px solid #e8e8e8', borderRadius: 4, marginBottom: isCompactCalculator ? 6 : 8, fontFamily: 'monospace', fontSize: isCompactCalculator ? 14 : 16, color: numpadBuffer ? '#262626' : '#bbb' }}>
+                <div style={{ textAlign: 'right', padding: isCompactCalculator ? '5px 10px' : '6px 12px', minHeight: isCompactCalculator ? 36 : 42, background: '#fff', border: '1px solid #e8e8e8', borderRadius: 6, marginBottom: isCompactCalculator ? 8 : 10, fontFamily: 'monospace', fontSize: isCompactCalculator ? 16 : 20, color: numpadBuffer ? '#262626' : '#bbb' }}>
                   {numpadBuffer || (selectedCartId
                     ? (numpadMode === 'qty'
                       ? String(cart.find(i => i.productId === selectedCartId)?.quantity ?? '')
@@ -1287,7 +1328,7 @@ export const POSPage: React.FC = () => {
                     : t('selectAnItem')
                   )}
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: isCompactCalculator ? 3 : 4 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: isCompactCalculator ? 5 : 6 }}>
                   {(['1','2','3','Qty','4','5','6','%','7','8','9','Price','+/-','0','.','⌫'] as const).map((key) => {
                     const isModeKey = key === 'Qty' || key === '%' || key === 'Price';
                     const modeMap: Record<string, 'qty' | 'disc' | 'price'> = { 'Qty': 'qty', '%': 'disc', 'Price': 'price' };
@@ -1308,15 +1349,15 @@ export const POSPage: React.FC = () => {
                         key={key}
                         onClick={() => { if (isModeKey) { setNumpadMode(modeMap[key]); setNumpadBuffer(''); } else handleNumpadKey(key); }}
                         style={{
-                          height: isCompactCalculator ? 40 : 48, border: getBorder(), borderRadius: 4,
+                          height: isCompactCalculator ? 52 : 62, border: getBorder(), borderRadius: 6,
                           background: getBg(),
                           color: key === '⌫' ? '#8b1a1a' : '#262626',
-                          fontWeight: isModeKey ? 600 : 400,
+                          fontWeight: isModeKey ? 700 : 500,
                           fontSize: isCompactCalculator
-                            ? (isModeKey ? 12 : 14)
-                            : (isModeKey ? 13 : 16),
+                            ? (isModeKey ? 13 : 18)
+                            : (isModeKey ? 14 : 20),
                           cursor: 'pointer', fontFamily: 'inherit',
-                          boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
                         }}
                       >
                         {key === 'Qty' ? t('numpad.qty') : key === 'Price' ? t('numpad.price') : key}
@@ -1439,8 +1480,8 @@ export const POSPage: React.FC = () => {
               onClick={openPayment}
               disabled={cart.length === 0}
               style={{
-                width: '100%', height: 52, fontSize: 17, fontWeight: 700,
-                background: cart.length === 0 ? '#d9d9d9' : '#4a2560',
+                width: '100%', height: 58, fontSize: 18, fontWeight: 700,
+                background: cart.length === 0 ? '#d9d9d9' : primary,
                 color: cart.length === 0 ? '#aaa' : '#fff',
                 border: 'none', borderRadius: 6,
                 cursor: cart.length === 0 ? 'not-allowed' : 'pointer',
@@ -1569,7 +1610,7 @@ export const POSPage: React.FC = () => {
           <span>{t('vat16')}</span><span>{formatCurrency(taxTotal)}</span>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 17, borderTop: '1px solid #e8e8e8', paddingTop: 6 }}>
-          <span>{t('common:total')}</span><span style={{ color: '#1677ff' }}>{formatCurrency(total)}</span>
+          <span>{t('common:total')}</span><span style={{ color: primary }}>{formatCurrency(total)}</span>
         </div>
       </div>
       <Button
@@ -1927,7 +1968,7 @@ export const POSPage: React.FC = () => {
               <Space>
                 <Button
                   type="primary"
-                  style={{ background: '#4a2560', borderColor: '#4a2560', fontWeight: 600 }}
+                  style={{ background: primary, borderColor: primary, fontWeight: 600 }}
                   onClick={async () => {
                     const closeDate = new Date().toISOString().split('T')[0];
                     // Best effort — the reconciliation note/counts are worth

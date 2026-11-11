@@ -101,6 +101,7 @@ export interface Product {
   stockQuantity: number;
   reorderLevel?: number;
   isActive?: boolean;
+  imageUrl?: string | null;
 }
 
 export interface InvoiceItem {
