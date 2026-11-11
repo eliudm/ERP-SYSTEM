@@ -1201,7 +1201,7 @@ export const POSPage: React.FC = () => {
         </div>{/* end right panel */}
 
         {/* ── LEFT PANEL: Cart + Numpad ──────────────────── */}
-        <div style={{ width: isCompactCalculator ? 360 : 430, flexShrink: 0, display: 'flex', flexDirection: 'column', background: '#fff', borderRight: '1px solid #e0e0e0', order: 1 }}>
+        <div style={{ width: isCompactCalculator ? 420 : 500, flexShrink: 0, display: 'flex', flexDirection: 'column', background: '#fff', borderRight: '1px solid #e0e0e0', order: 1 }}>
 
           {/* Warehouse selector */}
           <div style={{ padding: '8px 10px', borderBottom: '1px solid #f0f0f0' }}>
@@ -1320,7 +1320,7 @@ export const POSPage: React.FC = () => {
 
             {showCalculator && (
               <>
-                <div style={{ textAlign: 'right', padding: isCompactCalculator ? '5px 10px' : '6px 12px', minHeight: isCompactCalculator ? 36 : 42, background: '#fff', border: '1px solid #e8e8e8', borderRadius: 6, marginBottom: isCompactCalculator ? 8 : 10, fontFamily: 'monospace', fontSize: isCompactCalculator ? 16 : 20, color: numpadBuffer ? '#262626' : '#bbb' }}>
+                <div style={{ textAlign: 'right', padding: isCompactCalculator ? '6px 12px' : '8px 14px', minHeight: isCompactCalculator ? 44 : 54, background: '#fff', border: '1px solid #e8e8e8', borderRadius: 6, marginBottom: isCompactCalculator ? 8 : 10, fontFamily: 'monospace', fontSize: isCompactCalculator ? 20 : 26, color: numpadBuffer ? '#262626' : '#bbb' }}>
                   {numpadBuffer || (selectedCartId
                     ? (numpadMode === 'qty'
                       ? String(cart.find(i => i.productId === selectedCartId)?.quantity ?? '')
@@ -1328,7 +1328,7 @@ export const POSPage: React.FC = () => {
                     : t('selectAnItem')
                   )}
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: isCompactCalculator ? 5 : 6 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: isCompactCalculator ? 7 : 8 }}>
                   {(['1','2','3','Qty','4','5','6','%','7','8','9','Price','+/-','0','.','⌫'] as const).map((key) => {
                     const isModeKey = key === 'Qty' || key === '%' || key === 'Price';
                     const modeMap: Record<string, 'qty' | 'disc' | 'price'> = { 'Qty': 'qty', '%': 'disc', 'Price': 'price' };
@@ -1349,13 +1349,13 @@ export const POSPage: React.FC = () => {
                         key={key}
                         onClick={() => { if (isModeKey) { setNumpadMode(modeMap[key]); setNumpadBuffer(''); } else handleNumpadKey(key); }}
                         style={{
-                          height: isCompactCalculator ? 52 : 62, border: getBorder(), borderRadius: 6,
+                          height: isCompactCalculator ? 68 : 80, border: getBorder(), borderRadius: 8,
                           background: getBg(),
                           color: key === '⌫' ? '#8b1a1a' : '#262626',
                           fontWeight: isModeKey ? 700 : 500,
                           fontSize: isCompactCalculator
-                            ? (isModeKey ? 13 : 18)
-                            : (isModeKey ? 14 : 20),
+                            ? (isModeKey ? 15 : 22)
+                            : (isModeKey ? 16 : 26),
                           cursor: 'pointer', fontFamily: 'inherit',
                           boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
                         }}
@@ -1480,7 +1480,7 @@ export const POSPage: React.FC = () => {
               onClick={openPayment}
               disabled={cart.length === 0}
               style={{
-                width: '100%', height: 58, fontSize: 18, fontWeight: 700,
+                width: '100%', height: isCompactCalculator ? 64 : 72, fontSize: isCompactCalculator ? 18 : 20, fontWeight: 700,
                 background: cart.length === 0 ? '#d9d9d9' : primary,
                 color: cart.length === 0 ? '#aaa' : '#fff',
                 border: 'none', borderRadius: 6,
