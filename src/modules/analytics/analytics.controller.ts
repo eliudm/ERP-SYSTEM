@@ -126,6 +126,19 @@ export class AnalyticsController {
     return this.analyticsService.getSalesRepLeaderboard(startDate, endDate);
   }
 
+  @ApiOperation({ summary: 'Get top categories by revenue within a date range' })
+  @Roles(Role.ADMIN, Role.ACCOUNTANT, Role.SALES_USER)
+  @Get('top-categories')
+  getTopCategories(
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+    @Query('limit') limit?: string,
+  ) {
+    this.validateDateRange(startDate, endDate);
+    const parsedLimit = limit ? parseInt(limit, 10) : 10;
+    return this.analyticsService.getTopCategories(startDate, endDate, parsedLimit);
+  }
+
   @ApiOperation({ summary: 'Quote to invoice conversion rate' })
   @Roles(Role.ADMIN, Role.ACCOUNTANT, Role.SALES_USER)
   @Get('quote-conversion')

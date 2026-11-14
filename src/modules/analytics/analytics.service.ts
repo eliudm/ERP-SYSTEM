@@ -567,6 +567,54 @@ export class AnalyticsService {
     return { data: leaderboard };
   }
 
+  // ─── TOP CATEGORIES (by revenue from invoice items) ─────
+  async getTopCategories(startDate: string, endDate: string, limit = 10) {
+    return this.cached(
+      `analytics:top-categories:${startDate}:${endDate}:${limit}`,
+      () => this.computeTopCategories(startDate, endDate, limit),
+    );
+  }
+
+  private async computeTopCategories(startDate: string, endDate: string, limit = 10) {
+    const NAIROBI_OFFSET_MS = 3 * 60 * 60 * 1000;
+    const start = new Date(new Date(`${startDate}T00:00:00.000Z`).getTime() - NAIROBI_OFFSET_MS);
+    const end = new Date(new Date(`${endDate}T23:59:59.999Z`).getTime() - NAIROBI_OFFSET_MS);
+
+    const items = await this.prisma.salesInvoiceItem.findMany({
+      where: {
+        invoice: {
+          status: { in: ['APPROVED', 'PAID'] },
+          invoiceDate: { gte: start, lte: end },
+        },
+      },
+      select: {
+        invoiceId: true,
+        lineTotal: true,
+        quantity: true,
+        product: { select: { category: { select: { id: true, name: true } } } },
+      },
+    });
+
+    const catMap = new Map<string, { name: string; revenue: number; unitsSold: number; invoiceIds: Set<string> }>();
+
+    for (const item of items) {
+      const catId = item.product?.category?.id ?? 'uncategorized';
+      const catName = item.product?.category?.name ?? 'Uncategorized';
+      const existing = catMap.get(catId) ?? { name: catName, revenue: 0, unitsSold: 0, invoiceIds: new Set<string>() };
+      existing.revenue += Number(item.lineTotal);
+      existing.unitsSold += Number(item.quantity);
+      existing.invoiceIds.add(item.invoiceId);
+      catMap.set(catId, existing);
+    }
+
+    const data = Array.from(catMap.entries())
+      .map(([id, v]) => ({ categoryId: id, name: v.name, revenue: v.revenue, unitsSold: v.unitsSold, orders: v.invoiceIds.size }))
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, limit);
+
+    return { period: { start, end }, data };
+  }
+
   // ─── QUOTE → INVOICE CONVERSION ──────────────────────────
   async getQuoteConversion(startDate: string, endDate: string) {
     const key = `analytics:quote-conversion:${startDate}:${endDate}`;

@@ -127,6 +127,19 @@ export interface QuoteConversion {
   conversionRate: number;
 }
 
+export interface TopCategory {
+  categoryId: string;
+  name: string;
+  revenue: number;
+  unitsSold: number;
+  orders: number;
+}
+
+export interface TopCategoriesResponse {
+  period: { start: string; end: string };
+  data: TopCategory[];
+}
+
 export const analyticsApi = {
   getSalesTrend: async (
     startDate: string,
@@ -210,6 +223,11 @@ export const analyticsApi = {
 
   getQuoteConversion: async (startDate: string, endDate: string): Promise<QuoteConversion> => {
     const res = await apiClient.get('/analytics/quote-conversion', { params: { startDate, endDate } });
+    return res.data;
+  },
+
+  getTopCategories: async (startDate: string, endDate: string, limit = 10): Promise<TopCategoriesResponse> => {
+    const res = await apiClient.get('/analytics/top-categories', { params: { startDate, endDate, limit } });
     return res.data;
   },
 };
