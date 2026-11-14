@@ -11,12 +11,16 @@ import { ETIMS_QUEUE } from './etims-queue/etims-queue.service';
     BullModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        connection: {
-          host: config.get('REDIS_HOST', 'localhost'),
-          port: config.get<number>('REDIS_PORT', 6379),
-        },
-      }),
+      useFactory: (config: ConfigService) => {
+        const password = config.get<string>('REDIS_PASSWORD');
+        return {
+          connection: {
+            host: config.get('REDIS_HOST', 'localhost'),
+            port: config.get<number>('REDIS_PORT', 6379),
+            ...(password ? { password } : {}),
+          },
+        };
+      },
     }),
     BullModule.registerQueue({
       name: ETIMS_QUEUE,
