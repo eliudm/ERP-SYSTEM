@@ -172,7 +172,7 @@ export class EtimsService {
 
     try {
       // Submit to KRA eTIMS API
-      const response = await this.axiosInstance.post('/trnsSalesOsdc', {
+      const response = await this.axiosInstance.post('/saveTrnsSalesOsdc', {
         tpin: this.sellerPin,
         bhfId: '00',
         ...payload,
@@ -358,6 +358,57 @@ export class EtimsService {
     await this.submitInvoice(invoiceId);
 
     return { message: 'Retry submitted successfully' };
+  }
+
+  // ─── GET CONFIG (non-secret) ─────────────────────────────
+  getConfig() {
+    const pin = this.sellerPin;
+    const serial = this.config.get<string>('ETIMS_DEVICE_SERIAL') || '';
+    const env = this.config.get<string>('ETIMS_ENV') || 'sandbox';
+    return {
+      environment: env,
+      baseUrl: this.baseUrl,
+      sellerPin: pin ? `${pin.substring(0, 3)}****${pin.slice(-2)}` : 'NOT SET',
+      deviceSerial: serial && serial !== 'placeholder'
+        ? `${serial.substring(0, 4)}****` : 'NOT CONFIGURED',
+      configured: !!(pin && serial && serial !== 'placeholder'),
+    };
+  }
+
+  // ─── INITIALIZE DEVICE ───────────────────────────────────
+  async initializeDevice() {
+    this.logger.log('Initializing eTIMS device with KRA...');
+    try {
+      const response = await this.axiosInstance.post('/selectInitOsdcInfo', {
+        tin: this.sellerPin,
+        bhfId: '00',
+      });
+      const data = response.data;
+      this.logger.log(`eTIMS init response: ${JSON.stringify(data)}`);
+      if (data.resultCd === '000') {
+        return {
+          success: true,
+          message: 'Device initialized successfully',
+          data: data.data,
+          resultCd: data.resultCd,
+          resultMsg: data.resultMsg,
+        };
+      } else {
+        return {
+          success: false,
+          message: data.resultMsg || 'Initialization failed',
+          resultCd: data.resultCd,
+        };
+      }
+    } catch (error) {
+      const msg = error.response?.data?.resultMsg || error.message || 'Connection failed';
+      this.logger.error(`eTIMS init failed: ${msg}`);
+      return {
+        success: false,
+        message: msg,
+        error: error.response?.data || null,
+      };
+    }
   }
 
   // ─── GET FAILED SUBMISSIONS ──────────────────────────────

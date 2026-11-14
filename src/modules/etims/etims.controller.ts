@@ -17,6 +17,22 @@ export class EtimsController {
     private etimsQueueService: EtimsQueueService,
   ) {}
 
+  // GET /etims/config
+  @ApiOperation({ summary: 'Get eTIMS configuration (non-sensitive)' })
+  @Get('config')
+  @Roles(Role.ADMIN, Role.ACCOUNTANT)
+  getConfig() {
+    return this.etimsService.getConfig();
+  }
+
+  // POST /etims/initialize
+  @ApiOperation({ summary: 'Initialize/test eTIMS device connection with KRA' })
+  @Post('initialize')
+  @Roles(Role.ADMIN)
+  initialize() {
+    return this.etimsService.initializeDevice();
+  }
+
   // GET /etims/stats
   @ApiOperation({ summary: 'Get eTIMS submission statistics' })
   @Get('stats')
