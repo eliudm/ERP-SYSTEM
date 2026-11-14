@@ -23,3 +23,5 @@ services:
 
 volumes:
   postgres_data:
+    external: true
+    name: erp-backend_postgres_data
