@@ -854,8 +854,13 @@ export const POSPage: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    if (!posVerified) {
+      navigate('/pos/dashboard', { replace: true });
+    }
+  }, [posVerified, navigate]);
+
   if (!posVerified) {
-    navigate('/pos/dashboard', { replace: true });
     return null;
   }
 
