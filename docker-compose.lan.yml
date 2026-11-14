@@ -1,0 +1,59 @@
+version: '3.8'
+
+# LAN server setup — one machine serves, all others connect via its IP.
+# No SSL required. Access via http://SERVER_IP on port 80.
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: erp_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER:-erpuser}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-erppassword}
+      POSTGRES_DB: ${DB_NAME:-erpdb}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    expose:
+      - "5432"
+
+  redis:
+    image: redis:7-alpine
+    container_name: erp_redis
+    restart: always
+    expose:
+      - "6379"
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: erp_backend
+    restart: always
+    env_file: .env.lan
+    environment:
+      - NODE_ENV=production
+      - REDIS_HOST=redis
+      - DATABASE_URL=postgresql://${DB_USER:-erpuser}:${DB_PASSWORD:-erppassword}@postgres:5432/${DB_NAME:-erpdb}
+    depends_on:
+      - postgres
+      - redis
+    expose:
+      - "3000"
+
+  nginx:
+    image: nginx:alpine
+    container_name: erp_nginx
+    restart: always
+    ports:
+      - "80:80"      # All machines on the LAN connect here
+    volumes:
+      - ./nginx/nginx.lan.conf:/etc/nginx/nginx.conf:ro
+      - ./frontend/dist:/usr/share/nginx/html:ro
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+    external: true
+    name: erp-backend_postgres_data
