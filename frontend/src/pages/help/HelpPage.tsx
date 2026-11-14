@@ -32,6 +32,12 @@ const CATEGORY_BG: Record<string, string> = {
   errors: '#fff2f0',
 };
 
+const inlineBold = (text: string): React.ReactNode => {
+  const parts = text.split(/\*\*([^*]+)\*\*/g);
+  if (parts.length === 1) return text;
+  return <>{parts.map((p, i) => i % 2 === 1 ? <strong key={i}>{p}</strong> : p)}</>;
+};
+
 const renderMarkdown = (content: string): React.ReactNode => {
   const lines = content.split('\n');
   const elements: React.ReactNode[] = [];
@@ -43,28 +49,23 @@ const renderMarkdown = (content: string): React.ReactNode => {
     } else if (line.startsWith('### ')) {
       elements.push(<Title key={key++} level={5} style={{ marginTop: 16, marginBottom: 6 }}>{line.slice(4)}</Title>);
     } else if (line.startsWith('- ') || line.startsWith('* ')) {
-      elements.push(<div key={key++} style={{ paddingLeft: 16, marginBottom: 4, fontSize: 14 }}>• {line.slice(2)}</div>);
+      elements.push(<div key={key++} style={{ paddingLeft: 16, marginBottom: 4, fontSize: 14 }}>• {inlineBold(line.slice(2))}</div>);
     } else if (/^\d+\.\s/.test(line)) {
-      elements.push(<div key={key++} style={{ paddingLeft: 16, marginBottom: 4, fontSize: 14 }}>{line}</div>);
+      elements.push(<div key={key++} style={{ paddingLeft: 16, marginBottom: 4, fontSize: 14 }}>{inlineBold(line)}</div>);
     } else if (line.startsWith('> ')) {
       elements.push(
         <div key={key++} style={{ borderLeft: '3px solid #1677ff', paddingLeft: 12, margin: '8px 0', color: '#555', fontStyle: 'italic', fontSize: 14 }}>
-          {line.slice(2)}
+          {inlineBold(line.slice(2))}
         </div>
       );
     } else if (line === '') {
       elements.push(<div key={key++} style={{ marginBottom: 8 }} />);
     } else {
-      const parts = line.split(/\*\*([^*]+)\*\*/g);
-      if (parts.length > 1) {
-        elements.push(
-          <Paragraph key={key++} style={{ marginBottom: 6 }}>
-            {parts.map((p, j) => j % 2 === 1 ? <strong key={j}>{p}</strong> : p)}
-          </Paragraph>
-        );
-      } else {
-        elements.push(<Paragraph key={key++} style={{ marginBottom: 6, fontSize: 14 }}>{line}</Paragraph>);
-      }
+      elements.push(
+        <Paragraph key={key++} style={{ marginBottom: 6, fontSize: 14 }}>
+          {inlineBold(line)}
+        </Paragraph>
+      );
     }
   }
   return <>{elements}</>;
