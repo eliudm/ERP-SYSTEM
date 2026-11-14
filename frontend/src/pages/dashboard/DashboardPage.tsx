@@ -1,24 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
-  Row, Col, Card, Statistic, Table,
-  Tag, Typography, Space, DatePicker, Button,
-  Avatar,
+  Row, Col, Card, Table,
+  Tag, Typography, Space, Button,
+  Avatar, Segmented,
 } from 'antd';
-import type { Dayjs } from 'dayjs';
 import {
   ArrowUpOutlined, ArrowDownOutlined,
-  DollarOutlined, FileTextOutlined,
-  ClockCircleOutlined, CheckCircleOutlined,
   ShoppingCartOutlined, TeamOutlined,
   InboxOutlined, ShoppingOutlined,
   AccountBookOutlined, SettingOutlined,
   SafetyCertificateOutlined, BarChartOutlined,
   UserOutlined, ClusterOutlined,
+  LeftOutlined, RightOutlined,
 } from '@ant-design/icons';
 import {
   AreaChart, Area, XAxis, YAxis,
   CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend,
 } from 'recharts';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -28,134 +25,120 @@ import dayjs from 'dayjs';
 import { useNavigate } from 'react-router-dom';
 
 const { Title, Text } = Typography;
-const { RangePicker } = DatePicker;
 
-// Chart colors
-const COLORS = ['#1677ff', '#52c41a', '#fa8c16', '#f5222d'];
+type PeriodPreset = 'last30' | 'last90' | 'thisMonth' | 'thisYear';
+
+const PRESETS: { label: string; value: PeriodPreset }[] = [
+  { label: 'Last 30 Days', value: 'last30' },
+  { label: 'Last 90 Days', value: 'last90' },
+  { label: 'This Month', value: 'thisMonth' },
+  { label: 'This Year', value: 'thisYear' },
+];
+
+function computePeriod(preset: PeriodPreset, offset: number): { start: string; end: string } {
+  const today = dayjs();
+  let start: dayjs.Dayjs;
+  let end: dayjs.Dayjs;
+
+  switch (preset) {
+    case 'last30':
+      end = today.subtract(offset * 30, 'day');
+      start = end.subtract(29, 'day');
+      break;
+    case 'last90':
+      end = today.subtract(offset * 90, 'day');
+      start = end.subtract(89, 'day');
+      break;
+    case 'thisMonth':
+      end = today.subtract(offset, 'month').endOf('month');
+      start = today.subtract(offset, 'month').startOf('month');
+      break;
+    default: // thisYear
+      end = today.subtract(offset, 'year').endOf('year');
+      start = today.subtract(offset, 'year').startOf('year');
+  }
+
+  return {
+    start: start.format('YYYY-MM-DD'),
+    end: end.format('YYYY-MM-DD'),
+  };
+}
+
+function getPeriodLabel(preset: PeriodPreset, offset: number): string {
+  if (offset === 0) {
+    return PRESETS.find(p => p.value === preset)?.label ?? '';
+  }
+  const { start, end } = computePeriod(preset, offset);
+  return `${dayjs(start).format('D MMM')} – ${dayjs(end).format('D MMM YYYY')}`;
+}
+
+function pctChange(current: number, prev: number): number | null {
+  if (!prev) return null;
+  return ((current - prev) / prev) * 100;
+}
+
+interface KpiCardProps {
+  title: string;
+  value: React.ReactNode;
+  pct: number | null;
+  accentColor: string;
+}
+
+const KpiCard: React.FC<KpiCardProps> = ({ title, value, pct, accentColor }) => {
+  const isUp = pct !== null && pct >= 0;
+  return (
+    <Card
+      bordered={false}
+      style={{
+        borderRadius: 16,
+        boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+        borderTop: `4px solid ${accentColor}`,
+        height: '100%',
+      }}
+    >
+      <Text type="secondary" style={{ fontSize: 13, display: 'block', marginBottom: 6 }}>{title}</Text>
+      <div style={{ fontSize: 26, fontWeight: 700, color: '#1a1a2e', marginBottom: 8 }}>{value}</div>
+      {pct !== null ? (
+        <Space size={4}>
+          {isUp
+            ? <ArrowUpOutlined style={{ color: '#52c41a', fontSize: 12 }} />
+            : <ArrowDownOutlined style={{ color: '#ff4d4f', fontSize: 12 }} />}
+          <Text style={{ color: isUp ? '#52c41a' : '#ff4d4f', fontSize: 12, fontWeight: 600 }}>
+            {Math.abs(pct).toFixed(1)}%
+          </Text>
+          <Text type="secondary" style={{ fontSize: 12 }}>since last period</Text>
+        </Space>
+      ) : (
+        <Text type="secondary" style={{ fontSize: 12 }}>—</Text>
+      )}
+    </Card>
+  );
+};
 
 export const DashboardPage: React.FC = () => {
   const { t } = useTranslation('dashboard');
   const navigate = useNavigate();
   const currentYear = dayjs().year();
-  const defaultRange: [Dayjs, Dayjs] = [dayjs().startOf('year'), dayjs()];
-  const [dateRange, setDateRange] = useState<[Dayjs, Dayjs]>(defaultRange);
-  const startDate = dateRange[0].format('YYYY-MM-DD');
-  const endDate = dateRange[1].format('YYYY-MM-DD');
 
-  const handleDateRangeChange = (values: [Dayjs | null, Dayjs | null] | null) => {
-    if (values && values[0] && values[1]) {
-      setDateRange([values[0], values[1]]);
-    } else {
-      setDateRange(defaultRange);
-    }
+  const [preset, setPreset] = useState<PeriodPreset>('last90');
+  const [offset, setOffset] = useState(0);
+
+  const period = useMemo(() => computePeriod(preset, offset), [preset, offset]);
+  const prevPeriod = useMemo(() => computePeriod(preset, offset + 1), [preset, offset]);
+
+  const handlePresetChange = (val: string | number) => {
+    setPreset(val as PeriodPreset);
+    setOffset(0);
   };
 
-  const appTiles = [
-    {
-      key: '/sales/pos',
-      title: t('tiles.pos.title'),
-      description: t('tiles.pos.description'),
-      icon: <ShoppingCartOutlined />,
-      accent: 'linear-gradient(135deg, #ff9966 0%, #ff5e62 100%)',
-    },
-    {
-      key: '/sales/invoices',
-      title: t('tiles.sales.title'),
-      description: t('tiles.sales.description'),
-      icon: <BarChartOutlined />,
-      accent: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-    },
-    {
-      key: '/inventory/products',
-      title: t('tiles.inventory.title'),
-      description: t('tiles.inventory.description'),
-      icon: <InboxOutlined />,
-      accent: 'linear-gradient(135deg, #6a11cb 0%, #2575fc 100%)',
-    },
-    {
-      key: '/procurement/purchase-orders',
-      title: t('tiles.purchase.title'),
-      description: t('tiles.purchase.description'),
-      icon: <ShoppingOutlined />,
-      accent: 'linear-gradient(135deg, #f7971e 0%, #ffd200 100%)',
-    },
-    {
-      key: '/accounting/accounts',
-      title: t('tiles.accounting.title'),
-      description: t('tiles.accounting.description'),
-      icon: <AccountBookOutlined />,
-      accent: 'linear-gradient(135deg, #a044ff 0%, #6a3093 100%)',
-    },
-    {
-      key: '/hr/employees',
-      title: t('tiles.employees.title'),
-      description: t('tiles.employees.description'),
-      icon: <TeamOutlined />,
-      accent: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)',
-    },
-    {
-      key: '/sales/customers',
-      title: t('tiles.customers.title'),
-      description: t('tiles.customers.description'),
-      icon: <UserOutlined />,
-      accent: 'linear-gradient(135deg, #fc5c7d 0%, #6a82fb 100%)',
-    },
-    {
-      key: '/inventory/movements',
-      title: t('tiles.stockFlow.title'),
-      description: t('tiles.stockFlow.description'),
-      icon: <ClusterOutlined />,
-      accent: 'linear-gradient(135deg, #00c6ff 0%, #0072ff 100%)',
-    },
-    {
-      key: '/etims/config',
-      title: t('tiles.etims.title'),
-      description: t('tiles.etims.description'),
-      icon: <SafetyCertificateOutlined />,
-      accent: 'linear-gradient(135deg, #f953c6 0%, #b91d73 100%)',
-    },
-    {
-      key: '/settings/general',
-      title: t('tiles.settings.title'),
-      description: t('tiles.settings.description'),
-      icon: <SettingOutlined />,
-      accent: 'linear-gradient(135deg, #43cea2 0%, #185a9d 100%)',
-    },
-  ];
-
-  const getPeriodLabel = (): { title: string; sub: string } => {
-    const today = dayjs().format('YYYY-MM-DD');
-    const yesterday = dayjs().subtract(1, 'day').format('YYYY-MM-DD');
-    const weekStart = dayjs().startOf('week').format('YYYY-MM-DD');
-    const monthStart = dayjs().startOf('month').format('YYYY-MM-DD');
-    const yearStart = dayjs().startOf('year').format('YYYY-MM-DD');
-
-    if (startDate === today && endDate === today)
-      return { title: 'Revenue Today', sub: "Today's sales" };
-    if (startDate === yesterday && endDate === yesterday)
-      return { title: 'Revenue Yesterday', sub: "Yesterday's sales" };
-    if (startDate === weekStart && endDate === today)
-      return { title: 'Revenue This Week', sub: "This week's sales" };
-    if (startDate === monthStart && endDate === today)
-      return { title: 'Revenue This Month', sub: "This month's sales" };
-    if (startDate === yearStart && endDate === today)
-      return { title: 'Revenue This Year', sub: `Year to date ${currentYear}` };
-    return {
-      title: 'Revenue',
-      sub: `${dateRange[0].format('D MMM')} – ${dateRange[1].format('D MMM YYYY')}`,
-    };
-  };
-
-  const periodLabel = getPeriodLabel();
-
-  const { data: summary, isLoading } = useQuery({
-    queryKey: ['sales-summary', startDate, endDate],
-    queryFn: () => salesApi.getSalesSummary(startDate, endDate),
+  const { data: summary } = useQuery({
+    queryKey: ['sales-summary', period.start, period.end],
+    queryFn: () => salesApi.getSalesSummary(period.start, period.end),
   });
 
-  const { data: invoicesData } = useQuery({
-    queryKey: ['recent-invoices'],
-    queryFn: () => salesApi.getInvoices(1, 5),
+  const { data: prevSummary } = useQuery({
+    queryKey: ['sales-summary', prevPeriod.start, prevPeriod.end],
+    queryFn: () => salesApi.getSalesSummary(prevPeriod.start, prevPeriod.end),
   });
 
   const { data: monthlySales } = useQuery({
@@ -163,151 +146,230 @@ export const DashboardPage: React.FC = () => {
     queryFn: () => salesApi.getMonthlySales(currentYear),
   });
 
-  const monthlyData = (monthlySales?.months || []).map((m: any) => ({
+  const { data: topInvoices } = useQuery({
+    queryKey: ['top-invoices'],
+    queryFn: () => salesApi.getInvoices(1, 5),
+  });
+
+  const { data: topQuotes } = useQuery({
+    queryKey: ['top-quotes'],
+    queryFn: () => salesApi.getQuotes(1, 5),
+  });
+
+  // KPI values
+  const revenue = Number(summary?.totalRevenue || 0);
+  const prevRevenue = Number(prevSummary?.totalRevenue || 0);
+  const orders = summary?.totalInvoices || 0;
+  const prevOrders = prevSummary?.totalInvoices || 0;
+  const collected = Number(summary?.totalPaid || 0);
+  const prevCollected = Number(prevSummary?.totalPaid || 0);
+  const avgOrder = orders > 0 ? revenue / orders : 0;
+  const prevAvgOrder = (prevSummary?.totalInvoices ?? 0) > 0 ? prevRevenue / (prevSummary?.totalInvoices ?? 1) : 0;
+
+  const monthlyData = (monthlySales?.months || []).map((m) => ({
     month: m.month,
     revenue: m.revenue,
     paid: m.paid,
   }));
 
-  const pieData = [
-    { name: t('paid'), value: Number(summary?.totalPaid || 0) },
-    { name: t('outstanding'), value: Number(summary?.outstanding || 0) },
+  const appTiles = [
+    { key: '/sales/pos', title: t('tiles.pos.title'), description: t('tiles.pos.description'), icon: <ShoppingCartOutlined />, accent: 'linear-gradient(135deg, #ff9966 0%, #ff5e62 100%)' },
+    { key: '/sales/invoices', title: t('tiles.sales.title'), description: t('tiles.sales.description'), icon: <BarChartOutlined />, accent: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' },
+    { key: '/inventory/products', title: t('tiles.inventory.title'), description: t('tiles.inventory.description'), icon: <InboxOutlined />, accent: 'linear-gradient(135deg, #6a11cb 0%, #2575fc 100%)' },
+    { key: '/procurement/purchase-orders', title: t('tiles.purchase.title'), description: t('tiles.purchase.description'), icon: <ShoppingOutlined />, accent: 'linear-gradient(135deg, #f7971e 0%, #ffd200 100%)' },
+    { key: '/accounting/accounts', title: t('tiles.accounting.title'), description: t('tiles.accounting.description'), icon: <AccountBookOutlined />, accent: 'linear-gradient(135deg, #a044ff 0%, #6a3093 100%)' },
+    { key: '/hr/employees', title: t('tiles.employees.title'), description: t('tiles.employees.description'), icon: <TeamOutlined />, accent: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)' },
+    { key: '/sales/customers', title: t('tiles.customers.title'), description: t('tiles.customers.description'), icon: <UserOutlined />, accent: 'linear-gradient(135deg, #fc5c7d 0%, #6a82fb 100%)' },
+    { key: '/inventory/movements', title: t('tiles.stockFlow.title'), description: t('tiles.stockFlow.description'), icon: <ClusterOutlined />, accent: 'linear-gradient(135deg, #00c6ff 0%, #0072ff 100%)' },
+    { key: '/etims/config', title: t('tiles.etims.title'), description: t('tiles.etims.description'), icon: <SafetyCertificateOutlined />, accent: 'linear-gradient(135deg, #f953c6 0%, #b91d73 100%)' },
+    { key: '/settings/general', title: t('tiles.settings.title'), description: t('tiles.settings.description'), icon: <SettingOutlined />, accent: 'linear-gradient(135deg, #43cea2 0%, #185a9d 100%)' },
   ];
 
-  const recentColumns = [
+  const invoiceColumns = [
     {
-      title: t('invoiceNo'),
-      dataIndex: 'invoiceNo',
-      key: 'invoiceNo',
-      render: (v: string) => (
-        <Text strong style={{ color: '#1677ff' }}>{v}</Text>
-      ),
+      title: 'Invoice #', dataIndex: 'invoiceNo', key: 'invoiceNo',
+      render: (v: string) => <Text strong style={{ color: '#1677ff' }}>{v}</Text>,
     },
+    { title: t('common:customer'), dataIndex: ['customer', 'name'], key: 'customer' },
+    { title: t('common:amount'), dataIndex: 'total', key: 'total', render: (v: number) => formatCurrency(Number(v)) },
+    { title: t('common:date'), dataIndex: 'invoiceDate', key: 'date', render: (v: string) => formatDate(v) },
+    { title: t('common:status'), dataIndex: 'status', key: 'status', render: (v: string) => <Tag color={getStatusColor(v)}>{v}</Tag> },
+  ];
+
+  const quoteColumns = [
     {
-      title: t('common:customer'),
-      dataIndex: ['customer', 'name'],
-      key: 'customer',
+      title: 'Quote #', dataIndex: 'quoteNumber', key: 'quoteNumber',
+      render: (v: string) => <Text strong style={{ color: '#722ed1' }}>{v}</Text>,
     },
-    {
-      title: t('common:amount'),
-      dataIndex: 'total',
-      key: 'total',
-      render: (v: number) => formatCurrency(Number(v)),
-    },
-    {
-      title: t('common:date'),
-      dataIndex: 'invoiceDate',
-      key: 'invoiceDate',
-      render: (v: string) => formatDate(v),
-    },
-    {
-      title: t('common:status'),
-      dataIndex: 'status',
-      key: 'status',
-      render: (v: string) => (
-        <Tag color={getStatusColor(v)}>{v}</Tag>
-      ),
-    },
+    { title: t('common:customer'), dataIndex: ['customer', 'name'], key: 'customer' },
+    { title: t('common:amount'), dataIndex: 'total', key: 'total', render: (v: number) => formatCurrency(Number(v)) },
+    { title: 'Valid Until', dataIndex: 'validUntil', key: 'validUntil', render: (v: string) => v ? formatDate(v) : '—' },
+    { title: t('common:status'), dataIndex: 'status', key: 'status', render: (v: string) => <Tag color={getStatusColor(v)}>{v}</Tag> },
   ];
 
   return (
     <Space direction="vertical" style={{ width: '100%' }} size="large">
-      <div
-        style={{
-          padding: 28,
-          borderRadius: 30,
-          background: 'linear-gradient(135deg, rgba(255,255,255,0.78) 0%, rgba(255,249,244,0.92) 100%)',
-          boxShadow: '0 24px 60px rgba(96, 84, 138, 0.08)',
-          border: '1px solid rgba(122, 108, 173, 0.12)',
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-          <div>
-            <Tag color="gold" style={{ borderRadius: 999, padding: '4px 12px', marginBottom: 12 }}>
-              {t('workspaceOverview')}
-            </Tag>
-            <Title level={2} style={{ margin: 0, color: '#2f2749' }}>{t('common:appName')}</Title>
-            <Text type="secondary" style={{ fontSize: 15 }}>
-              {t('tagline')}
-            </Text>
-          </div>
-
-          <Space wrap size="middle" style={{ alignItems: 'center' }}>
-            <RangePicker
-              value={dateRange}
-              onChange={handleDateRangeChange}
-              allowClear={false}
-              style={{ borderRadius: 999 }}
-            />
-            <Button
-              type="primary"
-              size="large"
-              style={{
-                borderRadius: 999,
-                background: 'linear-gradient(135deg, #6f67ff 0%, #1db8a0 100%)',
-                border: 'none',
-                boxShadow: '0 12px 30px rgba(84, 73, 126, 0.18)',
-              }}
-              onClick={() => navigate('/sales/pos')}
-            >
-              {t('openPos')}
-            </Button>
-          </Space>
-        </div>
-
-        <Row gutter={[16, 16]} style={{ marginTop: 20 }}>
-          <Col xs={24} md={8}>
-            <Card bordered={false} style={{ borderRadius: 24, background: 'rgba(255,255,255,0.82)' }}>
-              <Statistic
-                title={t('revenueThisYear')}
-                value={Number(summary?.totalRevenue || 0)}
-                formatter={(v) => formatCurrency(Number(v))}
-                prefix={<DollarOutlined />}
-                valueStyle={{ color: '#2b8a5a' }}
-              />
-              <Text type="secondary">
-                <ArrowUpOutlined style={{ color: '#2b8a5a' }} /> {t('revenueThisYearDesc')}
-              </Text>
-            </Card>
-          </Col>
-          <Col xs={24} md={8}>
-            <Card bordered={false} style={{ borderRadius: 24, background: 'rgba(255,255,255,0.82)' }}>
-              <Statistic
-                title={t('outstanding')}
-                value={Number(summary?.outstanding || 0)}
-                formatter={(v) => formatCurrency(Number(v))}
-                prefix={<ClockCircleOutlined />}
-                valueStyle={{ color: '#d48806' }}
-              />
-              <Text type="secondary">
-                <ArrowDownOutlined style={{ color: '#d48806' }} /> {t('outstandingDesc')}
-              </Text>
-            </Card>
-          </Col>
-          <Col xs={24} md={8}>
-            <Card bordered={false} style={{ borderRadius: 24, background: 'rgba(255,255,255,0.82)' }}>
-              <Statistic
-                title={t('invoicesStat')}
-                value={summary?.totalInvoices || 0}
-                prefix={<FileTextOutlined />}
-                valueStyle={{ color: '#5b54f3' }}
-              />
-              <Text type="secondary">{t('invoicesStatDesc')}</Text>
-            </Card>
-          </Col>
-        </Row>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+        <Title level={3} style={{ margin: 0, color: '#1a1a2e' }}>{t('common:appName')}</Title>
+        <Button
+          type="primary"
+          style={{
+            borderRadius: 999,
+            background: 'linear-gradient(135deg, #6f67ff 0%, #1db8a0 100%)',
+            border: 'none',
+          }}
+          onClick={() => navigate('/sales/pos')}
+        >
+          {t('openPos')}
+        </Button>
       </div>
 
+      {/* Period Selector */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <Segmented
+          options={PRESETS}
+          value={preset}
+          onChange={handlePresetChange}
+        />
+        <Button
+          icon={<LeftOutlined />}
+          onClick={() => setOffset(o => o + 1)}
+          shape="circle"
+          size="small"
+        />
+        <Text style={{ minWidth: 180, textAlign: 'center', fontWeight: 500 }}>
+          {getPeriodLabel(preset, offset)}
+        </Text>
+        <Button
+          icon={<RightOutlined />}
+          onClick={() => setOffset(o => Math.max(0, o - 1))}
+          shape="circle"
+          size="small"
+          disabled={offset === 0}
+        />
+        {offset !== 0 && (
+          <Button size="small" onClick={() => setOffset(0)} style={{ borderRadius: 999 }}>
+            Back to current
+          </Button>
+        )}
+      </div>
+
+      {/* KPI Tiles */}
+      <Row gutter={[16, 16]}>
+        <Col xs={24} sm={12} lg={6}>
+          <KpiCard
+            title="Revenue"
+            value={formatCurrency(revenue)}
+            pct={pctChange(revenue, prevRevenue)}
+            accentColor="#1677ff"
+          />
+        </Col>
+        <Col xs={24} sm={12} lg={6}>
+          <KpiCard
+            title="Orders"
+            value={orders}
+            pct={pctChange(orders, prevOrders)}
+            accentColor="#52c41a"
+          />
+        </Col>
+        <Col xs={24} sm={12} lg={6}>
+          <KpiCard
+            title="Collected"
+            value={formatCurrency(collected)}
+            pct={pctChange(collected, prevCollected)}
+            accentColor="#fa8c16"
+          />
+        </Col>
+        <Col xs={24} sm={12} lg={6}>
+          <KpiCard
+            title="Avg. Order"
+            value={formatCurrency(avgOrder)}
+            pct={pctChange(avgOrder, prevAvgOrder)}
+            accentColor="#722ed1"
+          />
+        </Col>
+      </Row>
+
+      {/* Monthly Sales Chart */}
       <Card
         bordered={false}
-        style={{
-          borderRadius: 30,
-          background: 'rgba(255,255,255,0.7)',
-          boxShadow: '0 24px 60px rgba(96, 84, 138, 0.08)',
-        }}
-        bodyStyle={{ padding: 28 }}
+        title={<Text strong style={{ fontSize: 16 }}>Monthly Sales {currentYear}</Text>}
+        style={{ borderRadius: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, gap: 16, flexWrap: 'wrap' }}>
+        <ResponsiveContainer width="100%" height={280}>
+          <AreaChart data={monthlyData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+            <defs>
+              <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#1677ff" stopOpacity={0.25} />
+                <stop offset="95%" stopColor="#1677ff" stopOpacity={0} />
+              </linearGradient>
+              <linearGradient id="colorPaid" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#52c41a" stopOpacity={0.25} />
+                <stop offset="95%" stopColor="#52c41a" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+            <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+            <YAxis tickFormatter={(v) => `${(v / 1000).toFixed(0)}K`} tick={{ fontSize: 12 }} width={48} />
+            <Tooltip formatter={(value) => formatCurrency(Number(value ?? 0))} />
+            <Area type="monotone" dataKey="revenue" stroke="#1677ff" strokeWidth={2} fill="url(#colorRevenue)" name="Revenue" />
+            <Area type="monotone" dataKey="paid" stroke="#52c41a" strokeWidth={2} fill="url(#colorPaid)" name="Collected" />
+          </AreaChart>
+        </ResponsiveContainer>
+      </Card>
+
+      {/* Top Quotations & Top Sales Orders */}
+      <Row gutter={[16, 16]}>
+        <Col xs={24} lg={12}>
+          <Card
+            bordered={false}
+            title={<Text strong style={{ fontSize: 15 }}>Top Quotations</Text>}
+            extra={<Button type="link" onClick={() => navigate('/sales/quotes')} style={{ padding: 0 }}>View all</Button>}
+            style={{ borderRadius: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}
+          >
+            <Table
+              columns={quoteColumns}
+              dataSource={topQuotes?.data || []}
+              rowKey="id"
+              pagination={false}
+              size="small"
+              onRow={(record: any) => ({
+                onClick: () => navigate(`/sales/quotes/${record.id}`),
+                style: { cursor: 'pointer' },
+              })}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} lg={12}>
+          <Card
+            bordered={false}
+            title={<Text strong style={{ fontSize: 15 }}>Top Sales Orders</Text>}
+            extra={<Button type="link" onClick={() => navigate('/sales/invoices')} style={{ padding: 0 }}>View all</Button>}
+            style={{ borderRadius: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}
+          >
+            <Table
+              columns={invoiceColumns}
+              dataSource={topInvoices?.data || []}
+              rowKey="id"
+              pagination={false}
+              size="small"
+              onRow={(record: any) => ({
+                onClick: () => navigate(`/sales/invoices/${record.id}`),
+                style: { cursor: 'pointer' },
+              })}
+            />
+          </Card>
+        </Col>
+      </Row>
+
+      {/* App Tiles */}
+      <Card
+        bordered={false}
+        style={{ borderRadius: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}
+        bodyStyle={{ padding: 24 }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <div>
             <Title level={4} style={{ margin: 0, color: '#2f2749' }}>{t('apps')}</Title>
             <Text type="secondary">{t('appsSubtitle')}</Text>
@@ -323,37 +385,17 @@ export const DashboardPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => navigate(tile.key)}
-                style={{
-                  width: '100%',
-                  border: 'none',
-                  background: 'transparent',
-                  cursor: 'pointer',
-                  padding: 0,
-                  textAlign: 'left',
-                }}
+                style={{ width: '100%', border: 'none', background: 'transparent', cursor: 'pointer', padding: 0, textAlign: 'left' }}
               >
                 <Card
                   hoverable
                   bordered={false}
-                  style={{
-                    borderRadius: 24,
-                    minHeight: 182,
-                    background: 'rgba(255,255,255,0.92)',
-                    boxShadow: '0 18px 44px rgba(96, 84, 138, 0.08)',
-                  }}
-                  bodyStyle={{ padding: 18 }}
+                  style={{ borderRadius: 16, minHeight: 155, background: 'rgba(255,255,255,0.92)', boxShadow: '0 4px 16px rgba(0,0,0,0.06)' }}
+                  bodyStyle={{ padding: 16 }}
                 >
-                  <Avatar
-                    size={52}
-                    icon={tile.icon}
-                    style={{
-                      background: tile.accent,
-                      boxShadow: '0 10px 26px rgba(84, 73, 126, 0.16)',
-                      marginBottom: 16,
-                    }}
-                  />
+                  <Avatar size={44} icon={tile.icon} style={{ background: tile.accent, marginBottom: 12 }} />
                   <Title level={5} style={{ margin: 0, color: '#2f2749' }}>{tile.title}</Title>
-                  <Text type="secondary" style={{ display: 'block', marginTop: 8, lineHeight: 1.45 }}>
+                  <Text type="secondary" style={{ display: 'block', marginTop: 6, lineHeight: 1.4, fontSize: 12 }}>
                     {tile.description}
                   </Text>
                 </Card>
@@ -361,154 +403,6 @@ export const DashboardPage: React.FC = () => {
             </Col>
           ))}
         </Row>
-      </Card>
-
-      <Row gutter={[16, 16]}>
-        <Col xs={24} sm={12} lg={6}>
-          <Card bordered={false} style={{ borderRadius: 24, background: 'rgba(255,255,255,0.72)' }}>
-            <Statistic
-              title={periodLabel.title}
-              value={Number(summary?.totalRevenue || 0)}
-              formatter={(v) => formatCurrency(Number(v))}
-              prefix={<DollarOutlined />}
-              valueStyle={{ color: '#52c41a' }}
-            />
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              <ArrowUpOutlined style={{ color: '#52c41a' }} /> {periodLabel.sub}
-            </Text>
-          </Card>
-        </Col>
-
-        <Col xs={24} sm={12} lg={6}>
-          <Card bordered={false} style={{ borderRadius: 24, background: 'rgba(255,255,255,0.72)' }}>
-            <Statistic
-              title={t('totalInvoices')}
-              value={summary?.totalInvoices || 0}
-              prefix={<FileTextOutlined />}
-              valueStyle={{ color: '#1677ff' }}
-            />
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              {periodLabel.sub}
-            </Text>
-          </Card>
-        </Col>
-
-        <Col xs={24} sm={12} lg={6}>
-          <Card bordered={false} style={{ borderRadius: 24, background: 'rgba(255,255,255,0.72)' }}>
-            <Statistic
-              title={t('outstanding')}
-              value={Number(summary?.outstanding || 0)}
-              formatter={(v) => formatCurrency(Number(v))}
-              prefix={<ClockCircleOutlined />}
-              valueStyle={{ color: '#fa8c16' }}
-            />
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              <ArrowDownOutlined style={{ color: '#fa8c16' }} /> {t('outstandingDesc2')}
-            </Text>
-          </Card>
-        </Col>
-
-        <Col xs={24} sm={12} lg={6}>
-          <Card bordered={false} style={{ borderRadius: 24, background: 'rgba(255,255,255,0.72)' }}>
-            <Statistic
-              title={t('totalCollected')}
-              value={Number(summary?.totalPaid || 0)}
-              formatter={(v) => formatCurrency(Number(v))}
-              prefix={<CheckCircleOutlined />}
-              valueStyle={{ color: '#52c41a' }}
-            />
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              {periodLabel.sub}
-            </Text>
-          </Card>
-        </Col>
-      </Row>
-
-      <Row gutter={[16, 16]}>
-        <Col xs={24} lg={16}>
-          <Card bordered={false} title={t('revenueVsPaid')} style={{ height: 360, borderRadius: 28, background: 'rgba(255,255,255,0.72)' }}>
-            <ResponsiveContainer width="100%" height={270}>
-              <AreaChart data={monthlyData}>
-                <defs>
-                  <linearGradient id="revenue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#1677ff" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#1677ff" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="expenses" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#f5222d" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#f5222d" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="month" />
-                <YAxis
-                  tickFormatter={(v) =>
-                    `${(v / 1000).toFixed(0)}K`
-                  }
-                />
-                <Tooltip
-                  formatter={(value) => formatCurrency(Number(value ?? 0))}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="revenue"
-                  stroke="#1677ff"
-                  fill="url(#revenue)"
-                  name={t('revenueSeries')}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="paid"
-                  stroke="#52c41a"
-                  fill="url(#expenses)"
-                  name={t('paidSeries')}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </Card>
-        </Col>
-
-        <Col xs={24} lg={8}>
-          <Card bordered={false} title={t('invoiceCollection')} style={{ height: 360, borderRadius: 28, background: 'rgba(255,255,255,0.72)' }}>
-            <ResponsiveContainer width="100%" height={270}>
-              <PieChart>
-                <Pie
-                  data={pieData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={100}
-                  paddingAngle={3}
-                  dataKey="value"
-                >
-                  {pieData.map((_, index) => (
-                    <Cell
-                      key={index}
-                      fill={COLORS[index % COLORS.length]}
-                    />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(value) => formatCurrency(Number(value ?? 0))} />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
-          </Card>
-        </Col>
-      </Row>
-
-      <Card bordered={false} title={t('recentInvoices')} style={{ borderRadius: 28, background: 'rgba(255,255,255,0.72)' }}>
-        <Table
-          columns={recentColumns}
-          dataSource={invoicesData?.data || []}
-          rowKey="id"
-          loading={isLoading}
-          pagination={false}
-          size="small"
-          onRow={(record: any) => ({
-            onClick: () => navigate(`/sales/invoices/${record.id}`),
-            style: { cursor: 'pointer' },
-          })}
-        />
       </Card>
     </Space>
   );
