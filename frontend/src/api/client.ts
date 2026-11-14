@@ -1,6 +1,8 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1';
+// In production/LAN, Nginx proxies /api/v1 → backend, so relative URL works
+// from any machine. In dev, Vite's proxy does the same.
+const API_URL = import.meta.env.VITE_API_URL || '/api/v1';
 
 export const apiClient = axios.create({
   baseURL: API_URL,
